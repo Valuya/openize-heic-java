@@ -462,20 +462,40 @@ public final class HeicImageFrame {
         return inputImage;
     }
 
-    // A fresh reader per decode, over the decoder configuration then the coded data: frames decode independently of
-    // each other and of earlier decodes
+    // A fresh reader per decode: frames decode independently of each other and of earlier decodes. The coded data of
+    // an item in one extent of the file is read in place; an item in several extents, or in idat, is copied after the
+    // decoder configuration first
     private HeicPicture decodePicture() {
         requireHevcConfiguration();
-        byte[] itemBytes = readItemBytes();
-        byte[] decoderInput = new byte[Math.toIntExact(hvcConfigLength + itemBytes.length)];
-        System.arraycopy(parent.getHeicData(), (int) hvcConfigOffset, decoderInput, 0, (int) hvcConfigLength);
-        System.arraycopy(itemBytes, 0, decoderInput, (int) hvcConfigLength, itemBytes.length);
-
-        BitStreamWithNalSupport pictureStream = new BitStreamWithNalSupport(decoderInput);
+        BitStreamWithNalSupport pictureStream;
+        long codedDataStart;
+        long codedDataEnd;
+        IlocItem itemLocation = location;
+        if (itemLocation != null
+                && itemLocation.extents().size() == 1
+                && itemLocation.constructionMethod() == FILE_OFFSET) {
+            IlocItemExtent extent = itemLocation.extents().get(0);
+            pictureStream = new BitStreamWithNalSupport(parent.getHeicData());
+            pictureStream.setBytePosition(hvcConfigOffset);
+            codedDataStart = itemLocation.baseOffset() + extent.offset();
+            codedDataEnd = extent.length() == 0 ? parent.getHeicData().length : codedDataStart + extent.length();
+        } else {
+            byte[] itemBytes = readItemBytes();
+            byte[] decoderInput = new byte[Math.toIntExact(hvcConfigLength + itemBytes.length)];
+            System.arraycopy(parent.getHeicData(), (int) hvcConfigOffset, decoderInput, 0, (int) hvcConfigLength);
+            System.arraycopy(itemBytes, 0, decoderInput, (int) hvcConfigLength, itemBytes.length);
+            pictureStream = new BitStreamWithNalSupport(decoderInput);
+            codedDataStart = hvcConfigLength;
+            codedDataEnd = decoderInput.length;
+        }
         pictureStream.getContext().setDecodingOptions(parent.getDecodingOptions());
         new HEVCDecoderConfigurationRecord(pictureStream);
-        pictureStream.setBytePosition(hvcConfigLength);
-        while (pictureStream.moreData()) {
+
+        if (codedDataStart < 0 || codedDataEnd > pictureStream.getLength()) {
+            throw new HeicFormatException("The coded data of image %d is outside the file".formatted(id));
+        }
+        pictureStream.setBytePosition(codedDataStart);
+        while (pictureStream.getBitPosition() / 8 < codedDataEnd) {
             NalUnit.parseUnit(pictureStream);
         }
 
@@ -594,6 +614,10 @@ public final class HeicImageFrame {
     byte[] readItemBytes() {
         if (location == null || location.extents().isEmpty()) {
             throw new HeicFormatException("Item %d has no data".formatted(id));
+        }
+        if (location.extents().size() == 1) {
+            IlocItemExtent extent = location.extents().get(0);
+            return readExtent(location.constructionMethod(), location.baseOffset() + extent.offset(), extent);
         }
         ByteArrayOutputStream itemBytes = new ByteArrayOutputStream();
         for (IlocItemExtent extent : location.extents()) {
