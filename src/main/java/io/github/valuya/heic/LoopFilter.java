@@ -10,6 +10,8 @@
 
 package io.github.valuya.heic;
 
+import java.util.Arrays;
+
 /**
  * In-loop filters applied to a fully reconstructed intra picture: the deblocking filter (8.7.2) followed by sample
  * adaptive offset (8.7.3).
@@ -53,14 +55,18 @@ final class LoopFilter {
     private final int subHeightC;
 
     private final boolean highColorRange;
-    private final byte[][][] pixels;
-    private final short[][][] pixelsHighColorRange;
+    private final byte[][] planes;
+    private final short[][] highColorRangePlanes;
+    private final int[] planeWidths;
 
     // the four lines of a luma edge segment, three samples p0..p2 / q0..q2 on each side once filtered
     private final int[][] edgeSamplesP = new int[4][4];
     private final int[][] edgeSamplesQ = new int[4][4];
     private final int[] filteredP = new int[3];
     private final int[] filteredQ = new int[3];
+    // SaoOffsetVal of the coding tree block, and the offset index of each band
+    private final int[] offsetVal = new int[5];
+    private final int[] bandTable = new int[32];
 
     private LoopFilter(HeicPicture picture) {
         this.picture = picture;
@@ -73,8 +79,9 @@ final class LoopFilter {
         this.subWidthC = sps.getSubWidthC();
         this.subHeightC = sps.getSubHeightC();
         this.highColorRange = picture.highColorRange;
-        this.pixels = picture.pixels;
-        this.pixelsHighColorRange = picture.pixelsHighColorRange;
+        this.planes = picture.planes;
+        this.highColorRangePlanes = picture.highColorRangePlanes;
+        this.planeWidths = picture.planeWidths;
     }
 
     static void apply(HeicPicture picture) {
@@ -106,7 +113,7 @@ final class LoopFilter {
         // Luma: edges on the 8x8 grid, in segments of four lines
         for (int y = vertical ? 0 : 8; y < height; y += vertical ? 4 : 8) {
             for (int x = vertical ? 8 : 0; x < width; x += vertical ? 8 : 4) {
-                if ((picture.blockFlags[x >> 2][y >> 2] & edgeFlag) == 0) {
+                if ((picture.blockFlags.get(x, y) & edgeFlag) == 0) {
                     continue;
                 }
 
@@ -138,7 +145,7 @@ final class LoopFilter {
                 for (int xc = vertical ? 8 : 0; xc < widthC; xc += vertical ? 8 : 1) {
                     int x = xc * subWidthC;
                     int y = yc * subHeightC;
-                    if ((picture.blockFlags[x >> 2][y >> 2] & edgeFlag) == 0) {
+                    if ((picture.blockFlags.get(x, y) & edgeFlag) == 0) {
                         continue;
                     }
 
@@ -317,7 +324,8 @@ final class LoopFilter {
                 for (int rx = 0; rx < widthInCtbs; rx++) {
                     SliceHeader header = sliceHeaderAt(rx << ctbLog2Size, ry << ctbLog2Size);
                     boolean enabled = cIdx == 0 ? header.sliceSaoLumaFlag() : header.sliceSaoChromaFlag();
-                    int saoType = picture.saoTypeIdx[cIdx][rx][ry];
+                    int saoType = picture.saoParameters[
+                            picture.saoIndex(cIdx, ry * widthInCtbs + rx) + HeicPicture.SAO_TYPE_IDX];
                     if (enabled && saoType != 0) {
                         saoCtb(rx, ry, cIdx, saoType, band);
                     }
@@ -335,8 +343,7 @@ final class LoopFilter {
         private final int componentWidth;
         private final int componentHeight;
         private final int ctbHeight;
-        private final int bandHeight;
-        // [x * bandHeight + y - firstLine]
+        // [(y - firstLine) * componentWidth + x]
         private final int[] samples;
         // the deblocked last line of the previous row, which sample adaptive offset has modified since
         private final int[] lineAbove;
@@ -347,9 +354,9 @@ final class LoopFilter {
             componentWidth = width / (cIdx == 0 ? 1 : subWidthC);
             componentHeight = height / (cIdx == 0 ? 1 : subHeightC);
             ctbHeight = (1 << ctbLog2Size) / (cIdx == 0 ? 1 : subHeightC);
-            bandHeight = ctbHeight + 2;
-            samples = new int[componentWidth * bandHeight];
-            lineAbove = new int[componentWidth];
+            DecoderWorkspace workspace = picture.workspace;
+            samples = workspace.ints(DecoderWorkspace.DEBLOCKED_BAND + cIdx, componentWidth * (ctbHeight + 2));
+            lineAbove = workspace.ints(DecoderWorkspace.DEBLOCKED_LINE_ABOVE + cIdx, componentWidth);
         }
 
         // before the row ry is modified
@@ -358,18 +365,18 @@ final class LoopFilter {
             firstLine = yCtb - 1;
             int lastLine = Math.min(yCtb + ctbHeight, componentHeight - 1);
             int rowLastLine = Math.min(yCtb + ctbHeight - 1, componentHeight - 1);
-            for (int x = 0; x < componentWidth; x++) {
-                int columnStart = x * bandHeight;
-                samples[columnStart] = lineAbove[x];
-                for (int y = yCtb; y <= lastLine; y++) {
-                    samples[columnStart + y - firstLine] = get(cIdx, x, y);
+            System.arraycopy(lineAbove, 0, samples, 0, componentWidth);
+            for (int y = yCtb; y <= lastLine; y++) {
+                int lineStart = (y - firstLine) * componentWidth;
+                for (int x = 0; x < componentWidth; x++) {
+                    samples[lineStart + x] = get(cIdx, x, y);
                 }
-                lineAbove[x] = samples[columnStart + rowLastLine - firstLine];
             }
+            System.arraycopy(samples, (rowLastLine - firstLine) * componentWidth, lineAbove, 0, componentWidth);
         }
 
         int sample(int x, int y) {
-            return samples[x * bandHeight + y - firstLine];
+            return samples[(y - firstLine) * componentWidth + x];
         }
     }
 
@@ -392,19 +399,20 @@ final class LoopFilter {
                 cIdx == 0 ? pps.ppsRangeExt.log2SaoOffsetScaleLuma : pps.ppsRangeExt.log2SaoOffsetScaleChroma;
 
         // SaoOffsetVal (7.4.9.3)
-        int[] offsetAbs = picture.saoOffsetAbs[cIdx][rx][ry];
-        int[] offsetSign = picture.saoOffsetSign[cIdx][rx][ry];
-        int[] offsetVal = new int[5];
+        int[] sao = picture.saoParameters;
+        int saoIndex = picture.saoIndex(cIdx, ry * sps.getPicWidthInCtbsY() + rx);
+        int[] offsetVal = this.offsetVal;
         for (int i = 0; i < 4; i++) {
-            offsetVal[i + 1] = ((1 - 2 * offsetSign[i]) * offsetAbs[i]) << log2OffsetScale;
+            offsetVal[i + 1] = sao[saoIndex + HeicPicture.SAO_OFFSETS + i] << log2OffsetScale;
         }
 
         int bandShift = bitDepth - 5;
-        int eoClass = picture.saoEoClass[cIdx][rx][ry];
+        int eoClass = sao[saoIndex + HeicPicture.SAO_EO_CLASS];
         // band offset: the offset index of each of the 32 bands, 0 outside the four bands from sao_band_position
-        int[] bandTable = new int[saoType == 1 ? 32 : 0];
+        int[] bandTable = this.bandTable;
         if (saoType == 1) {
-            int bandPosition = picture.saoBandPosition[cIdx][rx][ry];
+            Arrays.fill(bandTable, 0);
+            int bandPosition = sao[saoIndex + HeicPicture.SAO_BAND_POSITION];
             for (int k = 0; k < 4; k++) {
                 bandTable[(k + bandPosition) & 31] = k + 1;
             }
@@ -485,7 +493,7 @@ final class LoopFilter {
     }
 
     private boolean noFilter(int x, int y) {
-        return (picture.blockFlags[x >> 2][y >> 2] & NO_FILTER) != 0
+        return (picture.blockFlags.get(x, y) & NO_FILTER) != 0
                 || (sps.pcmLoopFilterDisabledFlag && picture.pcmFlag.get(x, y));
     }
 
@@ -502,23 +510,24 @@ final class LoopFilter {
     }
 
     private int sliceAddr(int x, int y) {
-        return picture.sliceAddrRs[x >> ctbLog2Size][y >> ctbLog2Size];
+        return picture.getSliceAddrRs(picture.ctbAddrRsAt(x, y));
     }
 
     private int sliceAddrOfCtb(int ctbAddrRs) {
-        int widthInCtbs = sps.getPicWidthInCtbsY();
-        return picture.sliceAddrRs[ctbAddrRs % widthInCtbs][ctbAddrRs / widthInCtbs];
+        return picture.getSliceAddrRs(ctbAddrRs);
     }
 
     private int get(int cIdx, int x, int y) {
-        return highColorRange ? pixelsHighColorRange[cIdx][x][y] & 0xFFFF : pixels[cIdx][x][y] & 0xFF;
+        int index = y * planeWidths[cIdx] + x;
+        return highColorRange ? highColorRangePlanes[cIdx][index] & 0xFFFF : planes[cIdx][index] & 0xFF;
     }
 
     private void set(int cIdx, int x, int y, int value) {
+        int index = y * planeWidths[cIdx] + x;
         if (highColorRange) {
-            pixelsHighColorRange[cIdx][x][y] = (short) value;
+            highColorRangePlanes[cIdx][index] = (short) value;
         } else {
-            pixels[cIdx][x][y] = (byte) value;
+            planes[cIdx][index] = (byte) value;
         }
     }
 }

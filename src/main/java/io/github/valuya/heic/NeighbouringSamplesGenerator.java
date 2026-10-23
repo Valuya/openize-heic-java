@@ -97,15 +97,11 @@ final class NeighbouringSamplesGenerator {
         if (xNbLuma < 0 || yNbLuma < 0) {
             return false;
         }
-        int ctbLog2Size = picture.sps.getCtbLog2SizeY();
-        int widthInCtbs = picture.sps.getPicWidthInCtbsY();
-        int xCurrentCtb = (x0 * subWidth) >> ctbLog2Size;
-        int yCurrentCtb = (y0 * subHeight) >> ctbLog2Size;
-        int xNbCtb = xNbLuma >> ctbLog2Size;
-        int yNbCtb = yNbLuma >> ctbLog2Size;
+        int currentCtb = picture.ctbAddrRsAt(x0 * subWidth, y0 * subHeight);
+        int neighbourCtb = picture.ctbAddrRsAt(xNbLuma, yNbLuma);
         int[] tileIdFromRs = picture.pps.getTileIdFromRs();
-        return picture.sliceAddrRs[xNbCtb][yNbCtb] == picture.sliceAddrRs[xCurrentCtb][yCurrentCtb]
-                && tileIdFromRs[yNbCtb * widthInCtbs + xNbCtb] == tileIdFromRs[yCurrentCtb * widthInCtbs + xCurrentCtb];
+        return picture.getSliceAddrRs(neighbourCtb) == picture.getSliceAddrRs(currentCtb)
+                && tileIdFromRs[neighbourCtb] == tileIdFromRs[currentCtb];
     }
 
     // The group of four samples from (x, y), stepping by (stepX, stepY), when its first sample is already decoded
@@ -165,7 +161,7 @@ final class NeighbouringSamplesGenerator {
 
     private int minTbAddrZs(int xLuma, int yLuma) {
         int minTbLog2SizeY = picture.sps.getMinTbLog2SizeY();
-        return picture.pps.getMinTbAddrZs()[xLuma >> minTbLog2SizeY][yLuma >> minTbLog2SizeY];
+        return picture.pps.minTbAddrZs(xLuma >> minTbLog2SizeY, yLuma >> minTbLog2SizeY);
     }
 
     private static int ceilDivide(int dividend, int divisor) {

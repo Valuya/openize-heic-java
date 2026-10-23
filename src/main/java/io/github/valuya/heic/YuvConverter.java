@@ -29,23 +29,23 @@ final class YuvConverter {
     private static final double TV_RANGE_CHROMA_SCALE = 255.0 / 224;
 
     private final SeqParameterSetRbsp sps;
-    private final boolean fullRangeFlag;
-    private final double crToRed;
-    private final double crToGreen;
-    private final double cbToGreen;
-    private final double cbToBlue;
+    private final Coefficients coefficients;
 
     YuvConverter(SeqParameterSetRbsp sps, ColourDescription colour) {
         this.sps = sps;
-        fullRangeFlag = colour.fullRangeFlag();
-
         LumaWeights weights = LumaWeights.of(colour.matrixCoefficients(), colour.colourPrimaries());
         double kg = 1 - weights.kr() - weights.kb();
-        crToRed = 2 * (1 - weights.kr());
-        crToGreen = 2 * weights.kr() * (1 - weights.kr()) / kg;
-        cbToGreen = 2 * weights.kb() * (1 - weights.kb()) / kg;
-        cbToBlue = 2 * (1 - weights.kb());
+        coefficients = new Coefficients(
+                colour.fullRangeFlag(),
+                2 * (1 - weights.kr()),
+                2 * weights.kr() * (1 - weights.kr()) / kg,
+                2 * weights.kb() * (1 - weights.kb()) / kg,
+                2 * (1 - weights.kb()));
     }
+
+    /** The range of the samples, and the matrix coefficients of the chroma in each RGB channel. */
+    private record Coefficients(
+            boolean fullRangeFlag, double crToRed, double crToGreen, double cbToGreen, double cbToBlue) {}
 
     /**
      * Converts the kept part of a decoded picture to 8-bit ARGB, opaque. With {@code alphaOnly}, the picture is an
@@ -55,17 +55,11 @@ final class YuvConverter {
         int width = sps.picWidthInLumaSamples;
         int height = sps.picHeightInLumaSamples;
         PixelBox convertedBox = target.clip().intersect(PixelBox.ofSize(width, height));
-
-        int bitDepthY = sps.getBitDepthY();
-        int bitDepthC = sps.getBitDepthC();
         boolean monochrome = sps.getChromaArrayType() == 0;
-        int subWidthC = sps.getSubWidthC();
-        int subHeightC = sps.getSubHeightC();
-        int chromaHalfRange = 1 << (bitDepthC - 1);
-        int lumaOffset = 16 << (bitDepthY - 8);
-        // scale to 8 bits
-        double lumaBitScale = 256.0 / (1 << bitDepthY);
-        double chromaBitScale = 256.0 / (1 << bitDepthC);
+        // SubWidthC and SubHeightC are 1 or 2
+        int log2SubWidthC = sps.getSubWidthC() - 1;
+        int log2SubHeightC = sps.getSubHeightC() - 1;
+        ChannelTables tables = channelTables(picture.workspace);
 
         int[] destination = target.destination();
         int stepX = target.stepX();
@@ -74,33 +68,24 @@ final class YuvConverter {
 
         for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
             int rowIndex = base + row * stepY;
+            int lumaRow = row * picture.planeWidths[0];
+            int chromaRow = monochrome ? 0 : (row >> log2SubHeightC) * picture.planeWidths[1];
             for (int col = convertedBox.left(); col < convertedBox.right(); col++) {
-                double luma = picture.getSample(0, col, row);
-                if (!fullRangeFlag) {
-                    luma = TV_RANGE_LUMA_SCALE * (luma - lumaOffset);
-                }
-
+                double scaledLuma = tables.luma[sample(picture, 0, lumaRow + col)];
                 double red;
                 double green;
                 double blue;
                 if (monochrome) {
-                    red = luma * lumaBitScale;
+                    red = scaledLuma;
                     green = red;
                     blue = red;
                 } else {
-                    double cb = picture.getSample(1, col / subWidthC, row / subHeightC) - chromaHalfRange;
-                    double cr = picture.getSample(2, col / subWidthC, row / subHeightC) - chromaHalfRange;
-                    if (!fullRangeFlag) {
-                        cb = TV_RANGE_CHROMA_SCALE * cb;
-                        cr = TV_RANGE_CHROMA_SCALE * cr;
-                    }
-
-                    double scaledLuma = luma * lumaBitScale;
-                    double scaledCb = cb * chromaBitScale;
-                    double scaledCr = cr * chromaBitScale;
-                    red = scaledLuma + crToRed * scaledCr;
-                    green = scaledLuma - crToGreen * scaledCr - cbToGreen * scaledCb;
-                    blue = scaledLuma + cbToBlue * scaledCb;
+                    int chromaIndex = chromaRow + (col >> log2SubWidthC);
+                    int cb = sample(picture, 1, chromaIndex);
+                    int cr = sample(picture, 2, chromaIndex);
+                    red = scaledLuma + tables.crToRed[cr];
+                    green = scaledLuma - tables.crToGreen[cr] - tables.cbToGreen[cb];
+                    blue = scaledLuma + tables.cbToBlue[cb];
                 }
 
                 int index = rowIndex + col * stepX;
@@ -114,8 +99,77 @@ final class YuvConverter {
         }
     }
 
+    private static int sample(HeicPicture picture, int cIdx, int index) {
+        return picture.highColorRange
+                ? picture.highColorRangePlanes[cIdx][index] & 0xFFFF
+                : picture.planes[cIdx][index] & 0xFF;
+    }
+
     private static int to8Bits(double channel) {
         return MathExtra.clip3(0, 255, (int) channel);
+    }
+
+    // the tables of the workspace when they are for the same bit depths and colours
+    private ChannelTables channelTables(DecoderWorkspace workspace) {
+        ChannelTables kept = workspace.channelTables;
+        if (kept != null
+                && kept.bitDepthY == sps.getBitDepthY()
+                && kept.bitDepthC == sps.getBitDepthC()
+                && kept.coefficients.equals(coefficients)) {
+            return kept;
+        }
+        ChannelTables tables = new ChannelTables(coefficients, sps.getBitDepthY(), sps.getBitDepthC());
+        workspace.channelTables = tables;
+        return tables;
+    }
+
+    /**
+     * The terms of the conversion of each sample value, scaled to 8 bits: the luma, and the products of a chroma
+     * value with each of its matrix coefficients. A pixel adds them up as the conversion would compute them.
+     */
+    static final class ChannelTables {
+        private final Coefficients coefficients;
+        private final int bitDepthY;
+        private final int bitDepthC;
+        private final double[] luma;
+        private final double[] crToRed;
+        private final double[] crToGreen;
+        private final double[] cbToGreen;
+        private final double[] cbToBlue;
+
+        private ChannelTables(Coefficients coefficients, int bitDepthY, int bitDepthC) {
+            this.coefficients = coefficients;
+            this.bitDepthY = bitDepthY;
+            this.bitDepthC = bitDepthC;
+            int lumaOffset = 16 << (bitDepthY - 8);
+            double lumaBitScale = 256.0 / (1 << bitDepthY);
+            luma = new double[1 << bitDepthY];
+            for (int value = 0; value < luma.length; value++) {
+                double scaled = value;
+                if (!coefficients.fullRangeFlag()) {
+                    scaled = TV_RANGE_LUMA_SCALE * (scaled - lumaOffset);
+                }
+                luma[value] = scaled * lumaBitScale;
+            }
+
+            int chromaHalfRange = 1 << (bitDepthC - 1);
+            double chromaBitScale = 256.0 / (1 << bitDepthC);
+            crToRed = new double[1 << bitDepthC];
+            crToGreen = new double[1 << bitDepthC];
+            cbToGreen = new double[1 << bitDepthC];
+            cbToBlue = new double[1 << bitDepthC];
+            for (int value = 0; value < crToRed.length; value++) {
+                double chroma = value - chromaHalfRange;
+                if (!coefficients.fullRangeFlag()) {
+                    chroma = TV_RANGE_CHROMA_SCALE * chroma;
+                }
+                double scaled = chroma * chromaBitScale;
+                crToRed[value] = coefficients.crToRed() * scaled;
+                crToGreen[value] = coefficients.crToGreen() * scaled;
+                cbToGreen[value] = coefficients.cbToGreen() * scaled;
+                cbToBlue[value] = coefficients.cbToBlue() * scaled;
+            }
+        }
     }
 
     /**

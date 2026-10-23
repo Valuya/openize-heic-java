@@ -99,7 +99,8 @@ final class ResidualCoding {
         boolean[] coeffAbsLevelGreater2Flag = residualBuffers.coeffAbsLevelGreater2Flags;
         boolean[] coeffSignFlag = residualBuffers.coeffSignFlags;
         int[] coeffAbsLevelRemaining = residualBuffers.coeffAbsLevelRemainings;
-        Cabac.Greater1Context greater1Context = new Cabac.Greater1Context();
+        Cabac.Greater1Context greater1Context = picture.workspace.greater1Context;
+        greater1Context.reset();
         int lastSubBlockGreater1Ctx = 0;
 
         for (int i = lastSubBlock; i >= 0; i--) {

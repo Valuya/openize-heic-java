@@ -103,9 +103,7 @@ final class SliceSegmentDecoder {
     }
 
     private void startCodingTreeBlock() {
-        int xCtb = ctbAddrInRs % widthInCtbs;
-        int yCtb = ctbAddrInRs / widthInCtbs;
-        picture.sliceAddrRs[xCtb][yCtb] = slice.sliceAddrRs();
+        picture.setSliceAddrRs(ctbAddrInRs, slice.sliceAddrRs());
         picture.setSliceSegmentIndex(ctbAddrInRs, sliceSegmentIndex);
     }
 
@@ -189,62 +187,55 @@ final class SliceSegmentDecoder {
         }
 
         int componentCount = sps.getChromaArrayType() != 0 ? 3 : 1;
+        int[] sao = picture.saoParameters;
         for (int cIdx = 0; cIdx < componentCount; cIdx++) {
+            int index = picture.saoIndex(cIdx, ctbAddrInRs);
             if (saoMergeLeftFlag) {
-                copySaoParameters(cIdx, rx - 1, ry, rx, ry);
+                copySaoParameters(picture.saoIndex(cIdx, ctbAddrInRs - 1), index);
             } else if (saoMergeUpFlag) {
-                copySaoParameters(cIdx, rx, ry - 1, rx, ry);
+                copySaoParameters(picture.saoIndex(cIdx, ctbAddrInRs - widthInCtbs), index);
             } else if (cIdx == 0 ? slice.sliceSaoLumaFlag() : slice.sliceSaoChromaFlag()) {
-                parseSaoParameters(cIdx, rx, ry);
+                parseSaoParameters(cIdx, index);
             } else {
-                picture.saoTypeIdx[cIdx][rx][ry] = 0;
+                sao[index + HeicPicture.SAO_TYPE_IDX] = 0;
             }
         }
     }
 
-    private void parseSaoParameters(int cIdx, int rx, int ry) {
+    private void parseSaoParameters(int cIdx, int index) {
+        int[] sao = picture.saoParameters;
         // sao_type_idx_chroma and sao_eo_class_chroma are coded for Cb and hold for Cr
-        if (cIdx < 2) {
-            picture.saoTypeIdx[cIdx][rx][ry] = cabac.readSaoTypeIdx();
-        } else {
-            picture.saoTypeIdx[2][rx][ry] = picture.saoTypeIdx[1][rx][ry];
-        }
-        int saoTypeIdx = picture.saoTypeIdx[cIdx][rx][ry];
+        int cbIndex = picture.saoIndex(1, ctbAddrInRs);
+        int saoTypeIdx = cIdx < 2 ? cabac.readSaoTypeIdx() : sao[cbIndex + HeicPicture.SAO_TYPE_IDX];
+        sao[index + HeicPicture.SAO_TYPE_IDX] = saoTypeIdx;
         if (saoTypeIdx == 0) {
             return;
         }
 
         int bitDepth = cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC();
-        int[] offsetAbs = picture.saoOffsetAbs[cIdx][rx][ry];
-        int[] offsetSign = picture.saoOffsetSign[cIdx][rx][ry];
+        int offsets = index + HeicPicture.SAO_OFFSETS;
         for (int i = 0; i < 4; i++) {
-            offsetAbs[i] = cabac.readSaoOffsetAbs(bitDepth);
+            sao[offsets + i] = cabac.readSaoOffsetAbs(bitDepth);
         }
         if (saoTypeIdx == 1) {
             // band offset
             for (int i = 0; i < 4; i++) {
-                offsetSign[i] = offsetAbs[i] != 0 ? cabac.readSaoOffsetSign() : 0;
+                if (sao[offsets + i] != 0 && cabac.readSaoOffsetSign() == 1) {
+                    sao[offsets + i] = -sao[offsets + i];
+                }
             }
-            picture.saoBandPosition[cIdx][rx][ry] = cabac.readSaoBandPosition();
+            sao[index + HeicPicture.SAO_BAND_POSITION] = cabac.readSaoBandPosition();
         } else {
             // edge offset: the first two offsets positive, the last two negative
-            if (cIdx < 2) {
-                picture.saoEoClass[cIdx][rx][ry] = cabac.readSaoEoClass();
-            } else {
-                picture.saoEoClass[2][rx][ry] = picture.saoEoClass[1][rx][ry];
-            }
-            for (int i = 0; i < 4; i++) {
-                offsetSign[i] = i < 2 ? 0 : 1;
-            }
+            sao[index + HeicPicture.SAO_EO_CLASS] =
+                    cIdx < 2 ? cabac.readSaoEoClass() : sao[cbIndex + HeicPicture.SAO_EO_CLASS];
+            sao[offsets + 2] = -sao[offsets + 2];
+            sao[offsets + 3] = -sao[offsets + 3];
         }
     }
 
-    private void copySaoParameters(int cIdx, int fromRx, int fromRy, int rx, int ry) {
-        picture.saoTypeIdx[cIdx][rx][ry] = picture.saoTypeIdx[cIdx][fromRx][fromRy];
-        picture.saoEoClass[cIdx][rx][ry] = picture.saoEoClass[cIdx][fromRx][fromRy];
-        picture.saoBandPosition[cIdx][rx][ry] = picture.saoBandPosition[cIdx][fromRx][fromRy];
-        System.arraycopy(picture.saoOffsetAbs[cIdx][fromRx][fromRy], 0, picture.saoOffsetAbs[cIdx][rx][ry], 0, 4);
-        System.arraycopy(picture.saoOffsetSign[cIdx][fromRx][fromRy], 0, picture.saoOffsetSign[cIdx][rx][ry], 0, 4);
+    private void copySaoParameters(int fromIndex, int index) {
+        System.arraycopy(picture.saoParameters, fromIndex, picture.saoParameters, index, HeicPicture.SAO_FIELDS);
     }
 
     // 7.3.8.4 Coding quadtree syntax
@@ -355,7 +346,7 @@ final class SliceSegmentDecoder {
     private void parseIntraPredictionModes(int x0, int y0, int nCbS, boolean intraSplitFlag) {
         int pbOffset = intraSplitFlag ? nCbS / 2 : nCbS;
         int predictionBlockCount = intraSplitFlag ? 4 : 1;
-        boolean[] prevIntraLumaPredFlag = new boolean[predictionBlockCount];
+        boolean[] prevIntraLumaPredFlag = picture.workspace.prevIntraLumaPredFlags;
         for (int block = 0; block < predictionBlockCount; block++) {
             prevIntraLumaPredFlag[block] = cabac.readPrevIntraLumaPredFlag();
         }
@@ -649,7 +640,7 @@ final class SliceSegmentDecoder {
             return qPYPrev;
         }
         int minTbLog2SizeY = sps.getMinTbLog2SizeY();
-        int minTbAddrN = pps.getMinTbAddrZs()[xQgN >> minTbLog2SizeY][yQgN >> minTbLog2SizeY];
+        int minTbAddrN = pps.minTbAddrZs(xQgN >> minTbLog2SizeY, yQgN >> minTbLog2SizeY);
         int ctbAddrN = minTbAddrN >> (2 * (sps.getCtbLog2SizeY() - minTbLog2SizeY));
         return ctbAddrN == ctbAddrInTs ? picture.qpY.get(xQgN, yQgN) : qPYPrev;
     }

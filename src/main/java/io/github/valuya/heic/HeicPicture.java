@@ -23,24 +23,28 @@ final class HeicPicture {
     final PicParameterSetRbsp pps;
     private final List<SliceSegmentHeader> sliceSegmentHeaders = new ArrayList<>();
 
-    // the samples, [cIdx][x][y]: unsigned bytes up to 8 bits, unsigned shorts above
-    final byte[][][] pixels;
-    final short[][][] pixelsHighColorRange;
+    // the samples of each component, row by row, at [cIdx][y * planeWidths[cIdx] + x]: unsigned bytes up to 8 bits,
+    // unsigned shorts above
+    final byte[][] planes;
+    final short[][] highColorRangePlanes;
     final boolean highColorRange;
+    final int[] planeWidths;
 
     // ScalingFactor[sizeId][matrixId][x][y] (7.4.5) from the PPS scaling list, the SPS one, or the defaults
     final int[][][][] scalingFactor;
 
-    // per coding tree block: SliceAddrRs, and the sample adaptive offset parameters [cIdx][rx][ry] (7.4.9.3)
-    final int[][] sliceAddrRs;
-    final int[][][] saoTypeIdx;
-    final int[][][] saoEoClass;
-    final int[][][] saoBandPosition;
-    final int[][][][] saoOffsetAbs;
-    final int[][][][] saoOffsetSign;
-
-    // per coding tree block in raster scan: the index of the header of its slice segment
+    // per coding tree block in raster scan: SliceAddrRs, and the index of the header of its slice segment
+    private final int[] sliceAddrRs;
     private final int[] sliceSegmentIndexByCtb;
+
+    // per component and coding tree block in raster scan, SAO_FIELDS values: the sample adaptive offset parameters
+    // (7.4.9.3), the offsets signed and not yet scaled
+    static final int SAO_TYPE_IDX = 0;
+    static final int SAO_EO_CLASS = 1;
+    static final int SAO_BAND_POSITION = 2;
+    static final int SAO_OFFSETS = 3;
+    static final int SAO_FIELDS = SAO_OFFSETS + 4;
+    final int[] saoParameters;
 
     // per 4x4 luma block
     final BlockByteMap ctDepth;
@@ -56,11 +60,15 @@ final class HeicPicture {
     final BlockByteMap cbfLuma;
 
     // per 4x4 luma block: LoopFilter.VERTICAL_EDGE, HORIZONTAL_EDGE and NO_FILTER bits
-    final byte[][] blockFlags;
+    final BlockByteMap blockFlags;
 
-    HeicPicture(SliceSegmentHeader firstSliceSegmentHeader) {
+    // the memory the picture's arrays come from, which its in-loop filters use too
+    final DecoderWorkspace workspace;
+
+    HeicPicture(SliceSegmentHeader firstSliceSegmentHeader, DecoderWorkspace workspace) {
         pps = firstSliceSegmentHeader.pps;
         sps = pps.sps;
+        this.workspace = workspace;
 
         // 7.4.3.3: the PPS scaling list, the SPS one, or the default one
         ScalingListData scalingList = Optional.ofNullable(pps.ppsScalingListData)
@@ -72,32 +80,39 @@ final class HeicPicture {
         int width = sps.getPicWidthInCtbsY() << sps.getCtbLog2SizeY();
         int height = sps.getPicHeightInCtbsY() << sps.getCtbLog2SizeY();
         int componentCount = sps.getChromaArrayType() != 0 ? 3 : 1;
-        int widthInCtbs = sps.getPicWidthInCtbsY();
-        int heightInCtbs = sps.getPicHeightInCtbsY();
+        int ctbCount = sps.getPicSizeInCtbsY();
 
         highColorRange = sps.getBitDepthY() > 8 || sps.getBitDepthC() > 8;
-        pixels = highColorRange ? new byte[0][][] : new byte[componentCount][width][height];
-        pixelsHighColorRange = highColorRange ? new short[componentCount][width][height] : new short[0][][];
+        planeWidths = new int[componentCount];
+        planes = new byte[highColorRange ? 0 : componentCount][];
+        highColorRangePlanes = new short[highColorRange ? componentCount : 0][];
+        for (int cIdx = 0; cIdx < componentCount; cIdx++) {
+            int planeWidth = cIdx == 0 ? width : width / sps.getSubWidthC();
+            int planeHeight = cIdx == 0 ? height : height / sps.getSubHeightC();
+            planeWidths[cIdx] = planeWidth;
+            int slot = DecoderWorkspace.LUMA_PLANE + cIdx;
+            if (highColorRange) {
+                highColorRangePlanes[cIdx] = workspace.shorts(slot, planeWidth * planeHeight);
+            } else {
+                planes[cIdx] = workspace.bytes(slot, planeWidth * planeHeight);
+            }
+        }
 
-        sliceAddrRs = new int[widthInCtbs][heightInCtbs];
-        saoTypeIdx = new int[componentCount][widthInCtbs][heightInCtbs];
-        saoEoClass = new int[componentCount][widthInCtbs][heightInCtbs];
-        saoBandPosition = new int[componentCount][widthInCtbs][heightInCtbs];
-        saoOffsetAbs = new int[componentCount][widthInCtbs][heightInCtbs][4];
-        saoOffsetSign = new int[componentCount][widthInCtbs][heightInCtbs][4];
+        sliceAddrRs = workspace.ints(DecoderWorkspace.SLICE_ADDR_RS, ctbCount);
+        sliceSegmentIndexByCtb = workspace.ints(DecoderWorkspace.SLICE_SEGMENT_INDEX, ctbCount);
+        saoParameters = workspace.ints(DecoderWorkspace.SAO_PARAMETERS, componentCount * ctbCount * SAO_FIELDS);
 
-        sliceSegmentIndexByCtb = new int[widthInCtbs * heightInCtbs];
-        ctDepth = new BlockByteMap(width, height);
-        log2CbSize = new BlockByteMap(width, height);
-        qpY = new BlockByteMap(width, height);
-        pcmFlag = new BlockFlagMap(width, height);
-        intraPredModeY = new BlockByteMap(width, height);
-        intraPredModeC = new BlockByteMap(width, height);
-        intraChromaPredMode = new BlockByteMap(width, height);
-        cbfCb = new BlockByteMap(width, height);
-        cbfCr = new BlockByteMap(width, height);
-        cbfLuma = new BlockByteMap(width, height);
-        blockFlags = new byte[width >> 2][height >> 2];
+        ctDepth = new BlockByteMap(width, height, workspace, DecoderWorkspace.CT_DEPTH);
+        log2CbSize = new BlockByteMap(width, height, workspace, DecoderWorkspace.LOG2_CB_SIZE);
+        qpY = new BlockByteMap(width, height, workspace, DecoderWorkspace.QP_Y);
+        pcmFlag = new BlockFlagMap(new BlockByteMap(width, height, workspace, DecoderWorkspace.PCM_FLAG));
+        intraPredModeY = new BlockByteMap(width, height, workspace, DecoderWorkspace.INTRA_PRED_MODE_Y);
+        intraPredModeC = new BlockByteMap(width, height, workspace, DecoderWorkspace.INTRA_PRED_MODE_C);
+        intraChromaPredMode = new BlockByteMap(width, height, workspace, DecoderWorkspace.INTRA_CHROMA_PRED_MODE);
+        cbfCb = new BlockByteMap(width, height, workspace, DecoderWorkspace.CBF_CB);
+        cbfCr = new BlockByteMap(width, height, workspace, DecoderWorkspace.CBF_CR);
+        cbfLuma = new BlockByteMap(width, height, workspace, DecoderWorkspace.CBF_LUMA);
+        blockFlags = new BlockByteMap(width, height, workspace, DecoderWorkspace.BLOCK_FLAGS);
     }
 
     /**
@@ -114,13 +129,31 @@ final class HeicPicture {
         sliceSegmentIndexByCtb[ctbAddrRs] = sliceSegmentIndex;
     }
 
+    void setSliceAddrRs(int ctbAddrRs, int sliceAddress) {
+        sliceAddrRs[ctbAddrRs] = sliceAddress;
+    }
+
+    /** SliceAddrRs of the slice that holds the coding tree block {@code ctbAddrRs}. */
+    int getSliceAddrRs(int ctbAddrRs) {
+        return sliceAddrRs[ctbAddrRs];
+    }
+
+    /** The coding tree block, in raster scan, that holds the luma sample (x, y). */
+    int ctbAddrRsAt(int x, int y) {
+        int ctbLog2SizeY = sps.getCtbLog2SizeY();
+        return (y >> ctbLog2SizeY) * sps.getPicWidthInCtbsY() + (x >> ctbLog2SizeY);
+    }
+
+    /** Where the sample adaptive offset parameters of component {@code cIdx} of a coding tree block start. */
+    int saoIndex(int cIdx, int ctbAddrRs) {
+        return (cIdx * sps.getPicSizeInCtbsY() + ctbAddrRs) * SAO_FIELDS;
+    }
+
     /**
      * The header of the slice segment that holds the luma sample (x, y).
      */
     SliceSegmentHeader getSliceSegmentHeaderAt(int x, int y) {
-        int ctbLog2SizeY = sps.getCtbLog2SizeY();
-        int ctbAddrRs = (y >> ctbLog2SizeY) * sps.getPicWidthInCtbsY() + (x >> ctbLog2SizeY);
-        return sliceSegmentHeaders.get(sliceSegmentIndexByCtb[ctbAddrRs]);
+        return sliceSegmentHeaders.get(sliceSegmentIndexByCtb[ctbAddrRsAt(x, y)]);
     }
 
     List<SliceSegmentHeader> getSliceSegmentHeaders() {
@@ -134,14 +167,16 @@ final class HeicPicture {
     }
 
     int getSample(int cIdx, int x, int y) {
-        return highColorRange ? pixelsHighColorRange[cIdx][x][y] & 0xFFFF : pixels[cIdx][x][y] & 0xFF;
+        int index = y * planeWidths[cIdx] + x;
+        return highColorRange ? highColorRangePlanes[cIdx][index] & 0xFFFF : planes[cIdx][index] & 0xFF;
     }
 
     void setSample(int cIdx, int x, int y, int value) {
+        int index = y * planeWidths[cIdx] + x;
         if (highColorRange) {
-            pixelsHighColorRange[cIdx][x][y] = (short) value;
+            highColorRangePlanes[cIdx][index] = (short) value;
         } else {
-            pixels[cIdx][x][y] = (byte) value;
+            planes[cIdx][index] = (byte) value;
         }
     }
 
@@ -153,25 +188,20 @@ final class HeicPicture {
         }
 
         int minTbLog2SizeY = sps.getMinTbLog2SizeY();
-        int[][] minTbAddrZs = pps.getMinTbAddrZs();
-        int minBlockAddrCurr = minTbAddrZs[xCurr >> minTbLog2SizeY][yCurr >> minTbLog2SizeY];
-        int minBlockAddrN = minTbAddrZs[xNbY >> minTbLog2SizeY][yNbY >> minTbLog2SizeY];
+        int minBlockAddrCurr = pps.minTbAddrZs(xCurr >> minTbLog2SizeY, yCurr >> minTbLog2SizeY);
+        int minBlockAddrN = pps.minTbAddrZs(xNbY >> minTbLog2SizeY, yNbY >> minTbLog2SizeY);
         if (minBlockAddrN > minBlockAddrCurr) {
             return false;
         }
 
-        int ctbLog2SizeY = sps.getCtbLog2SizeY();
-        int xCurrCtb = xCurr >> ctbLog2SizeY;
-        int yCurrCtb = yCurr >> ctbLog2SizeY;
-        int xNbCtb = xNbY >> ctbLog2SizeY;
-        int yNbCtb = yNbY >> ctbLog2SizeY;
-        if (sliceAddrRs[xCurrCtb][yCurrCtb] != sliceAddrRs[xNbCtb][yNbCtb]) {
+        int ctbAddrCurr = ctbAddrRsAt(xCurr, yCurr);
+        int ctbAddrN = ctbAddrRsAt(xNbY, yNbY);
+        if (sliceAddrRs[ctbAddrCurr] != sliceAddrRs[ctbAddrN]) {
             return false;
         }
 
         int[] tileIdFromRs = pps.getTileIdFromRs();
-        int widthInCtbs = sps.getPicWidthInCtbsY();
-        return tileIdFromRs[yCurrCtb * widthInCtbs + xCurrCtb] == tileIdFromRs[yNbCtb * widthInCtbs + xNbCtb];
+        return tileIdFromRs[ctbAddrCurr] == tileIdFromRs[ctbAddrN];
     }
 
     void setCtDepth(int x0, int y0, int log2CbSize, int cqtDepth) {
@@ -194,16 +224,16 @@ final class HeicPicture {
     void markTransformBlock(int x0, int y0, int size) {
         int blockCount = Math.max(size >> 2, 1);
         for (int i = 0; i < blockCount; i++) {
-            blockFlags[x0 >> 2][(y0 >> 2) + i] |= LoopFilter.VERTICAL_EDGE;
-            blockFlags[(x0 >> 2) + i][y0 >> 2] |= LoopFilter.HORIZONTAL_EDGE;
+            blockFlags.setBits(x0, y0 + (i << 2), LoopFilter.VERTICAL_EDGE);
+            blockFlags.setBits(x0 + (i << 2), y0, LoopFilter.HORIZONTAL_EDGE);
         }
     }
 
     // The deblocking filter and sample adaptive offset leave the samples of the coding unit at (x0, y0) untouched
     void markNoFilter(int x0, int y0, int nCbS) {
-        for (int i = x0 >> 2; i < (x0 + nCbS) >> 2; i++) {
-            for (int j = y0 >> 2; j < (y0 + nCbS) >> 2; j++) {
-                blockFlags[i][j] |= LoopFilter.NO_FILTER;
+        for (int x = x0; x < x0 + nCbS; x += 4) {
+            for (int y = y0; y < y0 + nCbS; y += 4) {
+                blockFlags.setBits(x, y, LoopFilter.NO_FILTER);
             }
         }
     }
@@ -225,7 +255,7 @@ final class HeicPicture {
                 ? IntraPredMode.INTRA_DC
                 : intraPredModeY.get(xPb, yPb - 1);
 
-        int[] candModeList = new int[3];
+        int[] candModeList = workspace.candModeList;
         if (candIntraPredModeB == candIntraPredModeA) {
             if (candIntraPredModeA < IntraPredMode.INTRA_ANGULAR2) {
                 candModeList[0] = IntraPredMode.INTRA_PLANAR;

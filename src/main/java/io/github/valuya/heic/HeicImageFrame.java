@@ -183,7 +183,10 @@ public final class HeicImageFrame {
         requireDecodableImage();
         PixelBox regionBox = new PixelBox(region.left(), region.top(), region.right(), region.bottom());
         try {
-            decodeInto(PixelTarget.forRegion(regionBox, destination, offset, scanlineStride), false);
+            decodeInto(
+                    PixelTarget.forRegion(regionBox, destination, offset, scanlineStride),
+                    false,
+                    new DecoderWorkspace.Pool());
         } catch (IsoBmffFormatException exception) {
             throw new HeicFormatException(
                     "Malformed data in image %d: %s".formatted(id, exception.getMessage()), exception);
@@ -409,9 +412,10 @@ public final class HeicImageFrame {
 
     /**
      * Writes the pixels of this frame to {@code target}, which is in the coordinates of this frame after its crop,
-     * rotation and mirroring. With {@code alphaOnly}, this frame is an alpha plane and sets only the alpha bytes.
+     * rotation and mirroring. With {@code alphaOnly}, this frame is an alpha plane and sets only the alpha bytes. Coded
+     * pictures are decoded in workspaces of {@code workspaces}.
      */
-    private void decodeInto(PixelTarget target, boolean alphaOnly) {
+    private void decodeInto(PixelTarget target, boolean alphaOnly, DecoderWorkspace.Pool workspaces) {
         PixelTarget frameTarget = target.forSourceImage(toOrientedImage(), keptBox());
         if (frameTarget.isEmpty()) {
             return;
@@ -420,18 +424,25 @@ public final class HeicImageFrame {
         switch (imageType) {
             case hvc1 -> {
                 SeqParameterSetRbsp sps = requireHevcConfiguration().getSPS();
-                new YuvConverter(sps, colourDescription(sps)).convert(decodePicture(), frameTarget, alphaOnly);
+                // the workspace goes back once the picture, which is in it, is converted
+                DecoderWorkspace workspace = workspaces.take();
+                try {
+                    new YuvConverter(sps, colourDescription(sps))
+                            .convert(decodePicture(workspace), frameTarget, alphaOnly);
+                } finally {
+                    workspaces.giveBack(workspace);
+                }
             }
-            case iden -> getInputImage(0).decodeInto(frameTarget, alphaOnly);
-            case grid -> decodeGridInto(frameTarget, alphaOnly);
-            case iovl -> decodeOverlayInto(frameTarget, alphaOnly);
+            case iden -> getInputImage(0).decodeInto(frameTarget, alphaOnly, workspaces);
+            case grid -> decodeGridInto(frameTarget, alphaOnly, workspaces);
+            case iovl -> decodeOverlayInto(frameTarget, alphaOnly, workspaces);
             default ->
                 throw new HeicFormatException("Item %d is coded as '%s', which this decoder does not decode"
                         .formatted(id, fourCharacterCodeText(itemTypeCode)));
         }
 
         if (!alphaOnly && alphaFrame != null) {
-            alphaFrame.decodeInto(target, true);
+            alphaFrame.decodeInto(target, true, workspaces);
         }
     }
 
@@ -465,7 +476,7 @@ public final class HeicImageFrame {
     // A fresh reader per decode: frames decode independently of each other and of earlier decodes. The coded data of
     // an item in one extent of the file is read in place; an item in several extents, or in idat, is copied after the
     // decoder configuration first
-    private HeicPicture decodePicture() {
+    private HeicPicture decodePicture(DecoderWorkspace workspace) {
         requireHevcConfiguration();
         BitStreamWithNalSupport pictureStream;
         long codedDataStart;
@@ -489,6 +500,7 @@ public final class HeicImageFrame {
             codedDataEnd = decoderInput.length;
         }
         pictureStream.getContext().setDecodingOptions(parent.getDecodingOptions());
+        pictureStream.getContext().setWorkspace(workspace);
         new HEVCDecoderConfigurationRecord(pictureStream);
 
         if (codedDataStart < 0 || codedDataEnd > pictureStream.getLength()) {
@@ -517,7 +529,7 @@ public final class HeicImageFrame {
     }
 
     // ISO/IEC 23008-12, 6.6.2.3: rows and columns of tiles of the same size, cropped to the grid's size
-    private void decodeGridInto(PixelTarget gridTarget, boolean alphaOnly) {
+    private void decodeGridInto(PixelTarget gridTarget, boolean alphaOnly, DecoderWorkspace.Pool workspaces) {
         byte[] gridDescriptor = readItemBytes();
         requireDescriptorLength("grid", gridDescriptor, 4);
         int fieldLength = ((gridDescriptor[1] & 1) + 1) * 2;
@@ -540,7 +552,7 @@ public final class HeicImageFrame {
 
                 // tiles outside the requested region are not decoded at all
                 if (!tileTarget.isEmpty()) {
-                    tileDecodes.add(() -> tileFrame.decodeInto(tileTarget, alphaOnly));
+                    tileDecodes.add(() -> tileFrame.decodeInto(tileTarget, alphaOnly, workspaces));
                 }
             }
         }
@@ -552,7 +564,7 @@ public final class HeicImageFrame {
     }
 
     // ISO/IEC 23008-12, 6.6.2.2: input images placed on a canvas, in order
-    private void decodeOverlayInto(PixelTarget overlayTarget, boolean alphaOnly) {
+    private void decodeOverlayInto(PixelTarget overlayTarget, boolean alphaOnly, DecoderWorkspace.Pool workspaces) {
         byte[] overlayDescriptor = readItemBytes();
         long[] inputIds = parent.getHeader().getDerivedList(id);
         requireDescriptorLength("overlay", overlayDescriptor, 2);
@@ -580,7 +592,7 @@ public final class HeicImageFrame {
             PixelTarget layerTarget = overlayTarget.forSourceImage(
                     AxisTransform.translation(horizontalOffset, verticalOffset), overlayBoxInLayer);
             if (!layerTarget.isEmpty()) {
-                getInputImage(inputIndex).decodeInto(layerTarget, alphaOnly);
+                getInputImage(inputIndex).decodeInto(layerTarget, alphaOnly, workspaces);
             }
         }
     }
