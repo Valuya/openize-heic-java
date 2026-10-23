@@ -65,7 +65,7 @@ public final class HeicPicture {
         ScalingListData scalingList = pps.ppsScalingListDataPresentFlag
                 ? pps.ppsScalingListData
                 : sps.spsScalingListDataPresentFlag ? sps.ScalingListData : ScalingListData.DEFAULT;
-        scalingFactor = scalingList.getScalingFactor(sps.getChromaArrayType());
+        scalingFactor = scalingList.getScalingFactor();
 
         // whole coding tree blocks, so that blocks straddling the right and bottom edges can be reconstructed
         int width = sps.getPicWidthInCtbsY() << sps.getCtbLog2SizeY();

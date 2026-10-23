@@ -10,141 +10,64 @@
 
 package openize.heic.decoder;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
+import org.jspecify.annotations.Nullable;
 
-public class HEVCDecoderConfigurationRecord {
-    public final byte configurationVersion; // 1
-    public final byte generalProfileSpace;
-    public final boolean generalTierFlag;
-    public final byte generalProfileIdc;
-    // public final boolean[] general_profile_compatibility_flags;
-    // public final boolean[] general_constraint_indicator_flags;
-    public final byte generalLevelIdc;
-    public final /*UInt16*/ int minSpatialSegmentationIdc;
-    public final byte parallelismType;
-    public final byte chromaFormat;
-    public final byte bitDepthLumaMinus8;
-    public final byte bitDepthChromaMinus8;
-    public final int avgFrameRate; // takes the value 0
-    public final int constantFrameRate; // takes the value 0
-    public final int numTemporalLayers; // takes the value 0
-    public final int temporalIdNested; // takes the value 0
-    private final boolean[] arrayCompleteness;
-    private final List<NalUnit> nalUnits;
-    private SeqParameterSetRbsp spsUnit;
+/**
+ * HEVCDecoderConfigurationRecord (ISO/IEC 14496-15, 8.3.3.1): parses the parameter sets of an image item into the
+ * decoder context of the stream.
+ */
+final class HEVCDecoderConfigurationRecord {
+    // the NAL units of the item data are read with 4-byte lengths (NalUnit.parseUnit)
+    private static final int SUPPORTED_LENGTH_SIZE_MINUS_ONE = 3;
 
-    public HEVCDecoderConfigurationRecord(BitStreamWithNalSupport stream) {
-        configurationVersion = (byte) stream.read(8);
+    private final @Nullable SeqParameterSetRbsp firstSps;
 
-        generalProfileSpace = (byte) stream.read(2);
-        generalTierFlag = stream.readFlag();
-        generalProfileIdc = (byte) stream.read(5);
-
-        // general_profile_compatibility_flags = new boolean[32];
-        for (int i = 0; i < 32; i++)
-            /*general_profile_compatibility_flags[i] =*/
-            stream.readFlag();
-
-        // general_constraint_indicator_flags = new boolean[48];
-        for (int i = 0; i < 48; i++)
-            /*general_constraint_indicator_flags[i] =*/
-            stream.readFlag();
-
-        generalLevelIdc = (byte) stream.read(8);
-
-        stream.skipBits(4); // 1111
-        minSpatialSegmentationIdc = stream.read(12) & 0xFFFF;
-        stream.skipBits(6); // 111111
-        parallelismType = (byte) stream.read(2);
-        stream.skipBits(6); // 111111
-        chromaFormat = (byte) stream.read(2);
-        stream.skipBits(5); // 11111
-        bitDepthLumaMinus8 = (byte) stream.read(3);
-        stream.skipBits(5); // 11111
-        bitDepthChromaMinus8 = (byte) stream.read(3);
-
-        avgFrameRate = stream.read(16);
-        constantFrameRate = stream.read(2);
-        numTemporalLayers = stream.read(3);
-        temporalIdNested = stream.read(1);
-
-        byte lengthSizeMinusOne = (byte) stream.read(2);
-        if ((lengthSizeMinusOne & 0xFF) != 3) {
+    HEVCDecoderConfigurationRecord(BitStreamWithNalSupport stream) {
+        // configurationVersion, general_profile_space, general_tier_flag, general_profile_idc,
+        // general_profile_compatibility_flags, general_constraint_indicator_flags, general_level_idc
+        stream.skipBits(8 + 2 + 1 + 5 + 32 + 48 + 8);
+        // min_spatial_segmentation_idc, parallelismType, chromaFormat, bitDepthLumaMinus8 and bitDepthChromaMinus8,
+        // each after reserved bits
+        stream.skipBits(4 + 12 + 6 + 2 + 6 + 2 + 5 + 3 + 5 + 3);
+        // avgFrameRate, constantFrameRate, numTemporalLayers, temporalIdNested
+        stream.skipBits(16 + 2 + 3 + 1);
+        int lengthSizeMinusOne = stream.read(2);
+        if (lengthSizeMinusOne != SUPPORTED_LENGTH_SIZE_MINUS_ONE) {
             throw new HeicFormatException(
-                    "NAL unit lengths of %d bytes are not supported".formatted((lengthSizeMinusOne & 0xFF) + 1));
+                    "NAL unit lengths of %d bytes are not supported".formatted(lengthSizeMinusOne + 1));
         }
 
-        byte numOfArrays = (byte) stream.read(8);
-
-        nalUnits = new ArrayList<>(255);
-        arrayCompleteness = new boolean[numOfArrays & 0xFF];
-        for (int j = 0; j < (numOfArrays & 0xFF); j++) {
-            arrayCompleteness[j] = stream.readFlag();
-            stream.skipBits(1); // = 0
+        SeqParameterSetRbsp sps = null;
+        int numOfArrays = stream.read(8);
+        for (int j = 0; j < numOfArrays; j++) {
+            stream.skipBits(1 + 1); // array_completeness, reserved
             NalUnitType nalUnitType = NalUnitType.codeToType(stream.read(6));
-            /*UInt16*/
-            int numNalus = stream.read(16) & 0xFFFF;
-
+            int numNalus = stream.read(16);
             for (int i = 0; i < numNalus; i++) {
-                /*UInt16*/
-                int nalUnitLength = stream.read(16) & 0xFFFF;
+                int nalUnitLength = stream.read(16);
                 if (nalUnitLength == 0) {
                     continue;
                 }
                 NalUnit unit = NalUnit.parseKnownUnit(stream, nalUnitLength, nalUnitType);
                 stream.getContext().addNalContext(unit);
-                nalUnits.add(unit);
-                if (spsUnit == null && unit instanceof SeqParameterSetRbsp sequenceParameterSet) {
-                    spsUnit = sequenceParameterSet;
+                if (sps == null && unit instanceof SeqParameterSetRbsp sequenceParameterSet) {
+                    sps = sequenceParameterSet;
                 }
             }
         }
+        firstSps = sps;
     }
 
-    @Override
-    public final String toString() {
-        return "HEVCDecoderConfiguration; completeness: " + Arrays.toString(arrayCompleteness);
-    }
-
-    final PicParameterSetRbsp getPPS() {
-        for (NalUnit nalUnit : nalUnits) {
-            if (nalUnit.nalHeader.type == NalUnitType.PPS_NUT) {
-                return (PicParameterSetRbsp) nalUnit;
-            }
+    /**
+     * The first SPS of the record.
+     *
+     * @throws HeicFormatException if it has none
+     */
+    SeqParameterSetRbsp getSPS() {
+        if (firstSps == null) {
+            throw new HeicFormatException("The HEVC decoder configuration has no SPS");
         }
-        throw new HeicFormatException("The HEVC decoder configuration has no PPS");
-        //        return (pic_parameter_set_rbsp) nalUnits.stream().filter(i -> i.NalHeader.type ==
-        // NalUnitType.PPS_NUT).findFirst()
-        //                .orElse(null);
-    }
-
-    final SeqParameterSetRbsp getSPS() {
-        if (spsUnit == null) {
-            throw new HeicFormatException("The HEVC decoder configuration has no PPS");
-        }
-        return spsUnit;
-        //        for (NalUnit nalUnit : nalUnits)
-        //        {
-        //            if (nalUnit.NalHeader.type == NalUnitType.SPS_NUT)
-        //            {
-        //                return (seq_parameter_set_rbsp) nalUnit;
-        //            }
-        //        }
-        //        throw new IllegalStateException();
-    }
-
-    final VideoParameterSetRbsp getVPS() {
-        for (NalUnit nalUnit : nalUnits) {
-            if (nalUnit.nalHeader.type == NalUnitType.VPS_NUT) {
-                return (VideoParameterSetRbsp) nalUnit;
-            }
-        }
-        throw new HeicFormatException("The HEVC decoder configuration has no VPS");
-        //        return (video_parameter_set_rbsp) nalUnits.stream().filter(i -> i.NalHeader.type ==
-        // NalUnitType.VPS_NUT).findFirst()
-        //                .orElse(null);
+        return firstSps;
     }
 }

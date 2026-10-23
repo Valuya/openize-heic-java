@@ -21,6 +21,17 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
  * </p>
  */
 class ScalingListData {
+    private static final int SIZE_ID_COUNT = 4;
+    private static final int MATRIX_ID_COUNT = 6;
+    // scaling_list_dc_coef_minus8 and scaling_list_delta_coef (7.4.5)
+    private static final int MIN_DC_COEF_MINUS8 = -7;
+    private static final int MAX_DC_COEF_MINUS8 = 247;
+    private static final int MIN_DELTA_COEF = -128;
+    private static final int MAX_DELTA_COEF = 127;
+
+    // Table 7-5: every 4x4 default value is 16
+    private static final int[] DEFAULT_4X4 = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
+
     // Table 7-6 – default values of ScalingList[1..3][0..2][i] (intra) and [1..3][3..5][i] (inter)
     private static final int[] DEFAULT_8X8_INTRA = {
         16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 17, 16, 17, 16, 17, 18,
@@ -39,109 +50,139 @@ class ScalingListData {
     // Used when scaling_list_enabled_flag is set without any scaling_list_data in the SPS or PPS
     static final ScalingListData DEFAULT = new ScalingListData();
 
-    // ScalingList[sizeId][matrixId][i], in up-right diagonal scan order
-    private final int[][][] scalingList = new int[4][6][];
-    // scaling_list_dc_coef_minus8[sizeId - 2][matrixId] + 8
-    private final int[][] dcCoef = new int[2][6];
-
-    private int[][][][] scalingFactor;
-    private long scalingFactorChromaArrayType = -1;
+    // ScalingList[sizeId][matrixId][i], in up-right diagonal scan order; never modified, so lists can be shared
+    private final int[][][] scalingList = new int[SIZE_ID_COUNT][MATRIX_ID_COUNT][];
+    // scaling_list_dc_coef_minus8[sizeId - 2][matrixId] + 8: the DC factor of 16x16 and 32x32 blocks
+    private final int[][] dcCoef = new int[2][MATRIX_ID_COUNT];
+    // ScalingFactor[sizeId][matrixId][x][y] (7.4.5)
+    private final int[][][][] scalingFactor;
 
     private ScalingListData() {
-        for (int sizeId = 0; sizeId < 4; sizeId++)
-            for (int matrixId = 0; matrixId < 6; matrixId++) setDefault(sizeId, matrixId);
+        for (int sizeId = 0; sizeId < SIZE_ID_COUNT; sizeId++) {
+            for (int matrixId = 0; matrixId < MATRIX_ID_COUNT; matrixId++) {
+                setDefault(sizeId, matrixId);
+            }
+        }
+        scalingFactor = createScalingFactor();
     }
 
-    public ScalingListData(BitStreamWithNalSupport stream) {
-        for (int sizeId = 0; sizeId < 4; sizeId++) {
-            int step = sizeId == 3 ? 3 : 1;
-            for (int matrixId = 0; matrixId < 6; matrixId += step) {
-                boolean scalingListPredModeFlag = stream.readFlag(); // u(1)
-                if (!scalingListPredModeFlag) {
-                    int scalingListPredMatrixIdDelta = (int) stream.readUev(); // ue(v)
+    /**
+     * Reads scaling_list_data( ) (7.3.4).
+     */
+    ScalingListData(BitStreamWithNalSupport stream) {
+        for (int sizeId = 0; sizeId < SIZE_ID_COUNT; sizeId++) {
+            // 32x32 lists are only coded for luma, matrixId 0 and 3
+            int matrixIdStep = sizeId == 3 ? 3 : 1;
+            for (int matrixId = 0; matrixId < MATRIX_ID_COUNT; matrixId += matrixIdStep) {
+                boolean scalingListPredModeFlag = stream.readFlag();
+                if (scalingListPredModeFlag) {
+                    readList(stream, sizeId, matrixId);
+                } else {
+                    // 0 for the default list, otherwise the distance to an earlier list of the same size
+                    int scalingListPredMatrixIdDelta = stream.readUevAtMost(matrixId / matrixIdStep);
                     if (scalingListPredMatrixIdDelta == 0) {
                         setDefault(sizeId, matrixId);
                     } else {
-                        int refMatrixId = matrixId - scalingListPredMatrixIdDelta * step;
-                        if (refMatrixId < 0) {
-                            throw new HeicFormatException(
-                                    "Scaling list predicted from matrix %d, before the first".formatted(refMatrixId));
-                        }
-                        scalingList[sizeId][matrixId] = scalingList[sizeId][refMatrixId].clone();
-                        if (sizeId > 1) dcCoef[sizeId - 2][matrixId] = dcCoef[sizeId - 2][refMatrixId];
+                        copyList(sizeId, matrixId - scalingListPredMatrixIdDelta * matrixIdStep, matrixId);
                     }
-                } else {
-                    int nextCoef = 8;
-                    int coefNum = Math.min(64, 1 << (4 + (sizeId << 1)));
-                    if (sizeId > 1) {
-                        nextCoef = stream.readSev() + 8; // scaling_list_dc_coef_minus8 se(v)
-                        dcCoef[sizeId - 2][matrixId] = nextCoef;
-                    }
-
-                    int[] list = new int[coefNum];
-                    for (int i = 0; i < coefNum; i++) {
-                        int scalingListDeltaCoef = stream.readSev(); // se(v)
-                        nextCoef = (nextCoef + scalingListDeltaCoef + 256) % 256;
-                        list[i] = nextCoef;
-                    }
-                    scalingList[sizeId][matrixId] = list;
                 }
             }
+        }
+        scalingFactor = createScalingFactor();
+    }
+
+    private void readList(BitStreamWithNalSupport stream, int sizeId, int matrixId) {
+        int nextCoef = 8;
+        if (sizeId > 1) {
+            nextCoef =
+                    readSevInRange(stream, "scaling_list_dc_coef_minus8", MIN_DC_COEF_MINUS8, MAX_DC_COEF_MINUS8) + 8;
+            dcCoef[sizeId - 2][matrixId] = nextCoef;
+        }
+
+        int coefNum = Math.min(64, 1 << (4 + (sizeId << 1)));
+        int[] list = new int[coefNum];
+        for (int i = 0; i < coefNum; i++) {
+            int scalingListDeltaCoef =
+                    readSevInRange(stream, "scaling_list_delta_coef", MIN_DELTA_COEF, MAX_DELTA_COEF);
+            nextCoef = (nextCoef + scalingListDeltaCoef + 256) % 256;
+            list[i] = nextCoef;
+        }
+        scalingList[sizeId][matrixId] = list;
+    }
+
+    private static int readSevInRange(BitStreamWithNalSupport stream, String elementName, int minimum, int maximum) {
+        int value = stream.readSev();
+        if (value < minimum || value > maximum) {
+            throw new HeicFormatException("%s of %d, outside %d..%d".formatted(elementName, value, minimum, maximum));
+        }
+        return value;
+    }
+
+    private void copyList(int sizeId, int refMatrixId, int matrixId) {
+        scalingList[sizeId][matrixId] = scalingList[sizeId][refMatrixId];
+        if (sizeId > 1) {
+            dcCoef[sizeId - 2][matrixId] = dcCoef[sizeId - 2][refMatrixId];
         }
     }
 
     private void setDefault(int sizeId, int matrixId) {
         if (sizeId == 0) {
-            int[] flat = new int[16];
-            java.util.Arrays.fill(flat, 16);
-            scalingList[sizeId][matrixId] = flat;
+            scalingList[sizeId][matrixId] = DEFAULT_4X4;
         } else {
-            scalingList[sizeId][matrixId] = (matrixId < 3 ? DEFAULT_8X8_INTRA : DEFAULT_8X8_INTER).clone();
+            scalingList[sizeId][matrixId] = matrixId < 3 ? DEFAULT_8X8_INTRA : DEFAULT_8X8_INTER;
         }
-
-        if (sizeId > 1) dcCoef[sizeId - 2][matrixId] = 16;
+        if (sizeId > 1) {
+            dcCoef[sizeId - 2][matrixId] = 16;
+        }
     }
 
     /**
      * Returns ScalingFactor[sizeId][matrixId][x][y] (7.4.5).
      */
-    synchronized int[][][][] getScalingFactor(long chromaArrayType) {
-        if (scalingFactor != null && scalingFactorChromaArrayType == chromaArrayType) return scalingFactor;
+    int[][][][] getScalingFactor() {
+        return scalingFactor;
+    }
 
-        int[][][][] factor = new int[4][6][][];
+    private int[][][][] createScalingFactor() {
+        int[][][][] factor = new int[SIZE_ID_COUNT][MATRIX_ID_COUNT][][];
         byte[][][][] scanOrder = Scans.getScanOrder();
+        byte[][] diagonal4x4 = scanOrder[2][0];
+        byte[][] diagonal8x8 = scanOrder[3][0];
 
-        for (int matrixId = 0; matrixId < 6; matrixId++) {
+        for (int matrixId = 0; matrixId < MATRIX_ID_COUNT; matrixId++) {
             factor[0][matrixId] = new int[4][4];
-            for (int i = 0; i < 16; i++)
-                factor[0][matrixId][scanOrder[2][0][i][0]][scanOrder[2][0][i][1]] = scalingList[0][matrixId][i];
+            for (int i = 0; i < 16; i++) {
+                factor[0][matrixId][diagonal4x4[i][0]][diagonal4x4[i][1]] = scalingList[0][matrixId][i];
+            }
 
             factor[1][matrixId] = new int[8][8];
             factor[2][matrixId] = new int[16][16];
             for (int i = 0; i < 64; i++) {
-                int x = scanOrder[3][0][i][0];
-                int y = scanOrder[3][0][i][1];
+                int x = diagonal8x8[i][0];
+                int y = diagonal8x8[i][1];
                 factor[1][matrixId][x][y] = scalingList[1][matrixId][i];
-                for (int j = 0; j < 2; j++)
-                    for (int k = 0; k < 2; k++) factor[2][matrixId][x * 2 + k][y * 2 + j] = scalingList[2][matrixId][i];
+                fillSquare(factor[2][matrixId], x * 2, y * 2, 2, scalingList[2][matrixId][i]);
             }
             factor[2][matrixId][0][0] = dcCoef[0][matrixId];
 
             // 32x32 chroma matrices are only coded for ChromaArrayType 3, derived from the 16x16 lists
-            boolean coded32 = matrixId == 0 || matrixId == 3;
-            int[] list32 = coded32 ? scalingList[3][matrixId] : scalingList[2][matrixId];
+            boolean coded32x32 = matrixId == 0 || matrixId == 3;
+            int[] list32x32 = coded32x32 ? scalingList[3][matrixId] : scalingList[2][matrixId];
             factor[3][matrixId] = new int[32][32];
             for (int i = 0; i < 64; i++) {
-                int x = scanOrder[3][0][i][0];
-                int y = scanOrder[3][0][i][1];
-                for (int j = 0; j < 4; j++)
-                    for (int k = 0; k < 4; k++) factor[3][matrixId][x * 4 + k][y * 4 + j] = list32[i];
+                fillSquare(factor[3][matrixId], diagonal8x8[i][0] * 4, diagonal8x8[i][1] * 4, 4, list32x32[i]);
             }
-            factor[3][matrixId][0][0] = coded32 ? dcCoef[1][matrixId] : dcCoef[0][matrixId];
+            factor[3][matrixId][0][0] = coded32x32 ? dcCoef[1][matrixId] : dcCoef[0][matrixId];
         }
-
-        scalingFactor = factor;
-        scalingFactorChromaArrayType = chromaArrayType;
         return factor;
+    }
+
+    // An 8x8 list entry scales a square of a 16x16 or 32x32 matrix
+    private static void fillSquare(int[][] matrix, int x0, int y0, int size, int value) {
+        for (int y = y0; y < y0 + size; y++) {
+            for (int x = x0; x < x0 + size; x++) {
+                matrix[x][y] = value;
+            }
+        }
     }
 }
