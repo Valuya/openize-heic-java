@@ -21,10 +21,13 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
-      # libheif's heif-convert, for LibheifComparisonTest; without it the test is skipped, not failed
+      # libheif's heif-convert and its HEVC decoder, which Ubuntu only recommends, for LibheifComparisonTest;
+      # without heif-convert the test is skipped, not failed
       - name: Install libheif
         timeout-minutes: 5
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libheif-examples
+        run: >-
+          sudo apt-get update
+          && sudo apt-get install -y --no-install-recommends libheif-examples libheif-plugin-libde265
         continue-on-error: true
       - name: Verify
         run: mvn --batch-mode --no-transfer-progress verify
