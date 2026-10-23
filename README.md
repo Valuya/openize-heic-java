@@ -51,28 +51,40 @@ transform) and cross-component prediction. Files that need them fail with `HeicF
 
 ## Performance
 
-The 10 photos and collections of `TestsData/samples` (0.6 to 16 MP; all but the HDR tone map and alpha test files),
-median of 5 to 7 decodes, Java 21 on an Intel Core Ultra 9 285H:
+The 10 photos and collections of `TestsData/samples` (0.6 to 16 MP; all but the HDR tone map and alpha test files) on
+an Intel Core Ultra 9 285H, Java 21. The fork and the Rust decoder take the median of 9 decodes, best of 3 runs taken
+in turn with the others; libheif the best of 5 processes:
 
 | | one P-core | 8 E-cores | allocated for a 12 MP photo | smallest heap for it |
 |---|---|---|---|---|
-| this fork | 3.4 s | 0.87 s | 116 MB | 64 MB |
+| this fork | 2.05 s | 0.59 s | 51 MB | 56 MB |
+| [heic-decoder](https://github.com/Valuya/heic-decoder-rust) (Rust), `decode_rgb8` | 1.91 s¹ | 1.72 s¹ | | |
+| libheif 1.17 (native, `heif-convert`) | 2.65 s | 2.23 s | | |
 | upstream Openize.HEIC 26.5.1 | 19.0 s | 20.3 s | 2.8 GB | 768 MB |
-| libheif 1.17 (native, `heif-convert`) | 2.7 s | 1.5 s | | |
 
-The photo is `iphone_photo.heic`, a grid of 512x512 tiles: 48 MB of its 116 MB is the decoded image itself. The
-16 MP `samsung_a71.heic` allocates 177 MB, 64 MB of it the image, and decodes in an 80 MB heap. Those allocations are
-for each photo decoded on its own: in the run below, where the JIT has compiled the decoder for the other samples
-first, they are 127 and 231 MB. The heaps are G1's, decoding the tiles in parallel; [Memory](#memory) has the other
-collectors and libheif. The Java times leave out JIT warm-up; libheif's are per process, writing raw YCbCr. Java 21
-and 26 decode equally fast.
+¹ at d6dabf9, a release build with thin LTO; of 9 samples: it does not decode `overlay_1000x680.heic`. The fork takes
+2.02 s and 0.54 s for the same 9.
+
+* On one core the fork is level with the Rust decoder on the 12 MP iPhone photos (307 against 312 ms for
+  `iphone_photo.heic`, faster on two others), 1.15 to 1.2 times slower on the 16 MP `samsung_a71.heic` and the
+  photos coded in many small blocks, whose per-block work still costs it more, and 1.3 to 1.5 times slower on the
+  two smallest samples.
+* On 8 cores the Rust decoder's `decode_rgb8` decodes one row of grid tiles at a time, to bound its memory; the fork
+  decodes all the tiles of a grid in parallel.
+* libheif's times are per process, writing raw YCbCr: they include starting `heif-convert` and loading its decoder
+  plugin, which is why the small samples take longer on 8 E-cores than on one P-core.
+
+The photo is `iphone_photo.heic`, a grid of 512x512 tiles: 48.8 MB of the 51 MB it allocates is the decoded image
+itself. The 16 MP `samsung_a71.heic` allocates 67 MB, 64 MB of it the image, and decodes in a 72 MB heap. The heaps
+are G1's, decoding one tile at a time; [Memory](#memory) has the other collectors, libheif and the Rust decoder. The
+Java times leave out JIT warm-up. Java 21 and 26 decode equally fast.
 
 `DecodeBenchmark`, in the test sources, makes the measurement:
 
 ```bash
 mvn -q test-compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 taskset -c 4 java -cp target/classes:target/test-classes:$(cat target/classpath.txt) \
-        io.github.valuya.heic.tests.DecodeBenchmark 4 7 false \
+        io.github.valuya.heic.tests.DecodeBenchmark 12 9 false \
         $(ls TestsData/samples/*.heic TestsData/samples/nokia/*.heic | grep -v -e tmap -e gimp_rgb)
 ```
 
@@ -85,14 +97,16 @@ P-core:
 |---|---|---|---|
 | libheif 1.17, `heif-convert` to YCbCr (`.y4m`) | 5 | 77 | 75 |
 | libheif 1.17, `heif-convert` to RGB (`.png`) | 5 | 77 | 98 |
-| this fork, G1, smallest heap (56 and 72 MiB) | 41 | 138 | 159 |
-| this fork, Serial GC, smallest heap (72 and 96 MiB) | 40 | 150 | 178 |
-| this fork, no `-Xmx` (Serial, the JVM's choice on one CPU) | 42 | 201 | 266 |
+| heic-decoder (Rust), `decode_rgb8`, one thread | 4 | 51 | 65 |
+| this fork, `decodeBytes(RGB24)`, G1, smallest heap (44 and 56 MiB) | 41 | 105 | 119 |
+| this fork, `decodeArgb`, G1, smallest heap (56 and 72 MiB) | 41 | 116 | 135 |
+| this fork, `decodeArgb`, Serial GC, smallest heap (72 and 96 MiB) | 41 | 115 | 135 |
+| this fork, `decodeArgb`, no `-Xmx` (Serial, the JVM's choice on one CPU) | 41 | 118 | 136 |
 
-"Before decoding" is `heif-convert --version`, and `DecodeBenchmark` given no file. On 8 E-cores libheif peaks the
-same; the fork, decoding the tiles in parallel, needs 64 and 80 MiB of G1 heap and peaks at 172 and 177 MiB (223
-and 255 MiB without `-Xmx`). The other samples are 12 MP at most: libheif peaks within 1 MiB of the iPhone photo on
-them, and the fork needs no bigger heap.
+"Before decoding" is `heif-convert --version`, the Rust decoder reading the file only, and `DecodeBenchmark` given no
+file. On 8 E-cores libheif peaks the same and the Rust decoder at 73 and 88 MiB; the fork, decoding the tiles in
+parallel, needs 60 and 76 MiB of G1 heap and peaks at 138 and 154 MiB (138 and 159 MiB without `-Xmx`). The other
+samples are 12 MP at most: libheif peaks within 1 MiB of the iPhone photo on them, and the fork needs no bigger heap.
 
 The smallest heap, in 4 MiB steps, depends on the collector. Serial needs the most because the decoded image, one
 `int[]` of 46.5 MiB for 12 MP, must fit in its old generation (two thirds of the heap by default) with whatever else
@@ -100,18 +114,23 @@ is still live. The JVM picks Serial when it sees one CPU or less than 1792 MB of
 
 What compares, and what does not:
 
-* Neither process is only a decoder. `heif-convert` is a small native program; the JVM takes about 41 MiB before it
-  decodes anything, and a process that decodes once also pays for compiling the decoder, about 45 MiB: in the same
-  56 MiB heap, the iPhone photo peaks at 99 MiB with `-XX:TieredStopAtLevel=1` (no C2), and at 95 MiB interpreted
-  (`-Xint`), the JVM plus its heap.
+* Neither process is only a decoder. `heif-convert` and the Rust decoder are native programs of 4 or 5 MiB; the JVM
+  takes about 41 MiB before it decodes anything, and a process that decodes once also pays for compiling the
+  decoder, about 20 MiB: in the same 44 MiB heap, the iPhone photo decoded to RGB24 peaks at 84 MiB with
+  `-XX:TieredStopAtLevel=1` (no C2).
 * A long-running JVM pays both once, shared with the rest of the application, so what one more decode costs there
-  is its heap: 56 to 72 MiB for the iPhone photo and 72 to 96 MiB for the Samsung one. `heif-convert` adds 72 MiB
-  to its process for the iPhone photo, and 70 (YCbCr) or 93 MiB (RGB) for the Samsung one. libheif 1.23.6 inside
-  another process (through pillow-heif, decoding to RGB, peak above the Python interpreter's) adds 50 and 73 MiB.
-* The outputs differ. The fork returns ARGB `int`s: 46.5 and 61 MiB. `heif-convert` keeps YCbCr 4:2:0 for `.y4m`
-  (17 and 23 MiB) and converts it to RGB for `.png` (35 and 46 MiB), which it then compresses row by row.
+  is its heap: 44 (RGB24) or 56 MiB (ARGB) for the iPhone photo and 56 or 72 MiB for the Samsung one, the image
+  plus 9 to 11 MiB, the file's bytes included. The Rust decoder adds 47 and 60 MiB to its process, the image plus
+  12 to 14 MiB.
+  `heif-convert` adds 72 MiB for the iPhone photo, and 70 (YCbCr) or 93 MiB (RGB) for the Samsung one; libheif
+  1.23.6 inside another process (through pillow-heif, decoding to RGB, peak above the Python interpreter's) adds 50
+  and 73 MiB.
+* The outputs differ. `decodeArgb` returns ARGB `int`s: 46.5 and 61 MiB. `decodeBytes(RGB24)` and the Rust
+  decoder's `decode_rgb8` return RGB bytes: 35 and 46 MiB. `heif-convert` keeps YCbCr 4:2:0 for `.y4m` (17 and
+  23 MiB) and converts it to RGB for `.png` (35 and 46 MiB), which it then compresses row by row.
 * Without `-Xmx` the JVM sizes the heap from the memory it may use (a quarter of it, 13.75 GiB here) and lets
-  garbage pile up before collecting, so that row measures the JVM's heap sizing more than the decoder.
+  garbage pile up before collecting: a decode that allocates little more than its image keeps that row close to
+  the smallest heap's.
 
 One cold decode per process, with the heap to try:
 
