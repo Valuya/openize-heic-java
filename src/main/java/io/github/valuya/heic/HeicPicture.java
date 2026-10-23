@@ -180,6 +180,52 @@ final class HeicPicture {
         }
     }
 
+    /** Sets the {@code size} x {@code size} block of component {@code cIdx} at (x0, y0) to {@code samples}, row by row. */
+    void setBlock(int cIdx, int x0, int y0, int size, int[] samples) {
+        int planeWidth = planeWidths[cIdx];
+        for (int y = 0; y < size; y++) {
+            int planeIndex = (y0 + y) * planeWidth + x0;
+            int blockIndex = y * size;
+            if (highColorRange) {
+                short[] plane = highColorRangePlanes[cIdx];
+                for (int x = 0; x < size; x++) {
+                    plane[planeIndex + x] = (short) samples[blockIndex + x];
+                }
+            } else {
+                byte[] plane = planes[cIdx];
+                for (int x = 0; x < size; x++) {
+                    plane[planeIndex + x] = (byte) samples[blockIndex + x];
+                }
+            }
+        }
+    }
+
+    /**
+     * Sets the {@code size} x {@code size} block of component {@code cIdx} at (x0, y0) to its prediction plus its
+     * residual, both row by row, clipped to the bit depth (8.6.7).
+     */
+    void setReconstructedBlock(int cIdx, int x0, int y0, int size, int[] predSamples, int[] residual) {
+        int planeWidth = planeWidths[cIdx];
+        int maximum = (1 << (cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC())) - 1;
+        for (int y = 0; y < size; y++) {
+            int planeIndex = (y0 + y) * planeWidth + x0;
+            int blockIndex = y * size;
+            if (highColorRange) {
+                short[] plane = highColorRangePlanes[cIdx];
+                for (int x = 0; x < size; x++) {
+                    int sample = predSamples[blockIndex + x] + residual[blockIndex + x];
+                    plane[planeIndex + x] = (short) Math.max(0, Math.min(maximum, sample));
+                }
+            } else {
+                byte[] plane = planes[cIdx];
+                for (int x = 0; x < size; x++) {
+                    int sample = predSamples[blockIndex + x] + residual[blockIndex + x];
+                    plane[planeIndex + x] = (byte) Math.max(0, Math.min(maximum, sample));
+                }
+            }
+        }
+    }
+
     // 6.4.1 Derivation process for z-scan order block availability: whether the block covering the luma location
     // (xNbY, yNbY) is available to the block at (xCurr, yCurr)
     boolean checkZScanAvailability(int xCurr, int yCurr, int xNbY, int yNbY) {

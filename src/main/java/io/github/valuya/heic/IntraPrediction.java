@@ -34,9 +34,9 @@ final class IntraPrediction {
     /**
      * Predicts the {@code nTbS} block of component {@code cIdx} at {@code (x0, y0)}, in samples of that component.
      *
-     * @return predSamples[x][y], valid for x, y below nTbS, in a buffer the next prediction overwrites
+     * @return predSamples[x][y] at [y * nTbS + x], in a buffer the next prediction overwrites
      */
-    static int[][] predict(
+    static int[] predict(
             HeicPicture picture,
             IntraPredictionBuffers buffers,
             int x0,
@@ -122,17 +122,17 @@ final class IntraPrediction {
     }
 
     // 8.4.4.2.4 Specification of intra prediction mode INTRA_PLANAR
-    private static int[][] predictPlanar(int[][] predSamples, NeighbouringSamples p, int nTbS) {
+    private static int[] predictPlanar(int[] predSamples, NeighbouringSamples p, int nTbS) {
         int shift = Integer.numberOfTrailingZeros(nTbS) + 1;
         int topRight = p.get(nTbS, -1);
         int bottomLeft = p.get(-1, nTbS);
-        for (int x = 0; x < nTbS; x++) {
-            int[] predictedColumn = predSamples[x];
-            int top = p.get(x, -1);
-            for (int y = 0; y < nTbS; y++) {
-                predictedColumn[y] = ((nTbS - 1 - x) * p.get(-1, y)
+        for (int y = 0; y < nTbS; y++) {
+            int rowStart = y * nTbS;
+            int left = p.get(-1, y);
+            for (int x = 0; x < nTbS; x++) {
+                predSamples[rowStart + x] = ((nTbS - 1 - x) * left
                                 + (x + 1) * topRight
-                                + (nTbS - 1 - y) * top
+                                + (nTbS - 1 - y) * p.get(x, -1)
                                 + (y + 1) * bottomLeft
                                 + nTbS)
                         >> shift;
@@ -142,36 +142,29 @@ final class IntraPrediction {
     }
 
     // 8.4.4.2.5 Specification of intra prediction mode INTRA_DC
-    private static int[][] predictDc(int[][] predSamples, NeighbouringSamples p, int nTbS, int cIdx) {
+    private static int[] predictDc(int[] predSamples, NeighbouringSamples p, int nTbS, int cIdx) {
         int dcVal = nTbS;
         for (int i = 0; i < nTbS; i++) {
             dcVal += p.get(i, -1) + p.get(-1, i);
         }
         dcVal >>= Integer.numberOfTrailingZeros(nTbS) + 1;
 
+        Arrays.fill(predSamples, 0, nTbS * nTbS, dcVal);
         if (cIdx == 0 && nTbS < 32) {
             // the first row and column are smoothed towards their neighbours
-            int[] firstColumn = predSamples[0];
-            firstColumn[0] = (p.get(-1, 0) + 2 * dcVal + p.get(0, -1) + 2) >> 2;
+            predSamples[0] = (p.get(-1, 0) + 2 * dcVal + p.get(0, -1) + 2) >> 2;
             for (int x = 1; x < nTbS; x++) {
-                predSamples[x][0] = (p.get(x, -1) + 3 * dcVal + 2) >> 2;
+                predSamples[x] = (p.get(x, -1) + 3 * dcVal + 2) >> 2;
             }
             for (int y = 1; y < nTbS; y++) {
-                firstColumn[y] = (p.get(-1, y) + 3 * dcVal + 2) >> 2;
-            }
-            for (int x = 1; x < nTbS; x++) {
-                Arrays.fill(predSamples[x], 1, nTbS, dcVal);
-            }
-        } else {
-            for (int x = 0; x < nTbS; x++) {
-                Arrays.fill(predSamples[x], 0, nTbS, dcVal);
+                predSamples[y * nTbS] = (p.get(-1, y) + 3 * dcVal + 2) >> 2;
             }
         }
         return predSamples;
     }
 
     // 8.4.4.2.6 Specification of intra prediction modes INTRA_ANGULAR2..INTRA_ANGULAR34
-    private static int[][] predictAngular(
+    private static int[] predictAngular(
             IntraPredictionBuffers buffers,
             NeighbouringSamples p,
             int nTbS,
@@ -179,7 +172,7 @@ final class IntraPrediction {
             int predModeIntra,
             int bitDepth,
             boolean disableIntraBoundaryFilter) {
-        int[][] predSamples = buffers.predictedSamples;
+        int[] predSamples = buffers.predictedSamples;
         int intraPredAngle = INTRA_PRED_ANGLE[predModeIntra];
         boolean verticalModes = predModeIntra >= 18;
         // ref[x] at reference[x + nTbS], x = -nTbS..2 * nTbS: the main row (vertical modes) or column (horizontal
@@ -204,33 +197,29 @@ final class IntraPrediction {
         }
 
         // iIdx and iFact follow the distance from the reference: y for the vertical modes, x for the horizontal ones
-        for (int x = 0; x < nTbS; x++) {
-            int[] predictedColumn = predSamples[x];
-            if (verticalModes) {
-                for (int y = 0; y < nTbS; y++) {
-                    int iIdx = ((y + 1) * intraPredAngle) >> 5;
-                    int iFact = ((y + 1) * intraPredAngle) & 31;
-                    predictedColumn[y] = interpolate(reference, x + nTbS + iIdx + 1, iFact);
-                }
-            } else {
+        if (verticalModes) {
+            for (int y = 0; y < nTbS; y++) {
+                int iIdx = ((y + 1) * intraPredAngle) >> 5;
+                int iFact = ((y + 1) * intraPredAngle) & 31;
+                interpolateLine(reference, nTbS + iIdx + 1, iFact, predSamples, y * nTbS, 1, nTbS);
+            }
+        } else {
+            for (int x = 0; x < nTbS; x++) {
                 int iIdx = ((x + 1) * intraPredAngle) >> 5;
                 int iFact = ((x + 1) * intraPredAngle) & 31;
-                for (int y = 0; y < nTbS; y++) {
-                    predictedColumn[y] = interpolate(reference, y + nTbS + iIdx + 1, iFact);
-                }
+                interpolateLine(reference, nTbS + iIdx + 1, iFact, predSamples, x, nTbS, nTbS);
             }
         }
 
         if (cIdx == 0 && nTbS < 32 && !disableIntraBoundaryFilter) {
             if (predModeIntra == VERTICAL) {
-                int[] firstColumn = predSamples[0];
                 for (int y = 0; y < nTbS; y++) {
-                    firstColumn[y] =
+                    predSamples[y * nTbS] =
                             MathExtra.clipBitDepth(p.get(0, -1) + ((p.get(-1, y) - p.get(-1, -1)) >> 1), bitDepth);
                 }
             } else if (predModeIntra == HORIZONTAL) {
                 for (int x = 0; x < nTbS; x++) {
-                    predSamples[x][0] =
+                    predSamples[x] =
                             MathExtra.clipBitDepth(p.get(-1, 0) + ((p.get(x, -1) - p.get(-1, -1)) >> 1), bitDepth);
                 }
             }
@@ -238,9 +227,19 @@ final class IntraPrediction {
         return predSamples;
     }
 
-    private static int interpolate(int[] reference, int index, int iFact) {
-        return iFact != 0
-                ? ((32 - iFact) * reference[index] + iFact * reference[index + 1] + 16) >> 5
-                : reference[index];
+    // count samples interpolated between reference[index + i] and the next one, at iFact 32ths, to
+    // predSamples[start + i * step]
+    private static void interpolateLine(
+            int[] reference, int index, int iFact, int[] predSamples, int start, int step, int count) {
+        if (iFact == 0) {
+            for (int i = 0; i < count; i++) {
+                predSamples[start + i * step] = reference[index + i];
+            }
+        } else {
+            for (int i = 0; i < count; i++) {
+                predSamples[start + i * step] =
+                        ((32 - iFact) * reference[index + i] + iFact * reference[index + i + 1] + 16) >> 5;
+            }
+        }
     }
 }

@@ -27,12 +27,8 @@ final class NeighbouringSamplesGenerator {
     private final int subWidth;
     private final int subHeight;
     private final NeighbouringSamples samples;
-    private final boolean[] available;
     // the minimum transform block address in z-scan order of the current block
     private final int currentBlockAddress;
-    private int availableCount;
-    // the first available sample, in the order 8.4.4.2.2 searches for one
-    private int firstAvailableValue;
 
     private NeighbouringSamplesGenerator(
             HeicPicture picture, int x0, int y0, int nTbS, int cIdx, IntraPredictionBuffers buffers) {
@@ -44,7 +40,6 @@ final class NeighbouringSamplesGenerator {
         subWidth = cIdx == 0 ? 1 : picture.sps.getSubWidthC();
         subHeight = cIdx == 0 ? 1 : picture.sps.getSubHeightC();
         samples = buffers.neighbouringSamples;
-        available = buffers.availability;
         currentBlockAddress = minTbAddrZs(x0 * subWidth, y0 * subHeight);
     }
 
@@ -54,40 +49,115 @@ final class NeighbouringSamplesGenerator {
      */
     static NeighbouringSamples generate(
             HeicPicture picture, int x0, int y0, int nTbS, int cIdx, IntraPredictionBuffers buffers) {
-        NeighbouringSamplesGenerator generator = new NeighbouringSamplesGenerator(picture, x0, y0, nTbS, cIdx, buffers);
-        generator.gather();
-        generator.substituteUnavailable();
-        return generator.samples;
+        new NeighbouringSamplesGenerator(picture, x0, y0, nTbS, cIdx, buffers).gatherAndSubstitute();
+        return buffers.neighbouringSamples;
     }
 
-    private void gather() {
+    // Gathers the available neighbours a group at a time, the column left from the bottom up, the corner, then the
+    // row above from the left, and gives each unavailable one the value of the one before it in that order: the first
+    // available one for the first ones (8.4.4.2.2). The samples of a group are all available or none is.
+    private void gatherAndSubstitute() {
         samples.prepare(nTbS);
-        Arrays.fill(available, 0, NeighbouringSamples.sampleCount(nTbS), false);
+        int[] p = samples.array();
+        int groupCount = 2 * nTbS / GROUP_SIZE;
+        int left = samples.index(-1, 0);
+        int top = samples.index(0, -1);
 
         int xLuma = x0 * subWidth;
         int yLuma = y0 * subHeight;
         int lumaSize = nTbS * subWidth;
         SeqParameterSetRbsp sps = picture.sps;
-
         // the neighbours inside the picture, at most 2 * nTbS below and right
         int belowCount = Math.min(2 * nTbS, ceilDivide(sps.picHeightInLumaSamples - yLuma, subHeight));
         int rightCount = Math.min(2 * nTbS, ceilDivide(sps.picWidthInLumaSamples - xLuma, subWidth));
 
+        // groups k of the column left, y = 4k..4k + 3, and of the row above, x = 4k..4k + 3, as bits
+        int leftGroups = 0;
+        int topGroups = 0;
+        boolean cornerAvailable = false;
         if (isInSameSliceAndTile(xLuma - 1, yLuma)) {
-            for (int y = belowCount - 1; y >= 0; y -= GROUP_SIZE) {
-                gatherGroup(-1, y, 0, -1);
+            for (int k = 0; k < groupCount && k * GROUP_SIZE < belowCount; k++) {
+                if (isDecoded(-1, k * GROUP_SIZE + GROUP_SIZE - 1)) {
+                    leftGroups |= 1 << k;
+                    readColumn(p, left + k * GROUP_SIZE, x0 - 1, y0 + k * GROUP_SIZE);
+                }
             }
         }
-        if (isInSameSliceAndTile(xLuma - 1, yLuma - 1)) {
-            gatherSample(-1, -1);
+        if (isInSameSliceAndTile(xLuma - 1, yLuma - 1) && isDecoded(-1, -1)) {
+            cornerAvailable = true;
+            p[samples.index(-1, -1)] = picture.getSample(cIdx, x0 - 1, y0 - 1);
         }
         boolean availableTop = isInSameSliceAndTile(xLuma, yLuma - 1);
         boolean availableTopRight =
                 xLuma + lumaSize < sps.picWidthInLumaSamples && isInSameSliceAndTile(xLuma + lumaSize, yLuma - 1);
-        for (int x = 0; x < rightCount; x += GROUP_SIZE) {
-            if (x < nTbS ? availableTop : availableTopRight) {
-                gatherGroup(x, -1, 1, 0);
+        for (int k = 0; k < groupCount && k * GROUP_SIZE < rightCount; k++) {
+            int x = k * GROUP_SIZE;
+            if ((x < nTbS ? availableTop : availableTopRight) && isDecoded(x, -1)) {
+                topGroups |= 1 << k;
+                readRow(p, top + x, x0 + x, y0 - 1);
             }
+        }
+
+        int allGroups = (1 << groupCount) - 1;
+        if (leftGroups == allGroups && topGroups == allGroups && cornerAvailable) {
+            return;
+        }
+        if (leftGroups == 0 && topGroups == 0 && !cornerAvailable) {
+            int bitDepth = cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC();
+            samples.fill(1 << (bitDepth - 1));
+            return;
+        }
+
+        // the first available sample: the bottom one of the lowest group left, the corner, or the first one above
+        int value;
+        if (leftGroups != 0) {
+            value = p[left + (31 - Integer.numberOfLeadingZeros(leftGroups)) * GROUP_SIZE + GROUP_SIZE - 1];
+        } else if (cornerAvailable) {
+            value = p[samples.index(-1, -1)];
+        } else {
+            value = p[top + Integer.numberOfTrailingZeros(topGroups) * GROUP_SIZE];
+        }
+        for (int k = groupCount - 1; k >= 0; k--) {
+            int groupStart = left + k * GROUP_SIZE;
+            if ((leftGroups & (1 << k)) != 0) {
+                value = p[groupStart];
+            } else {
+                Arrays.fill(p, groupStart, groupStart + GROUP_SIZE, value);
+            }
+        }
+        if (cornerAvailable) {
+            value = p[samples.index(-1, -1)];
+        } else {
+            p[samples.index(-1, -1)] = value;
+        }
+        for (int k = 0; k < groupCount; k++) {
+            int groupStart = top + k * GROUP_SIZE;
+            if ((topGroups & (1 << k)) != 0) {
+                value = p[groupStart + GROUP_SIZE - 1];
+            } else {
+                Arrays.fill(p, groupStart, groupStart + GROUP_SIZE, value);
+            }
+        }
+    }
+
+    // the four samples of the column x from y down, to p[index..index + 3]
+    private void readColumn(int[] p, int index, int x, int y) {
+        int planeWidth = picture.planeWidths[cIdx];
+        int planeIndex = y * planeWidth + x;
+        for (int i = 0; i < GROUP_SIZE; i++, planeIndex += planeWidth) {
+            p[index + i] = picture.highColorRange
+                    ? picture.highColorRangePlanes[cIdx][planeIndex] & 0xFFFF
+                    : picture.planes[cIdx][planeIndex] & 0xFF;
+        }
+    }
+
+    // the four samples of the row y from x right, to p[index..index + 3]
+    private void readRow(int[] p, int index, int x, int y) {
+        int planeIndex = y * picture.planeWidths[cIdx] + x;
+        for (int i = 0; i < GROUP_SIZE; i++) {
+            p[index + i] = picture.highColorRange
+                    ? picture.highColorRangePlanes[cIdx][planeIndex + i] & 0xFFFF
+                    : picture.planes[cIdx][planeIndex + i] & 0xFF;
         }
     }
 
@@ -104,59 +174,8 @@ final class NeighbouringSamplesGenerator {
                 && tileIdFromRs[neighbourCtb] == tileIdFromRs[currentCtb];
     }
 
-    // The group of four samples from (x, y), stepping by (stepX, stepY), when its first sample is already decoded
-    private void gatherGroup(int x, int y, int stepX, int stepY) {
-        if (!isDecoded(x, y)) {
-            return;
-        }
-        for (int i = 0; i < GROUP_SIZE; i++) {
-            take(x + i * stepX, y + i * stepY);
-        }
-    }
-
-    private void gatherSample(int x, int y) {
-        if (isDecoded(x, y)) {
-            take(x, y);
-        }
-    }
-
     private boolean isDecoded(int x, int y) {
         return minTbAddrZs((x0 + x) * subWidth, (y0 + y) * subHeight) <= currentBlockAddress;
-    }
-
-    private void take(int x, int y) {
-        int value = picture.getSample(cIdx, x0 + x, y0 + y);
-        if (availableCount == 0) {
-            firstAvailableValue = value;
-        }
-        samples.set(x, y, value);
-        available[samples.index(x, y)] = true;
-        availableCount++;
-    }
-
-    private void substituteUnavailable() {
-        if (availableCount == NeighbouringSamples.sampleCount(nTbS)) {
-            return;
-        }
-        if (availableCount == 0) {
-            int bitDepth = cIdx == 0 ? picture.sps.getBitDepthY() : picture.sps.getBitDepthC();
-            samples.fill(1 << (bitDepth - 1));
-            return;
-        }
-
-        if (!available[samples.index(-1, 2 * nTbS - 1)]) {
-            samples.set(-1, 2 * nTbS - 1, firstAvailableValue);
-        }
-        for (int y = 2 * nTbS - 2; y >= -1; y--) {
-            if (!available[samples.index(-1, y)]) {
-                samples.set(-1, y, samples.get(-1, y + 1));
-            }
-        }
-        for (int x = 0; x <= 2 * nTbS - 1; x++) {
-            if (!available[samples.index(x, -1)]) {
-                samples.set(x, -1, samples.get(x - 1, -1));
-            }
-        }
     }
 
     private int minTbAddrZs(int xLuma, int yLuma) {

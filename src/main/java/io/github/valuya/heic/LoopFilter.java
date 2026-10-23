@@ -193,16 +193,19 @@ final class LoopFilter {
         int tc = TC_TABLE[MathExtra.clip3(0, 53, qpL + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2() << 1))]
                 * (1 << (bitDepth - 8));
 
-        // along the edge: perpendicular to the normal
-        int ax = ny;
-        int ay = nx;
+        // the steps across the edge and along it, in the plane
+        int planeWidth = planeWidths[0];
+        int across = nx + ny * planeWidth;
+        int along = ny + nx * planeWidth;
+        int edgeIndex = y * planeWidth + x;
 
         int[][] p = edgeSamplesP;
         int[][] q = edgeSamplesQ;
         for (int k = 0; k < 4; k++) {
+            int lineIndex = edgeIndex + k * along;
             for (int i = 0; i < 4; i++) {
-                p[k][i] = get(0, x - (i + 1) * nx + k * ax, y - (i + 1) * ny + k * ay);
-                q[k][i] = get(0, x + i * nx + k * ax, y + i * ny + k * ay);
+                p[k][i] = get(0, lineIndex - (i + 1) * across);
+                q[k][i] = get(0, lineIndex + i * across);
             }
         }
 
@@ -268,12 +271,13 @@ final class LoopFilter {
                 }
             }
 
+            int lineIndex = edgeIndex + k * along;
             for (int i = 0; i < 3; i++) {
                 if (!noFilterP) {
-                    set(0, x - (i + 1) * nx + k * ax, y - (i + 1) * ny + k * ay, np[i]);
+                    set(0, lineIndex - (i + 1) * across, np[i]);
                 }
                 if (!noFilterQ) {
-                    set(0, x + i * nx + k * ax, y + i * ny + k * ay, nq[i]);
+                    set(0, lineIndex + i * across, nq[i]);
                 }
             }
         }
@@ -289,19 +293,22 @@ final class LoopFilter {
     // 8.7.2.5.8 Filtering process for a chroma sample
     private void filterChromaLine(
             int cIdx, int xc, int yc, int nx, int ny, int tc, int bitDepth, boolean noFilterP, boolean noFilterQ) {
-        int p0 = get(cIdx, xc - nx, yc - ny);
-        int p1 = get(cIdx, xc - 2 * nx, yc - 2 * ny);
-        int q0 = get(cIdx, xc, yc);
-        int q1 = get(cIdx, xc + nx, yc + ny);
+        int planeWidth = planeWidths[cIdx];
+        int across = nx + ny * planeWidth;
+        int q0Index = yc * planeWidth + xc;
+        int p0 = get(cIdx, q0Index - across);
+        int p1 = get(cIdx, q0Index - 2 * across);
+        int q0 = get(cIdx, q0Index);
+        int q1 = get(cIdx, q0Index + across);
 
         int delta = MathExtra.clip3(-tc, tc, ((((q0 - p0) << 2) + p1 - q1 + 4) >> 3));
         int maxValue = (1 << bitDepth) - 1;
 
         if (!noFilterP) {
-            set(cIdx, xc - nx, yc - ny, MathExtra.clip3(0, maxValue, p0 + delta));
+            set(cIdx, q0Index - across, MathExtra.clip3(0, maxValue, p0 + delta));
         }
         if (!noFilterQ) {
-            set(cIdx, xc, yc, MathExtra.clip3(0, maxValue, q0 - delta));
+            set(cIdx, q0Index, MathExtra.clip3(0, maxValue, q0 - delta));
         }
     }
 
@@ -518,12 +525,18 @@ final class LoopFilter {
     }
 
     private int get(int cIdx, int x, int y) {
-        int index = y * planeWidths[cIdx] + x;
+        return get(cIdx, y * planeWidths[cIdx] + x);
+    }
+
+    private int get(int cIdx, int index) {
         return highColorRange ? highColorRangePlanes[cIdx][index] & 0xFFFF : planes[cIdx][index] & 0xFF;
     }
 
     private void set(int cIdx, int x, int y, int value) {
-        int index = y * planeWidths[cIdx] + x;
+        set(cIdx, y * planeWidths[cIdx] + x, value);
+    }
+
+    private void set(int cIdx, int index, int value) {
         if (highColorRange) {
             highColorRangePlanes[cIdx][index] = (short) value;
         } else {
