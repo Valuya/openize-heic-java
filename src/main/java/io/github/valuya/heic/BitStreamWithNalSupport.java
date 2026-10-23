@@ -29,7 +29,7 @@ final class BitStreamWithNalSupport extends BitStreamReader {
 
     BitStreamWithNalSupport(byte[] data) {
         super(data);
-        cabac = new Cabac(this);
+        cabac = new Cabac();
     }
 
     final Cabac getCabac() {
@@ -66,6 +66,44 @@ final class BitStreamWithNalSupport extends BitStreamReader {
             previousByte = currentByte();
             skipCurrentByte();
         }
+    }
+
+    /**
+     * Copies the rest of the NAL unit being read, from a byte boundary up to {@code endBytePosition}, without its
+     * emulation prevention bytes: the RBSP bytes the reads would return. The stream does not move.
+     *
+     * @param rbsp where to copy them, at least {@code endBytePosition - getBitPosition() / 8} bytes
+     * @return the number of bytes copied
+     */
+    final int copyRbsp(long endBytePosition, byte[] rbsp) {
+        if (notByteAligned() || !nalMode) {
+            throw new IllegalStateException("Not at a byte boundary of a NAL unit");
+        }
+        byte[] data = getData();
+        int position = getBytePosition();
+        int previous = previousByte;
+        int beforePrevious = byteBeforePrevious;
+        if (isCurrentByteConsumed()) {
+            // as moveToNextByte( ) does
+            beforePrevious = previous;
+            previous = data[position] & 0xFF;
+            position++;
+        }
+        int end = (int) Math.min(endBytePosition, data.length);
+        int copied = 0;
+        for (; position < end; position++) {
+            int value = data[position] & 0xFF;
+            // as beforeReadingCurrentByte( ) does
+            if (value == 0x03 && previous == 0x00 && beforePrevious == 0x00) {
+                beforePrevious = previous;
+                previous = value;
+                continue;
+            }
+            rbsp[copied++] = (byte) value;
+            beforePrevious = previous;
+            previous = value;
+        }
+        return copied;
     }
 
     @Override

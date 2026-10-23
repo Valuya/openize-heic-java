@@ -59,7 +59,7 @@ class NalUnit {
         // emulation prevention bytes are read but not returned: the size, which counts them, is the reference
         long endPosition = nalUnit.getEndPosition();
         if (stream.getBitPosition() > endPosition) {
-            throw new HeicFormatException("A %s NAL unit overruns its %d bytes".formatted(type, size));
+            throw overrun(type, size);
         }
         stream.setBytePosition(endPosition / 8);
         return nalUnit;
@@ -81,6 +81,16 @@ class NalUnit {
             case PPS_NUT -> new PicParameterSetRbsp(stream, startPosition, size);
             default -> new NalUnit(stream, startPosition, size);
         };
+    }
+
+    /** The exception for a payload whose parsing reads past the unit's {@code size} bytes. */
+    static HeicFormatException overrun(NalUnitType type, int size) {
+        return new HeicFormatException("A %s NAL unit overruns its %d bytes".formatted(type, size));
+    }
+
+    /** The size of the unit in bytes, emulation prevention bytes included. */
+    final int getSize() {
+        return size;
     }
 
     /**

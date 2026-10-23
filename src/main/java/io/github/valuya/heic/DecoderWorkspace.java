@@ -41,14 +41,14 @@ final class DecoderWorkspace {
     // one per component, from these
     static final int DEBLOCKED_BAND = 17;
     static final int DEBLOCKED_LINE_ABOVE = 20;
-    private static final int SLOT_COUNT = 23;
+    static final int SLICE_DATA = 23;
+    private static final int SLOT_COUNT = 24;
 
     final ResidualBuffers residualBuffers = new ResidualBuffers();
     final IntraPredictionBuffers intraPredictionBuffers = new IntraPredictionBuffers();
     // the candidate modes of 8.4.2 and prev_intra_luma_pred_flag of the four prediction blocks of a coding unit
     final int[] candModeList = new int[3];
     final boolean[] prevIntraLumaPredFlags = new boolean[4];
-    final Cabac.Greater1Context greater1Context = new Cabac.Greater1Context();
     // the conversion tables of the last picture converted to RGB
     YuvConverter.@Nullable ChannelTables channelTables;
 
@@ -83,6 +83,16 @@ final class DecoderWorkspace {
             return kept;
         }
         int[] allocated = new int[length];
+        arrays[slot] = allocated;
+        return allocated;
+    }
+
+    /** An array of at least {@code length} bytes, not cleared: the one of the slot when it is long enough. */
+    byte[] byteBuffer(int slot, int length) {
+        if (arrays[slot] instanceof byte[] kept && kept.length >= length) {
+            return kept;
+        }
+        byte[] allocated = new byte[length];
         arrays[slot] = allocated;
         return allocated;
     }
