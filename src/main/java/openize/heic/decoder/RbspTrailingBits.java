@@ -12,17 +12,12 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+class RbspTrailingBits {
+    public RbspTrailingBits(BitStreamWithNalSupport stream) {
+        /*int one =*/ stream.read(1); /* equal to 1; rbsp_stop_one_bit */
 
-class RbspTrailingBits
-{
-    public RbspTrailingBits(BitStreamWithNalSupport stream)
-    {
-        /*int one =*/
-        stream.read(1);   /* equal to 1; rbsp_stop_one_bit */
-
-        while (stream.notByteAligned())
-        {
-            stream.skipBits(1);     /* equal to 0; rbsp_alignment_zero_bit */
+        while (stream.notByteAligned()) {
+            stream.skipBits(1); /* equal to 0; rbsp_alignment_zero_bit */
         }
     }
 }

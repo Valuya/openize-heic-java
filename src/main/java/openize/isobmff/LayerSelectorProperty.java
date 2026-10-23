@@ -12,7 +12,6 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * If the decoding of a multi-layer image item results into more than one reconstructed image, the 'lsel'
@@ -24,8 +23,7 @@ import openize.isobmff.io.BitStreamReader;
  * item properties, if any, to generate an output image of the image item.
  * </p>
  */
-public class LayerSelectorProperty extends Box
-{
+public class LayerSelectorProperty extends Box {
     /**
      * <p>
      * Specifies the layer identifier of the image among the reconstructed images that is described
@@ -45,8 +43,7 @@ public class LayerSelectorProperty extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public LayerSelectorProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public LayerSelectorProperty(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.lsel, size);
 
         layerId = stream.read(16) & 0xFFFF;
@@ -58,8 +55,7 @@ public class LayerSelectorProperty extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s layer: %d", this.type, layerId);
     }
 }

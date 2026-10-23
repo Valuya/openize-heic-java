@@ -12,12 +12,8 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-class SpsMultilayerExtension
-{
-    public SpsMultilayerExtension(BitStreamWithNalSupport stream)
-    {
+class SpsMultilayerExtension {
+    public SpsMultilayerExtension(BitStreamWithNalSupport stream) {
         throw new UnsupportedOperationException();
     }
 }
-

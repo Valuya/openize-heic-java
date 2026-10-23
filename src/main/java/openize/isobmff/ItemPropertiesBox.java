@@ -10,13 +10,11 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
@@ -24,8 +22,7 @@ import java.util.Map;
  * Item properties are small data records.
  * </p>
  */
-public class ItemPropertiesBox extends Box
-{
+public class ItemPropertiesBox extends Box {
     /**
      * <p>
      * Contains an implicitly indexed list of item properties.
@@ -39,6 +36,7 @@ public class ItemPropertiesBox extends Box
      * </p>
      */
     private final List<ItemPropertyAssociation> association;
+
     private ObservableCollection<Box> children;
 
     /**
@@ -50,8 +48,7 @@ public class ItemPropertiesBox extends Box
      * @param size     Box size in bytes.
      * @param startPos Start position in bits.
      */
-    public ItemPropertiesBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
+    public ItemPropertiesBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(BoxType.iprp, size);
 
         propertyContainer = new ItemPropertyContainerBox(stream, stream.getBitPosition());
@@ -61,8 +58,7 @@ public class ItemPropertiesBox extends Box
         setChildren(tmp0);
 
         association = new ArrayList<>();
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
+        while (stream.getBitPosition() < startPos + size * 8) {
             ItemPropertyAssociation impa = new ItemPropertyAssociation(stream);
             association.add(impa);
             getChildren().add(impa);
@@ -75,8 +71,7 @@ public class ItemPropertiesBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.type.name();
     }
 
@@ -85,8 +80,7 @@ public class ItemPropertiesBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final ObservableCollection<Box> getChildren()
-    {
+    public final ObservableCollection<Box> getChildren() {
         return children;
     }
 
@@ -95,8 +89,7 @@ public class ItemPropertiesBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final void setChildren(ObservableCollection<Box> value)
-    {
+    public final void setChildren(ObservableCollection<Box> value) {
         children = value;
     }
 
@@ -107,42 +100,39 @@ public class ItemPropertiesBox extends Box
      *
      * @return Dictionary with Lists of boxes that can be accessed by item id.
      */
-    public final Map<Long, List<Box>> getProperties()
-    {
+    public final Map<Long, List<Box>> getProperties() {
         HashMap<Long, List<Box>> properties = new HashMap<>();
-//        HashMap<Long, List<Box>> essentialProperties = new HashMap<>();
-//        HashMap<Long, List<Box>> nonEssentialProperties = new HashMap<>();
+        //        HashMap<Long, List<Box>> essentialProperties = new HashMap<>();
+        //        HashMap<Long, List<Box>> nonEssentialProperties = new HashMap<>();
 
-        //foreach to while statements conversion
-        for (ItemPropertyAssociation item : association)
-        {
+        // foreach to while statements conversion
+        for (ItemPropertyAssociation item : association) {
 
-            for (ItemPropertyAssociation.ItemPropertyEntry itemProperty : item.entries)
-            {
+            for (ItemPropertyAssociation.ItemPropertyEntry itemProperty : item.entries) {
                 List<Box> all = new ArrayList<>();
-//                List<Box> essential = new ArrayList<>();
-//                List<Box> nonEssential = new ArrayList<>();
+                //                List<Box> essential = new ArrayList<>();
+                //                List<Box> nonEssential = new ArrayList<>();
 
-                for (ItemPropertyAssociation.ItemPropertyEntryAssociation prop : itemProperty.associations)
-                {
+                for (ItemPropertyAssociation.ItemPropertyEntryAssociation prop : itemProperty.associations) {
                     all.add(propertyContainer.getPropertyByIndex(prop.propertyIndex & 0xFFFF));
-//                    if (prop.essential)
-//                    {
-//                        essential.add(property_container.getPropertyByIndex(prop.property_index & 0xFFFF));
-//                    }
-//                    else
-//                    {
-//                        nonEssential.add(property_container.getPropertyByIndex(prop.property_index & 0xFFFF));
-//                    }
+                    //                    if (prop.essential)
+                    //                    {
+                    //                        essential.add(property_container.getPropertyByIndex(prop.property_index &
+                    // 0xFFFF));
+                    //                    }
+                    //                    else
+                    //                    {
+                    //                        nonEssential.add(property_container.getPropertyByIndex(prop.property_index
+                    // & 0xFFFF));
+                    //                    }
                 }
 
                 properties.put(itemProperty.itemID, all);
-            //    essentialProperties.put(itemProperty.item_ID, essential);
-                //nonEssentialProperties.put(itemProperty.item_ID, nonEssential);
+                //    essentialProperties.put(itemProperty.item_ID, essential);
+                // nonEssentialProperties.put(itemProperty.item_ID, nonEssential);
             }
         }
 
         return properties;
     }
 }
-

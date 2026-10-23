@@ -1,6 +1,6 @@
 /*
- * Openize.HEIC 
- * Copyright (c) 2024-2026 Openize Pty Ltd. 
+ * Openize.HEIC
+ * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of Openize.HEIC.
  *
@@ -10,15 +10,12 @@
 
 package openize.heic.decoder;
 
-
-
 /**
  * <p>
  * Type of an exif directory.
  * </p>
  */
-public enum ExifDirectoryType
-{
+public enum ExifDirectoryType {
     /**
      * <p>
      * IFD0 directory.

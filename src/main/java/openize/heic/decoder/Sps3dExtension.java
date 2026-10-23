@@ -12,11 +12,8 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-class Sps3dExtension
-{
-    public Sps3dExtension(BitStreamWithNalSupport stream)
-    {
+class Sps3dExtension {
+    public Sps3dExtension(BitStreamWithNalSupport stream) {
         throw new UnsupportedOperationException();
     }
 }

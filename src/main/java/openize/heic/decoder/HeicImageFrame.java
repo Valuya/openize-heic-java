@@ -10,11 +10,24 @@
 
 package openize.heic.decoder;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
-import openize.isobmff.*;
-
-import java.util.*;
-
+import openize.isobmff.AuxiliaryTypeProperty;
+import openize.isobmff.Box;
+import openize.isobmff.BoxType;
+import openize.isobmff.CleanApertureBox;
+import openize.isobmff.ColourInformationBox;
+import openize.isobmff.IlocItem;
+import openize.isobmff.ImageMirror;
+import openize.isobmff.ImageRotation;
+import openize.isobmff.ImageSpatialExtentsProperty;
+import openize.isobmff.ItemInfoEntry;
+import openize.isobmff.PixelAspectRatioBox;
+import openize.isobmff.PixelInformationProperty;
 
 /**
  * <p>
@@ -22,21 +35,19 @@ import java.util.*;
  * Contains hevc coded data or metadata.
  * </p>
  */
-public class HeicImageFrame
-{
+public class HeicImageFrame {
     private static final List<String> gStringSwitchMap = Arrays.asList(
-                    "urn:mpeg:hevc:2015:auxid:1\u0000",
-                    "urn:mpeg:hevc:2015:auxid:2\u0000",
-                    "portraiteffectsmatte\u0000",
-                    "semanticskinmatte\u0000",
-                    "semantichairmatte\u0000",
-                    "semanticteethmatte\u0000",
-                    "semanticglassesmatte\u0000",
-                    "semanticskymatte\u0000",
-                    "hdrgainmap\u0000",
-                    "styledeltamap\u0000",
-                    "linearthumbnail\u0000"
-                    );
+            "urn:mpeg:hevc:2015:auxid:1\u0000",
+            "urn:mpeg:hevc:2015:auxid:2\u0000",
+            "portraiteffectsmatte\u0000",
+            "semanticskinmatte\u0000",
+            "semantichairmatte\u0000",
+            "semanticteethmatte\u0000",
+            "semanticglassesmatte\u0000",
+            "semanticskymatte\u0000",
+            "hdrgainmap\u0000",
+            "styledeltamap\u0000",
+            "linearthumbnail\u0000");
     private final /*UInt32*/ long id;
     private final IlocItem locationBox;
     private final HeicImage parent;
@@ -61,7 +72,7 @@ public class HeicImageFrame
      * Multidimensional array: chroma or luma index, then two-dimensional array with x and y navigation.
      * </p>
      */
-    /*Byte*/byte[][][] rawPixels;
+    /*Byte*/ byte[][][] rawPixels;
 
     /**
      * <p>
@@ -69,7 +80,7 @@ public class HeicImageFrame
      * Multidimensional array: chroma or luma index, then two-dimensional array with x and y navigation.
      * </p>
      */
-    /*UInt16*/int[][][] rawPixelsHighColorRange;
+    /*UInt16*/ int[][][] rawPixelsHighColorRange;
 
     /**
      * <p>
@@ -92,7 +103,9 @@ public class HeicImageFrame
      * The unique identifier of the image frame.
      * </p>
      */
-    public final /*UInt32*/long getID() { return id; }
+    public final /*UInt32*/ long getID() {
+        return id;
+    }
 
     private boolean cashed;
     private /*UInt32*/ long ispeWidth;
@@ -111,14 +124,14 @@ public class HeicImageFrame
      * Number of channels with color data.
      * </p>
      */
-    private  byte numberOfChannels;
+    private byte numberOfChannels;
 
     /**
      * <p>
      * Bits per channel with color data.
      * </p>
      */
-    private  byte[] bitsPerChannel;
+    private byte[] bitsPerChannel;
 
     /**
      * <p>
@@ -126,8 +139,9 @@ public class HeicImageFrame
      * </p>
      */
     private Long alphaReference = null;
-    private  byte imageRotationAngle;
-    private  byte imageMirrorAxis;
+
+    private byte imageRotationAngle;
+    private byte imageMirrorAxis;
     private CleanApertureBox cleanAperture;
 
     /**
@@ -139,8 +153,7 @@ public class HeicImageFrame
      * @param parent     Parent image.
      * @param id         Frame identifier.
      */
-    HeicImageFrame(BitStreamWithNalSupport stream, HeicImage parent, /*UInt32*/long id)
-    {
+    HeicImageFrame(BitStreamWithNalSupport stream, HeicImage parent, /*UInt32*/ long id) {
         derivativeType = (parent.getHeader().getDerivedType(id));
         ItemInfoEntry informationBox = parent.getHeader().getInfoBoxById(id);
         locationBox = parent.getHeader().getLocationBoxById(id);
@@ -161,8 +174,7 @@ public class HeicImageFrame
      * </p>
      * @return The type of image frame content.
      */
-    public final ImageFrameType getImageType()
-    {
+    public final ImageFrameType getImageType() {
         return imageType;
     }
 
@@ -172,8 +184,7 @@ public class HeicImageFrame
      * </p>
      * @return The width of the image frame in pixels.
      */
-    public final /*UInt32*/long getWidth()
-    {
+    public final /*UInt32*/ long getWidth() {
         return (imageRotationAngle & 0xFF) % 2 == 0 ? getCroppedWidth() : getCroppedHeight();
     }
 
@@ -183,45 +194,44 @@ public class HeicImageFrame
      * </p>
      * @return The height of the image frame in pixels.
      */
-    public final /*UInt32*/long getHeight()
-    {
+    public final /*UInt32*/ long getHeight() {
         return (imageRotationAngle & 0xFF) % 2 == 0 ? getCroppedHeight() : getCroppedWidth();
     }
 
     // Size after the clean aperture crop, before rotation and mirroring
-    private long getCroppedWidth()
-    {
-        return cleanAperture == null ? ispeWidth : roundFraction(cleanAperture.cleanApertureWidthN, cleanAperture.cleanApertureWidthD);
+    private long getCroppedWidth() {
+        return cleanAperture == null
+                ? ispeWidth
+                : roundFraction(cleanAperture.cleanApertureWidthN, cleanAperture.cleanApertureWidthD);
     }
 
-    private long getCroppedHeight()
-    {
-        return cleanAperture == null ? ispeHeight : roundFraction(cleanAperture.cleanApertureHeightN, cleanAperture.cleanApertureHeightD);
+    private long getCroppedHeight() {
+        return cleanAperture == null
+                ? ispeHeight
+                : roundFraction(cleanAperture.cleanApertureHeightN, cleanAperture.cleanApertureHeightD);
     }
 
     // Left edge of the clean aperture: horizOff + (width - 1) / 2 - (cleanApertureWidth - 1) / 2, rounded down
-    private long getCropLeft()
-    {
-        double left = (double) cleanAperture.horizOffN / cleanAperture.horizOffD + (ispeWidth - 1) / 2.0 -
-            ((double) cleanAperture.cleanApertureWidthN / cleanAperture.cleanApertureWidthD - 1) / 2.0;
+    private long getCropLeft() {
+        double left = (double) cleanAperture.horizOffN / cleanAperture.horizOffD
+                + (ispeWidth - 1) / 2.0
+                - ((double) cleanAperture.cleanApertureWidthN / cleanAperture.cleanApertureWidthD - 1) / 2.0;
         return clampCropOrigin((long) Math.floor(left), ispeWidth, getCroppedWidth());
     }
 
     // Top edge of the clean aperture, rounded to the nearest row
-    private long getCropTop()
-    {
-        double top = (double) cleanAperture.vertOffN / cleanAperture.vertOffD + (ispeHeight - 1) / 2.0 -
-            ((double) cleanAperture.cleanApertureHeightN / cleanAperture.cleanApertureHeightD - 1) / 2.0;
+    private long getCropTop() {
+        double top = (double) cleanAperture.vertOffN / cleanAperture.vertOffD
+                + (ispeHeight - 1) / 2.0
+                - ((double) cleanAperture.cleanApertureHeightN / cleanAperture.cleanApertureHeightD - 1) / 2.0;
         return clampCropOrigin((long) Math.floor(top + 0.5), ispeHeight, getCroppedHeight());
     }
 
-    private static long clampCropOrigin(long origin, long fullSize, long croppedSize)
-    {
+    private static long clampCropOrigin(long origin, long fullSize, long croppedSize) {
         return Math.max(0, Math.min(origin, fullSize - croppedSize));
     }
 
-    private static long roundFraction(long numerator, long denominator)
-    {
+    private static long roundFraction(long numerator, long denominator) {
         return (2 * numerator + denominator) / (2 * denominator);
     }
 
@@ -232,8 +242,7 @@ public class HeicImageFrame
      *
      * @return True if frame is linked with alpha data frame, false otherwise.
      */
-    public final boolean hasAlpha()
-    {
+    public final boolean hasAlpha() {
         return alphaReference != null;
     }
 
@@ -244,8 +253,7 @@ public class HeicImageFrame
      *
      * @return True if frame is hidden, false otherwise.
      */
-    public final boolean isHidden()
-    {
+    public final boolean isHidden() {
         return isHidden;
     }
 
@@ -256,8 +264,7 @@ public class HeicImageFrame
      *
      * @return True if frame is image, false otherwise.
      */
-    public final boolean isImage()
-    {
+    public final boolean isImage() {
         return getImageType() == ImageFrameType.hvc1 || isDerived();
     }
 
@@ -268,9 +275,10 @@ public class HeicImageFrame
      *
      * @return True if frame is derived, false otherwise.
      */
-    public final boolean isDerived()
-    {
-        return getImageType() == ImageFrameType.iden || getImageType() == ImageFrameType.iovl || getImageType() == ImageFrameType.grid;
+    public final boolean isDerived() {
+        return getImageType() == ImageFrameType.iden
+                || getImageType() == ImageFrameType.iovl
+                || getImageType() == ImageFrameType.grid;
     }
 
     /**
@@ -279,8 +287,7 @@ public class HeicImageFrame
      * </p>
      * @return The type of derivative content if the frame is derived.
      */
-    public final BoxType getDerivativeType()
-    {
+    public final BoxType getDerivativeType() {
         return derivativeType;
     }
 
@@ -290,8 +297,7 @@ public class HeicImageFrame
      * </p>
      * @return The type of auxiliary reference layer if the frame type is auxiliary.
      */
-    public final AuxiliaryReferenceType getAuxiliaryReferenceType()
-    {
+    public final AuxiliaryReferenceType getAuxiliaryReferenceType() {
         return auxiliaryReferenceType;
     }
 
@@ -301,8 +307,7 @@ public class HeicImageFrame
      * </p>
      * @return The number of channels with color data.
      */
-    public final byte getNumberOfChannels()
-    {
+    public final byte getNumberOfChannels() {
         return numberOfChannels;
     }
 
@@ -312,8 +317,7 @@ public class HeicImageFrame
      * </p>
      * @return The bits per channel with color data.
      */
-    public final byte[] getBitsPerChannel()
-    {
+    public final byte[] getBitsPerChannel() {
         return bitsPerChannel;
     }
 
@@ -333,8 +337,7 @@ public class HeicImageFrame
      * @param pixelFormat     Pixel format that defines the order of colors and the presence of alpha byte.
      * @return Byte array, null if frame does not contain image data.
      */
-    public final byte[] getByteArray(PixelFormat pixelFormat)
-    {
+    public final byte[] getByteArray(PixelFormat pixelFormat) {
         return getByteArray(pixelFormat, new Rectangle(), null);
     }
 
@@ -349,8 +352,7 @@ public class HeicImageFrame
      *                        necessary the new array will be allocated and returned.
      * @return Byte array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final byte[] getByteArray(PixelFormat pixelFormat, byte[] dstArray)
-    {
+    public final byte[] getByteArray(PixelFormat pixelFormat, byte[] dstArray) {
         return getByteArray(pixelFormat, new Rectangle(), dstArray);
     }
 
@@ -366,26 +368,22 @@ public class HeicImageFrame
      *                        necessary the new array will be allocated and returned.
      * @return Byte array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final byte[] getByteArray(PixelFormat pixelFormat, Rectangle boundsRectangle, byte[] dstArray)
-    {
-        if (!isImage())
-        {
+    public final byte[] getByteArray(PixelFormat pixelFormat, Rectangle boundsRectangle, byte[] dstArray) {
+        if (!isImage()) {
             return null;
         }
 
         boundsRectangle = validateBounds(boundsRectangle);
 
-        
         byte[][][] threeDim = getMultidimArray(boundsRectangle);
         applyPixelFormat(threeDim, pixelFormat);
 
         int bpp = pixelFormat == PixelFormat.Rgb24 ? 3 : 4;
-        
+
         byte[] output = dstArray;
 
         final int reqArraySize = boundsRectangle.getHeight() * boundsRectangle.getWidth() * bpp;
-        if (output == null || output.length < reqArraySize)
-        {
+        if (output == null || output.length < reqArraySize) {
             output = new byte[reqArraySize];
         }
 
@@ -393,15 +391,12 @@ public class HeicImageFrame
         final int rectangleBottom = boundsRectangle.getBottom();
         final int boundsRectangleLeft = boundsRectangle.getLeft();
         final int boundsRectangleRight = boundsRectangle.getRight();
-        for (int row = boundsRectangle.getTop(); row < rectangleBottom; row++)
-        {
-            for (int col = boundsRectangleLeft; col < boundsRectangleRight; col++)
-            {
+        for (int row = boundsRectangle.getTop(); row < rectangleBottom; row++) {
+            for (int col = boundsRectangleLeft; col < boundsRectangleRight; col++) {
                 output[index++] = threeDim[col][row][0];
                 output[index++] = threeDim[col][row][1];
                 output[index++] = threeDim[col][row][2];
-                if (bpp == 4)
-                {
+                if (bpp == 4) {
                     output[index++] = threeDim[col][row][3];
                 }
             }
@@ -419,8 +414,7 @@ public class HeicImageFrame
      * @param pixelFormat     Pixel format that defines the order of colors.
      * @return Integer array, null if frame does not contain image data.
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat)
-    {
+    public final int[] getInt32Array(PixelFormat pixelFormat) {
         return getInt32Array(pixelFormat, new Rectangle(), null);
     }
 
@@ -435,8 +429,7 @@ public class HeicImageFrame
      *                        necessary the new array will be allocated and returned.
      * @return Integer array, null if frame does not contain image data.  In general, it equals to {@code dstArray}.
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat, int[] dstArray)
-    {
+    public final int[] getInt32Array(PixelFormat pixelFormat, int[] dstArray) {
         return getInt32Array(pixelFormat, new Rectangle(), dstArray);
     }
 
@@ -452,10 +445,8 @@ public class HeicImageFrame
      *                        necessary the new array will be allocated and returned.
      * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle, int[] dstArray)
-    {
-        if (!isImage())
-        {
+    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle, int[] dstArray) {
+        if (!isImage()) {
             return null;
         }
 
@@ -467,8 +458,7 @@ public class HeicImageFrame
         final int reqArraySize = boundsRectangle.getHeight() * boundsRectangle.getWidth();
 
         int[] output = dstArray;
-        if (output == null || output.length < reqArraySize)
-        {
+        if (output == null || output.length < reqArraySize) {
             output = new int[reqArraySize];
         }
 
@@ -476,15 +466,12 @@ public class HeicImageFrame
         final int rectangleBottom = boundsRectangle.getBottom();
         final int boundsRectangleLeft = boundsRectangle.getLeft();
         final int boundsRectangleRight = boundsRectangle.getRight();
-        for (int row = boundsRectangle.getTop(); row < rectangleBottom; row++)
-        {
-            for (int col = boundsRectangleLeft; col < boundsRectangleRight; col++)
-            {
-                output[index++] =
-                        (threeDim[col][row][0] & 0xFF) << 24 |
-                                (threeDim[col][row][1] & 0xFF) << 16 |
-                                (threeDim[col][row][2] & 0xFF) << 8 |
-                                (threeDim[col][row][3] & 0xFF);
+        for (int row = boundsRectangle.getTop(); row < rectangleBottom; row++) {
+            for (int col = boundsRectangleLeft; col < boundsRectangleRight; col++) {
+                output[index++] = (threeDim[col][row][0] & 0xFF) << 24
+                        | (threeDim[col][row][1] & 0xFF) << 16
+                        | (threeDim[col][row][2] & 0xFF) << 8
+                        | (threeDim[col][row][3] & 0xFF);
             }
         }
 
@@ -499,26 +486,21 @@ public class HeicImageFrame
      *
      * @return The frame text data.
      */
-    public final String getTextData()
-    {
+    public final String getTextData() {
         final ImageFrameType frameType = getImageType();
-        if (frameType != ImageFrameType.mime && frameType != ImageFrameType.uri)
-        {
+        if (frameType != ImageFrameType.mime && frameType != ImageFrameType.uri) {
             return "";
         }
 
         IlocItem location = null;
-        for (IlocItem item : parent.getHeader().getMeta().getiloc().items)
-        {
-            if (item.itemID == id)
-            {
+        for (IlocItem item : parent.getHeader().getMeta().getiloc().items) {
+            if (item.itemID == id) {
                 location = item;
                 break;
             }
         }
 
-        if (location == null)
-        {
+        if (location == null) {
             return "";
         }
 
@@ -535,10 +517,8 @@ public class HeicImageFrame
      * @param id   A layer identifier.
      * @param type A layer type.
      */
-    final void addLayerReference(/*UInt32*/long id, AuxiliaryReferenceType type)
-    {
-        if (Objects.requireNonNull(type) == AuxiliaryReferenceType.Alpha)
-        {
+    final void addLayerReference(/*UInt32*/ long id, AuxiliaryReferenceType type) {
+        if (Objects.requireNonNull(type) == AuxiliaryReferenceType.Alpha) {
             this.alphaReference = id;
         }
     }
@@ -550,12 +530,9 @@ public class HeicImageFrame
      * @param stream File stream.
      * @param properties Frame properties described in container.
      */
-    final void loadProperties(BitStreamWithNalSupport stream, List<Box> properties)
-    {
-        for (Box item : properties)
-        {
-            switch (item.type)
-            {
+    final void loadProperties(BitStreamWithNalSupport stream, List<Box> properties) {
+        for (Box item : properties) {
+            switch (item.type) {
                 case hvcC: // hvcC
                     HEVCConfigurationBox config = (HEVCConfigurationBox) item;
                     stream.createNewImageContext(id);
@@ -579,87 +556,82 @@ public class HeicImageFrame
                     this.numberOfChannels = pixi.numChannels;
                     this.bitsPerChannel = pixi.bitsPerChannel;
                     break;
-//                case rloc:
-//                    RelativeLocationProperty rloc = (RelativeLocationProperty) item;
-//                    break;
+                //                case rloc:
+                //                    RelativeLocationProperty rloc = (RelativeLocationProperty) item;
+                //                    break;
                 case auxC:
                     AuxiliaryTypeProperty auxC = (AuxiliaryTypeProperty) item;
 
                     this.auxiliaryReferenceType = AuxiliaryReferenceType.Undefined;
 
-                    switch (gStringSwitchMap.indexOf(auxC.auxType))
-                    {
-                        case /*"urn:mpeg:hevc:2015:auxid:1\u0000"*/0:
+                    switch (gStringSwitchMap.indexOf(auxC.auxType)) {
+                        case /*"urn:mpeg:hevc:2015:auxid:1\u0000"*/ 0:
                             this.auxiliaryReferenceType = AuxiliaryReferenceType.Alpha;
                             break;
-                        case /*"urn:mpeg:hevc:2015:auxid:2\u0000"*/1:
+                        case /*"urn:mpeg:hevc:2015:auxid:2\u0000"*/ 1:
                             this.auxiliaryReferenceType = AuxiliaryReferenceType.DepthMap;
                             break;
                         default:
-                            if (auxC.auxType.contains("apple") && auxC.auxType.contains(":aux:"))
-                            {
-                                switch (gStringSwitchMap.indexOf(auxC.auxType.substring(auxC.auxType.indexOf(":aux:") + 5)))
-                                {
-                                    case /*"portraiteffectsmatte\u0000"*/2:
+                            if (auxC.auxType.contains("apple") && auxC.auxType.contains(":aux:")) {
+                                switch (gStringSwitchMap.indexOf(
+                                        auxC.auxType.substring(auxC.auxType.indexOf(":aux:") + 5))) {
+                                    case /*"portraiteffectsmatte\u0000"*/ 2:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.PortraitEffectsMatte;
                                         break;
-                                    case /*"semanticskinmatte\u0000"*/3:
+                                    case /*"semanticskinmatte\u0000"*/ 3:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.SemanticSkinMatte;
                                         break;
-                                    case /*"semantichairmatte\u0000"*/4:
+                                    case /*"semantichairmatte\u0000"*/ 4:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.SemanticHairMatte;
                                         break;
-                                    case /*"semanticteethmatte\u0000"*/5:
+                                    case /*"semanticteethmatte\u0000"*/ 5:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.SemanticTeethMatte;
                                         break;
-                                    case /*"semanticglassesmatte\u0000"*/6:
+                                    case /*"semanticglassesmatte\u0000"*/ 6:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.SemanticGlassesMatte;
                                         break;
-                                    case /*"semanticskymatte\u0000"*/7:
+                                    case /*"semanticskymatte\u0000"*/ 7:
                                         auxiliaryReferenceType = AuxiliaryReferenceType.SemanticSkyMatte;
                                         break;
-                                    case /*"hdrgainmap\u0000"*/8:
+                                    case /*"hdrgainmap\u0000"*/ 8:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.HdrGainMap;
                                         break;
-                                    case /*"styledeltamap\u0000"*/9:
+                                    case /*"styledeltamap\u0000"*/ 9:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.StyleDeltaMap;
                                         break;
-                                    case /*"linearthumbnail\u0000"*/10:
+                                    case /*"linearthumbnail\u0000"*/ 10:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.LinearThumbnail;
                                         break;
                                     default:
-                                        // Do nothing
+                                    // Do nothing
                                 }
                             }
                             break;
                     }
 
                     /*UInt32*/
-                    long[] derived = parent.getHeader()
-                                           .getDerivedList(id);
-                    for (/*UInt32*/long derivedId : derived)
-                    {
-                        parent.getAllFrames()
-                              .get(derivedId)
-                              .addLayerReference(id, this.auxiliaryReferenceType);
+                    long[] derived = parent.getHeader().getDerivedList(id);
+                    for (/*UInt32*/ long derivedId : derived) {
+                        parent.getAllFrames().get(derivedId).addLayerReference(id, this.auxiliaryReferenceType);
                     }
                     break;
                 case clap:
                     CleanApertureBox clap = (CleanApertureBox) item;
-                    if (clap.cleanApertureWidthD != 0 && clap.cleanApertureHeightD != 0 &&
-                        clap.horizOffD != 0 && clap.vertOffD != 0)
-                        this.cleanAperture = clap;
+                    if (clap.cleanApertureWidthD != 0
+                            && clap.cleanApertureHeightD != 0
+                            && clap.horizOffD != 0
+                            && clap.vertOffD != 0) this.cleanAperture = clap;
                     break;
                 case irot:
                     ImageRotation irot = (ImageRotation) item;
                     this.imageRotationAngle = irot.angle;
                     break;
-//                case lsel:
-//                    LayerSelectorProperty lsel = (LayerSelectorProperty) item;
-//                    break;
+                //                case lsel:
+                //                    LayerSelectorProperty lsel = (LayerSelectorProperty) item;
+                //                    break;
                 case imir:
                     ImageMirror imir = (ImageMirror) item;
-                    this.imageMirrorAxis = (/*Byte*/byte) ((imir.axis & 0xFF) + 1);
+                    this.imageMirrorAxis = (/*Byte*/ byte) ((imir.axis & 0xFF) + 1);
                     break;
                 default:
                     break;
@@ -667,23 +639,21 @@ public class HeicImageFrame
         }
     }
 
-    private byte[][][] getMultidimArray(Rectangle boundsRectangle)
-    {
-        
+    private byte[][][] getMultidimArray(Rectangle boundsRectangle) {
+
         byte[][][] rgba;
 
-        
-        byte[] databox = (locationBox.constructionMethod & 0xFF) == 1 ?
-                parent.getHeader().getItemDataBoxContent(
-                        ((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL,
-                        locationBox.extents[0].length) :
-                new byte[0];
+        byte[] databox = (locationBox.constructionMethod & 0xFF) == 1
+                ? parent.getHeader()
+                        .getItemDataBoxContent(
+                                ((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL))
+                                        & 0xFFFFFFFFL,
+                                locationBox.extents[0].length)
+                : new byte[0];
 
-        switch (getImageType())
-        {
+        switch (getImageType()) {
             case hvc1:
-                if (!cashed)
-                {
+                if (!cashed) {
                     loadHvcRawPixels();
                 }
 
@@ -706,8 +676,7 @@ public class HeicImageFrame
                 throw new IllegalStateException("Unknown image type.");
         }
 
-        if (rgba == null)
-        {
+        if (rgba == null) {
             throw new IllegalStateException("Unknown image type.");
         }
 
@@ -718,26 +687,24 @@ public class HeicImageFrame
         return rgba;
     }
 
-    private Rectangle validateBounds(Rectangle boundsRectangle)
-    {
-        if (boundsRectangle == null || boundsRectangle.isEmpty())
-        {
+    private Rectangle validateBounds(Rectangle boundsRectangle) {
+        if (boundsRectangle == null || boundsRectangle.isEmpty()) {
             return new Rectangle(0, 0, (int) getWidth(), (int) getHeight());
         }
 
-        if (boundsRectangle.getLeft() < 0 || boundsRectangle.getTop() < 0 ||
-                boundsRectangle.getRight() > (int) getWidth() || boundsRectangle.getBottom() > (int) getHeight())
-        {
-            throw new IndexOutOfBoundsException("The specification of selection area cannot exceed the size of an image.");
+        if (boundsRectangle.getLeft() < 0
+                || boundsRectangle.getTop() < 0
+                || boundsRectangle.getRight() > (int) getWidth()
+                || boundsRectangle.getBottom() > (int) getHeight()) {
+            throw new IndexOutOfBoundsException(
+                    "The specification of selection area cannot exceed the size of an image.");
         }
 
         return boundsRectangle;
     }
 
-    private void addAlphaLayer(byte[][][] pixels, Rectangle boundsRectangle)
-    {
-        if (alphaReference == null)
-        {
+    private void addAlphaLayer(byte[][][] pixels, Rectangle boundsRectangle) {
+        if (alphaReference == null) {
             return;
         }
         long tmp0 = alphaReference & 0xFFFFFFFFL;
@@ -746,37 +713,31 @@ public class HeicImageFrame
 
         final long height = getHeight() & 0xFFFFFFFFL;
         final long width = getWidth() & 0xFFFFFFFFL;
-        for (/*UInt32*/long row = 0; row < height; row++)
-        {
-            for (/*UInt32*/long col = 0; col < width; col++)
-            {
+        for (
+        /*UInt32*/ long row = 0; row < height; row++) {
+            for (
+            /*UInt32*/ long col = 0; col < width; col++) {
                 pixels[(int) (col)][(int) (row)][3] = alpha[(int) (col)][(int) (row)][0];
             }
         }
     }
 
     // Clean aperture (clap) crop, applied before rotation and mirroring
-    private byte[][][] cropImage(byte[][][] pixels)
-    {
-        if (cleanAperture == null)
-            return pixels;
+    private byte[][][] cropImage(byte[][][] pixels) {
+        if (cleanAperture == null) return pixels;
 
         int left = (int) getCropLeft();
         int top = (int) getCropTop();
         int width = (int) getCroppedWidth();
         int height = (int) getCroppedHeight();
         byte[][][] cropped = new byte[width][height][];
-        for (int x = 0; x < width; x++)
-            for (int y = 0; y < height; y++)
-                cropped[x][y] = pixels[left + x][top + y];
+        for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) cropped[x][y] = pixels[left + x][top + y];
         return cropped;
     }
 
-    private byte[][][] transformImage(byte[][][] pixels)
-    {
+    private byte[][][] transformImage(byte[][][] pixels) {
         final int rotationAngle = imageRotationAngle & 0xFF;
-        if (rotationAngle == 0 && (imageMirrorAxis & 0xFF) == 0)
-        {
+        if (rotationAngle == 0 && (imageMirrorAxis & 0xFF) == 0) {
             return pixels;
         }
 
@@ -787,12 +748,11 @@ public class HeicImageFrame
         /*UInt32*/
         long oldCol, oldRow;
 
-        for (/*UInt32*/long newRow = 0; newRow < height; newRow++)
-        {
-            for (/*UInt32*/long newCol = 0; newCol < width; newCol++)
-            {
-                switch (imageRotationAngle)
-                {
+        for (
+        /*UInt32*/ long newRow = 0; newRow < height; newRow++) {
+            for (
+            /*UInt32*/ long newCol = 0; newCol < width; newCol++) {
+                switch (imageRotationAngle) {
                     case 3:
                         oldCol = newRow;
                         oldRow = width - newCol - 1;
@@ -814,17 +774,12 @@ public class HeicImageFrame
 
                 if ((imageMirrorAxis & 0xFF) == 1) // vertical
                 {
-                    if (rotationAngle == 0 || rotationAngle == 2)
-                        oldRow = height - oldRow - 1;
-                    else
-                        oldCol = height - oldCol - 1;
-                }
-                else if ((imageMirrorAxis & 0xFF) == 2) // horizontal
+                    if (rotationAngle == 0 || rotationAngle == 2) oldRow = height - oldRow - 1;
+                    else oldCol = height - oldCol - 1;
+                } else if ((imageMirrorAxis & 0xFF) == 2) // horizontal
                 {
-                    if (rotationAngle == 0 || rotationAngle == 2)
-                        oldCol = width - oldCol - 1;
-                    else
-                        oldRow = width - oldRow - 1;
+                    if (rotationAngle == 0 || rotationAngle == 2) oldCol = width - oldCol - 1;
+                    else oldRow = width - oldRow - 1;
                 }
 
                 rotated[(int) (newCol)][(int) (newRow)][0] = pixels[(int) (oldCol)][(int) (oldRow)][0];
@@ -836,10 +791,8 @@ public class HeicImageFrame
         return rotated;
     }
 
-    private void applyPixelFormat(byte[][][] rgba, PixelFormat pixelFormat)
-    {
-        if (pixelFormat == PixelFormat.Rgba32 || pixelFormat == PixelFormat.Rgb24)
-        {
+    private void applyPixelFormat(byte[][][] rgba, PixelFormat pixelFormat) {
+        if (pixelFormat == PixelFormat.Rgba32 || pixelFormat == PixelFormat.Rgb24) {
             return;
         }
 
@@ -847,18 +800,17 @@ public class HeicImageFrame
 
         final long height = getHeight() & 0xFFFFFFFFL;
         final long width = getWidth() & 0xFFFFFFFFL;
-        for (/*UInt32*/long row = 0; row < height; row++)
-        {
-            for (/*UInt32*/long col = 0; col < width; col++)
-            {
+        for (
+        /*UInt32*/ long row = 0; row < height; row++) {
+            for (
+            /*UInt32*/ long col = 0; col < width; col++) {
                 byte[] bytesPtr = rgba[(int) (col)][(int) (row)];
                 r = bytesPtr[0];
                 g = bytesPtr[1];
                 b = bytesPtr[2];
                 a = bytesPtr[3];
 
-                switch (pixelFormat)
-                {
+                switch (pixelFormat) {
                     case Argb32:
                         bytesPtr[0] = a;
                         bytesPtr[1] = r;
@@ -867,37 +819,34 @@ public class HeicImageFrame
                         break;
                     case Bgra32:
                         bytesPtr[0] = b;
-                        //bytesPtr[1] = g;
+                        // bytesPtr[1] = g;
                         bytesPtr[2] = r;
-                        //bytesPtr[3] = a;
+                        // bytesPtr[3] = a;
                         break;
                 }
             }
         }
     }
 
-    private void loadHvcRawPixels()
-    {
+    private void loadHvcRawPixels() {
         stream.setCurrentImageId(id);
-        stream.setBytePosition(((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+        stream.setBytePosition(
+                ((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
 
-        /*UInt32*/long end = ((((locationBox.baseOffset & 0xFFFFFFFFL)
-            + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-            + (locationBox.extents[0].length & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
+        /*UInt32*/ long end = ((((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL))
+                                & 0xFFFFFFFFL)
+                        + (locationBox.extents[0].length & 0xFFFFFFFFL))
+                & 0xFFFFFFFFL;
 
-        while (stream.getBitPosition()/8 < (end & 0xFFFFFFFFL))
-        {
+        while (stream.getBitPosition() / 8 < (end & 0xFFFFFFFFL)) {
             NalUnit.parseUnit(stream);
         }
 
-        if (stream.getContext().getPictures().containsKey(id))
-        {
+        if (stream.getContext().getPictures().containsKey(id)) {
             stream.getContext().getPictures().get(id).applyLoopFilters();
             rawPixels = stream.getContext().getPictures().get(id).pixels;
             rawPixelsHighColorRange = stream.getContext().getPictures().get(id).pixelsHighColorRange;
-        }
-        else
-        {
+        } else {
             rawPixels = null;
             rawPixelsHighColorRange = null;
             throw new NoSuchElementException(String.format("Image #%d was not loaded [NalUnit not found].", id));
@@ -907,13 +856,11 @@ public class HeicImageFrame
         stream.deleteImageContext(id);
     }
 
-    private byte[][][] getByteArrayForGrid(byte[] databox)
-    {
+    private byte[][][] getByteArrayForGrid(byte[] databox) {
         int gridFieldLength = (((databox[1] & 0xFF) & 1) + 1) * 2;
 
-        
         int rows = databox[2] & 0xFF;
-        
+
         int columns = databox[3] & 0xFF;
 
         /*UInt32*/
@@ -926,33 +873,36 @@ public class HeicImageFrame
         long[] derived = parent.getHeader().getDerivedList(id);
 
         HeicImageFrame frame;
-        
+
         byte[][][] framePixels;
-        
+
         byte[][][] output = new byte[(int) localWidth][(int) localHeight][4];
 
         final Map<Long, HeicImageFrame> allFrames = parent.getAllFrames();
-        for (int i = 0; i <= rows; i++)
-        {
-            for (int j = 0; j <= columns; j++)
-            {
+        for (int i = 0; i <= rows; i++) {
+            for (int j = 0; j <= columns; j++) {
                 index = i * (columns + 1) + j;
                 frame = allFrames.get(derived[index]);
                 final long frameWidth = frame.getWidth();
                 final long frameHeight = frame.getHeight();
                 framePixels = frame.getMultidimArray(new Rectangle(0, 0, (int) frameWidth, (int) frameHeight));
 
-                for (int k = 0; k < (frameHeight & 0xFFFFFFFFL); k++)
-                {
-                    for (int l = 0; l < (frameWidth & 0xFFFFFFFFL); l++)
-                    {
+                for (int k = 0; k < (frameHeight & 0xFFFFFFFFL); k++) {
+                    for (int l = 0; l < (frameWidth & 0xFFFFFFFFL); l++) {
                         if (((j * frameWidth) & 0xFFFFFFFFL) + l < localWidth
-                                && ((i * frameHeight) & 0xFFFFFFFFL) + k < localHeight)
-                        {
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][(int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][0] = framePixels[l][k][0];
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][(int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][1] = framePixels[l][k][1];
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][(int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][2] = framePixels[l][k][2];
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][(int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][3] = framePixels[l][k][3];
+                                && ((i * frameHeight) & 0xFFFFFFFFL) + k < localHeight) {
+                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
+                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][0] =
+                                    framePixels[l][k][0];
+                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
+                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][1] =
+                                    framePixels[l][k][1];
+                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
+                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][2] =
+                                    framePixels[l][k][2];
+                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
+                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][3] =
+                                    framePixels[l][k][3];
                         }
                     }
                 }
@@ -961,8 +911,7 @@ public class HeicImageFrame
         return output;
     }
 
-    private byte[][][] getByteArrayForOverlay(byte[] databox)
-    {
+    private byte[][][] getByteArrayForOverlay(byte[] databox) {
         /*UInt32*/
         long[] derived = parent.getHeader().getDerivedList(id);
 
@@ -971,9 +920,8 @@ public class HeicImageFrame
 
         /*UInt16*/
         //    int[] canvas_fill_value = new /*UInt16*/int[4];
-        for (int j = 0; j < 4; j++)
-        {
-     //       canvas_fill_value[j] = getByteFromIdatField(databox, index, 2) & 0xFFFF;
+        for (int j = 0; j < 4; j++) {
+            //       canvas_fill_value[j] = getByteFromIdatField(databox, index, 2) & 0xFFFF;
             index += 2;
         }
 
@@ -986,42 +934,37 @@ public class HeicImageFrame
         int[] horizontalOffset = new int[derived.length];
         int[] verticalOffset = new int[derived.length];
 
-        for (int i = 0; i < derived.length; i++)
-        {
+        for (int i = 0; i < derived.length; i++) {
             horizontalOffset[i] = getByteFromIdatField(databox, index, iovlFieldLength);
             verticalOffset[i] = getByteFromIdatField(databox, index + iovlFieldLength, iovlFieldLength);
             index += 2 * iovlFieldLength;
         }
 
         HeicImageFrame frame;
-        
+
         byte[][][] framePixels;
-        
+
         byte[][][] output = new byte[(int) outputWidth][(int) outputHeight][4];
 
         final long height = getHeight() & 0xFFFFFFFFL;
         final long width = getWidth() & 0xFFFFFFFFL;
-        for (/*UInt32*/long row = 0; (row & 0xFFFFFFFFL) < height; row++)
-        {
-            for (/*UInt32*/long col = 0; (col & 0xFFFFFFFFL) < width; col++)
-            {
+        for (
+        /*UInt32*/ long row = 0; (row & 0xFFFFFFFFL) < height; row++) {
+            for (
+            /*UInt32*/ long col = 0; (col & 0xFFFFFFFFL) < width; col++) {
                 output[(int) (col)][(int) (row)][3] = (byte) 255;
             }
         }
 
-        for (int i = 0; i < derived.length; i++)
-        {
+        for (int i = 0; i < derived.length; i++) {
             frame = parent.getAllFrames().get(derived[i]);
             final long frameWidth = frame.getWidth();
             final long frameHeight = frame.getHeight();
             framePixels = frame.getMultidimArray(new Rectangle(0, 0, (int) frameWidth, (int) frameHeight));
 
-            for (int k = 0; k < frameHeight; k++)
-            {
-                for (int l = 0; l < frameWidth; l++)
-                {
-                    if (horizontalOffset[i] + l < outputWidth && verticalOffset[i] + k < outputHeight)
-                    {
+            for (int k = 0; k < frameHeight; k++) {
+                for (int l = 0; l < frameWidth; l++) {
+                    if (horizontalOffset[i] + l < outputWidth && verticalOffset[i] + k < outputHeight) {
                         output[horizontalOffset[i] + l][verticalOffset[i] + k][0] = framePixels[l][k][0];
                         output[horizontalOffset[i] + l][verticalOffset[i] + k][1] = framePixels[l][k][1];
                         output[horizontalOffset[i] + l][verticalOffset[i] + k][2] = framePixels[l][k][2];
@@ -1033,12 +976,10 @@ public class HeicImageFrame
         return output;
     }
 
-    private int getByteFromIdatField(byte[] arr, int offset, int length)
-    {
+    private int getByteFromIdatField(byte[] arr, int offset, int length) {
         int value = arr[offset] & 0xFF;
 
-        for (int i = 1; i < length; i++)
-        {
+        for (int i = 1; i < length; i++) {
             value = (value << 8) | (arr[offset + i] & 0xFF);
         }
 
@@ -1046,31 +987,25 @@ public class HeicImageFrame
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder line = new StringBuilder(255);
         line.append('[').append(id).append(',').append(this.imageType).append("] ");
 
-        if (colr != null)
-            line.append(colr.getColourType()).append(' ');
+        if (colr != null) line.append(colr.getColourType()).append(' ');
 
         final byte[] bitsPerChannel1 = getBitsPerChannel();
         if (bitsPerChannel1 != null)
             line.append('(').append(Arrays.toString(bitsPerChannel1)).append(") ");
 
-        if (ispeWidth > 0)
-            line.append(ispeWidth).append('x').append(ispeHeight).append(' ');
+        if (ispeWidth > 0) line.append(ispeWidth).append('x').append(ispeHeight).append(' ');
 
-        if (imageRotationAngle > 0)
-            line.append(imageRotationAngle*90).append("° ");
+        if (imageRotationAngle > 0) line.append(imageRotationAngle * 90).append("° ");
 
         if (auxiliaryReferenceType != AuxiliaryReferenceType.Undefined)
             line.append(auxiliaryReferenceType).append(' ');
 
-        if (derivativeType != null)
-        {
-            switch (derivativeType)
-            {
+        if (derivativeType != null) {
+            switch (derivativeType) {
                 case dimg:
                     line.append("Derived: ");
                     break;

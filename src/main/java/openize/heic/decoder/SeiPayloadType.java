@@ -10,8 +10,7 @@
 
 package openize.heic.decoder;
 
-enum SeiPayloadType
-{
+enum SeiPayloadType {
     bufferingPeriod, /*  = 0 */
     picTiming, /*  = 1 */
     panScanRect, /*  = 2 */
@@ -28,7 +27,7 @@ enum SeiPayloadType
     toneMappingInfo, /*  = 23 */
     framePackingArrangement, /*  = 45 */
     displayOrientation, /*  = 47 */
-    greenMetadata, /*  = 56 */                            // specified in ISO/IEC 23001-11
+    greenMetadata, /*  = 56 */ // specified in ISO/IEC 23001-11
     structureOfPicturesInfo, /*  = 128 */
     activeParameterSets, /*  = 129 */
     decodingUnitInfo, /*  = 130 */
@@ -60,24 +59,23 @@ enum SeiPayloadType
     regionalNesting, /*  = 157 */
     mctsExtractionInfoSets, /*  = 158 */
     mctsExtractionInfoNesting, /*  = 159 */
-    layersNotPresent, /*  = 160 */                       // specified in Annex F
-    interLayerConstrainedTileSets, /*  = 161 */        // specified in Annex F
-    bspNesting, /*  = 162 */                              // specified in Annex F
-    bspInitialArrivalTime, /*  = 163 */                 // specified in Annex F
-    subBitstreamProperty, /*  = 164 */                   // specified in Annex F
-    alphaChannelInfo, /*  = 165 */                       // specified in Annex F
-    overlayInfo, /*  = 166 */                             // specified in Annex F
-    temporalMvPredictionConstraints, /*  = 167 */       // specified in Annex F
-    frameFieldInfo, /*  = 168 */                         // specified in Annex F
-    threeDimensionalReferenceDisplaysInfo, /*  = 176 */// specified in Annex G
-    depthRepresentationInfo, /*  = 177 */                // specified in Annex G
-    multiviewSceneInfo, /*  = 178 */                     // specified in Annex G
-    multiviewAcquisitionInfo, /*  = 179 */               // specified in Annex G
-    multiviewViewPosition, /*  = 180 */                  // specified in Annex G
-    alternativeDepthInfo, /*  = 181 */                   // specified in Annex I
+    layersNotPresent, /*  = 160 */ // specified in Annex F
+    interLayerConstrainedTileSets, /*  = 161 */ // specified in Annex F
+    bspNesting, /*  = 162 */ // specified in Annex F
+    bspInitialArrivalTime, /*  = 163 */ // specified in Annex F
+    subBitstreamProperty, /*  = 164 */ // specified in Annex F
+    alphaChannelInfo, /*  = 165 */ // specified in Annex F
+    overlayInfo, /*  = 166 */ // specified in Annex F
+    temporalMvPredictionConstraints, /*  = 167 */ // specified in Annex F
+    frameFieldInfo, /*  = 168 */ // specified in Annex F
+    threeDimensionalReferenceDisplaysInfo, /*  = 176 */ // specified in Annex G
+    depthRepresentationInfo, /*  = 177 */ // specified in Annex G
+    multiviewSceneInfo, /*  = 178 */ // specified in Annex G
+    multiviewAcquisitionInfo, /*  = 179 */ // specified in Annex G
+    multiviewViewPosition, /*  = 180 */ // specified in Annex G
+    alternativeDepthInfo, /*  = 181 */ // specified in Annex I
     seiManifest, /*  = 200 */
     seiPrefixIndication, /*  = 201 */
     annotatedRegions, /*  = 202 */
     shutterIntervalInfo, /*  = 205 */
 }
-

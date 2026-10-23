@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * This box provides extra information about one entry.
  * </p>
  */
-public class ItemInfoEntry extends FullBox
-{
+public class ItemInfoEntry extends FullBox {
     /**
      * <p>
      * Contains either 0 for the primary resource (e.g., the XML contained in an 'xml ' box) or
@@ -89,48 +87,39 @@ public class ItemInfoEntry extends FullBox
      *
      * @param stream File stream.
      */
-    ItemInfoEntry(BitStreamReader stream)
-    {
+    ItemInfoEntry(BitStreamReader stream) {
         super(stream, BoxType.infe);
 
         itemHidden = flags.get(23);
 
-        if ((version & 0xFF) < 2)
-        {
+        if ((version & 0xFF) < 2) {
             itemID = stream.read(16) & 0xFFFFFFFFL;
             itemProtectionIndex = stream.read(16) & 0xFFFF;
 
             itemName = stream.readString();
             contentType = stream.readString();
-            contentEncoding = stream.readString(); //optional
+            contentEncoding = stream.readString(); // optional
 
-            if ((version & 0xFF) == 1)
-            {
+            if ((version & 0xFF) == 1) {
                 /*UInt32*/
                 /*long extension_type =*/ stream.read(32); // & 0xFFFFFFFFL; //optional
-                //ItemInfoExtension(extension_type); //optional
+                // ItemInfoExtension(extension_type); //optional
                 throw new UnsupportedOperationException();
             }
-        }
-        else
-        {
+        } else {
             itemID = stream.read((version & 0xFF) == 2 ? 16 : 32) & 0xFFFFFFFFL;
             itemProtectionIndex = stream.read(16) & 0xFFFF;
             itemType = stream.read(32) & 0xFFFFFFFFL;
 
             itemName = stream.readString();
 
-            if ((itemType & 0xFFFFFFFFL) == 0x6d696d65 /*mime*/)
-            {
+            if ((itemType & 0xFFFFFFFFL) == 0x6d696d65 /*mime*/) {
                 contentType = stream.readString();
-                //content_encoding = stream.ReadString(); //optional
-            }
-            else if ((itemType & 0xFFFFFFFFL) == 0x75726920 /*uri */)
-            {
+                // content_encoding = stream.ReadString(); //optional
+            } else if ((itemType & 0xFFFFFFFFL) == 0x75726920 /*uri */) {
                 itemUriType = stream.readString();
             }
         }
-
     }
 
     /**
@@ -139,8 +128,7 @@ public class ItemInfoEntry extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         String nn = itemName == null ? "" : itemName;
         String n2 = contentType == null ? "" : contentType;
         return String.format("%s id: %d type: %s name: %s%s", this.type, itemID, uintToString(itemType), nn, n2);

@@ -1,5 +1,5 @@
 /*
- * Openize.HEIC 
+ * Openize.HEIC
  * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of Openize.HEIC.
@@ -12,8 +12,7 @@ package openize.heic.decoder;
 
 import java.util.Arrays;
 
-public enum IntraPredMode
-{
+public enum IntraPredMode {
     INTRA_PLANAR, /*  = 0 */
     INTRA_DC, /*  = 1 */
     INTRA_ANGULAR2, /*  = 2 */
@@ -53,26 +52,21 @@ public enum IntraPredMode
     INTRA_CONTOUR, /*  = 36 */
     INTRA_SINGLE; /*  = 37 */
 
-    static IntraPredMode[] createArray(int count)
-    {
+    static IntraPredMode[] createArray(int count) {
         IntraPredMode[] array = new IntraPredMode[count];
         Arrays.fill(array, IntraPredMode.INTRA_PLANAR);
         return array;
     }
 
-
-    static IntraPredMode[][] createArray2D(int count1, int count2)
-    {
+    static IntraPredMode[][] createArray2D(int count1, int count2) {
         IntraPredMode[][] array = new IntraPredMode[count1][count2];
-        for (IntraPredMode[] modes : array)
-        {
+        for (IntraPredMode[] modes : array) {
             Arrays.fill(modes, INTRA_PLANAR);
         }
         return array;
     }
 
-    public static IntraPredMode get(int id)
-    {
+    public static IntraPredMode get(int id) {
         return values[id];
     }
 

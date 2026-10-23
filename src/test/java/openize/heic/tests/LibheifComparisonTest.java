@@ -10,15 +10,8 @@
 
 package openize.heic.tests;
 
-import openize.heic.decoder.HeicImage;
-import openize.heic.decoder.PixelFormat;
-import openize.io.IOFileStream;
-import openize.io.IOMode;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.opentest4j.TestAbortedException;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -31,8 +24,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import javax.imageio.ImageIO;
+import openize.heic.decoder.HeicImage;
+import openize.heic.decoder.PixelFormat;
+import openize.io.IOFileStream;
+import openize.io.IOMode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.opentest4j.TestAbortedException;
 
 /**
  * Decodes every sample with Openize.HEIC and with libheif's command line decoder, and requires the same dimensions
@@ -97,8 +96,8 @@ class LibheifComparisonTest {
     private static Optional<String> findLibheifDecoderOnPathOptional() {
         List<String> pathDirectories = Arrays.asList(System.getenv("PATH").split(File.pathSeparator));
         return Stream.of("heif-dec", "heif-convert")
-                .filter(decoder -> pathDirectories.stream()
-                        .anyMatch(directory -> Files.isExecutable(Path.of(directory, decoder))))
+                .filter(decoder ->
+                        pathDirectories.stream().anyMatch(directory -> Files.isExecutable(Path.of(directory, decoder))))
                 .findFirst();
     }
 
@@ -117,7 +116,9 @@ class LibheifComparisonTest {
             if (!finished) {
                 decoderProcess.destroyForcibly();
             }
-            assertThat(finished).as("%s finishing on %s", libheifDecoder, heicFile).isTrue();
+            assertThat(finished)
+                    .as("%s finishing on %s", libheifDecoder, heicFile)
+                    .isTrue();
             assertThat(decoderProcess.exitValue())
                     .as("%s exit code on %s: %s", libheifDecoder, heicFile, Files.readString(logFile))
                     .isZero();

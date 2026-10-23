@@ -10,14 +10,12 @@
 
 package openize.isobmff;
 
-
 /**
  * <p>
  * Data class for organized storage on location data extents.
  * </p>
  */
-public class IlocItemExtent
-{
+public class IlocItemExtent {
     /**
      * <p>
      * An index as defined for the construction method.
@@ -48,8 +46,7 @@ public class IlocItemExtent
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("extent:: index: %d offset: %d length: %d", index, offset, length);
     }
 }

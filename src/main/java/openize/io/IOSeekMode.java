@@ -13,8 +13,7 @@ package openize.io;
 /**
  * Specifies the position in a stream to use for seeking.
  */
-public enum IOSeekMode
-{
+public enum IOSeekMode {
     /**
      * Specifies the beginning of a stream.
      */

@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * This box identifies the specifications to which this file complies.
  * </p>
  */
-public class FileTypeBox extends Box
-{
+public class FileTypeBox extends Box {
     /**
      * <p>
      * A brand identifier.
@@ -52,16 +50,15 @@ public class FileTypeBox extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public FileTypeBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public FileTypeBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.ftyp, size);
 
         majorBrand = stream.read(32) & 0xFFFFFFFFL;
         minorVersion = stream.read(32) & 0xFFFFFFFFL;
 
-        compatibleBrands = new /*UInt32*/long[(int) (size / 4 - 4)];
-        for (/*UInt64*/long i = 4; i < size / 4; i++)
-            compatibleBrands[(int) (i - 4)] = stream.read(32) & 0xFFFFFFFFL;
+        compatibleBrands = new /*UInt32*/ long[(int) (size / 4 - 4)];
+        for (
+        /*UInt64*/ long i = 4; i < size / 4; i++) compatibleBrands[(int) (i - 4)] = stream.read(32) & 0xFFFFFFFFL;
     }
 
     /**
@@ -70,12 +67,12 @@ public class FileTypeBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder str = new StringBuilder(50);
-        str.append(String.format("{%s}\nmajor: %s \nminor: %s \ncompatible:", this.type, uintToString(majorBrand), uintToString(minorVersion)));
-        for (/*UInt32*/long b : compatibleBrands)
-        {
+        str.append(String.format(
+                "{%s}\nmajor: %s \nminor: %s \ncompatible:",
+                this.type, uintToString(majorBrand), uintToString(minorVersion)));
+        for (/*UInt32*/ long b : compatibleBrands) {
             str.append(' ').append(uintToString(b));
         }
 
@@ -90,22 +87,17 @@ public class FileTypeBox extends Box
      * @param brand The specified brand.
      * @return True if brand is supported, false otherwise.
      */
-    public final boolean isBrandSupported(/*UInt32*/long brand)
-    {
-        if (majorBrand == brand)
-        {
+    public final boolean isBrandSupported(/*UInt32*/ long brand) {
+        if (majorBrand == brand) {
             return true;
         }
 
-        if (minorVersion == brand)
-        {
+        if (minorVersion == brand) {
             return true;
         }
 
-        for (long compatibleBrand : compatibleBrands)
-        {
-            if (compatibleBrand == brand)
-            {
+        for (long compatibleBrand : compatibleBrands) {
+            if (compatibleBrand == brand) {
                 return true;
             }
         }

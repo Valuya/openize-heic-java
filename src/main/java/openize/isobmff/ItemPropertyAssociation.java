@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * Associates items with item properties.
  * </p>
  */
-public class ItemPropertyAssociation extends FullBox
-{
+public class ItemPropertyAssociation extends FullBox {
     /**
      * <p>
      * Count of entries.
@@ -33,6 +31,7 @@ public class ItemPropertyAssociation extends FullBox
      * </p>
      */
     public final ItemPropertyEntry[] entries;
+
     private ObservableCollection<ItemPropertyEntry> children;
 
     /**
@@ -42,23 +41,20 @@ public class ItemPropertyAssociation extends FullBox
      *
      * @param stream File stream.
      */
-    public ItemPropertyAssociation(BitStreamReader stream)
-    {
+    public ItemPropertyAssociation(BitStreamReader stream) {
         super(stream, BoxType.ipma);
 
         entryCount = stream.read(32) & 0xFFFFFFFFL;
         entries = new ItemPropertyEntry[(int) (entryCount & 0xFFFFFFFFL)];
 
-        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++)
-        {
+        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++) {
             entries[i] = new ItemPropertyEntry();
 
             entries[i].itemID = stream.read((version & 0xFF) < 1 ? 16 : 32) & 0xFFFFFFFFL;
             entries[i].associationCount = (byte) stream.read(8);
 
             entries[i].associations = new ItemPropertyEntryAssociation[entries[i].associationCount];
-            for (int j = 0; j < (entries[i].associationCount & 0xFF); j++)
-            {
+            for (int j = 0; j < (entries[i].associationCount & 0xFF); j++) {
                 entries[i].associations[j] = new ItemPropertyEntryAssociation();
                 entries[i].associations[j].essential = stream.readFlag();
                 entries[i].associations[j].propertyIndex = stream.read(flags.get(0) ? 15 : 7) & 0xFFFF;
@@ -74,8 +70,7 @@ public class ItemPropertyAssociation extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s count: %d", this.type, entryCount);
     }
 
@@ -84,8 +79,7 @@ public class ItemPropertyAssociation extends FullBox
      * Observable collection of the property entries.
      * </p>
      */
-    public final ObservableCollection<ItemPropertyEntry> getChildren()
-    {
+    public final ObservableCollection<ItemPropertyEntry> getChildren() {
         return children;
     }
 
@@ -94,8 +88,7 @@ public class ItemPropertyAssociation extends FullBox
      * Observable collection of the property entries.
      * </p>
      */
-    public final void setChildren(ObservableCollection<ItemPropertyEntry> value)
-    {
+    public final void setChildren(ObservableCollection<ItemPropertyEntry> value) {
         children = value;
     }
 
@@ -104,8 +97,7 @@ public class ItemPropertyAssociation extends FullBox
      * Item property entry data.
      * </p>
      */
-    public static class ItemPropertyEntry
-    {
+    public static class ItemPropertyEntry {
         /**
          * <p>
          * Identifies the item with which property is associated.
@@ -118,7 +110,7 @@ public class ItemPropertyAssociation extends FullBox
          * Count of associations.
          * </p>
          */
-        public  byte associationCount;
+        public byte associationCount;
 
         /**
          * <p>
@@ -133,8 +125,7 @@ public class ItemPropertyAssociation extends FullBox
          * </p>
          */
         @Override
-        public String toString()
-        {
+        public String toString() {
             StringBuilder str = new StringBuilder(500);
             str.append(String.format("entry:: id: %d count: %d data: ", itemID, associationCount));
             for (ItemPropertyAssociation.ItemPropertyEntryAssociation item : associations)
@@ -148,8 +139,7 @@ public class ItemPropertyAssociation extends FullBox
      * Item property association entry data.
      * </p>
      */
-    public static class ItemPropertyEntryAssociation
-    {
+    public static class ItemPropertyEntryAssociation {
         /**
          * <p>
          * Set to 1 indicates that the associated property is essential to the item, otherwise it is non-essential.
@@ -172,8 +162,7 @@ public class ItemPropertyAssociation extends FullBox
          * </p>
          */
         @Override
-        public String toString()
-        {
+        public String toString() {
             return String.format("%d %d", (essential ? 1 : 0), propertyIndex);
         }
     }

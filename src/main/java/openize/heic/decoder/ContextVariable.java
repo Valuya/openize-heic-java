@@ -1,5 +1,5 @@
 /*
- * Openize.HEIC 
+ * Openize.HEIC
  * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of Openize.HEIC.
@@ -10,12 +10,7 @@
 
 package openize.heic.decoder;
 
-
-
-class ContextVariable
-{
+class ContextVariable {
     public int pStateIndex;
     public boolean valMps;
 }
-
-

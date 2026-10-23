@@ -10,30 +10,33 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-import openize.io.IOException;
-import openize.io.IOStream;
-import openize.isobmff.*;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
+import openize.heic.decoder.io.BitStreamWithNalSupport;
+import openize.io.IOException;
+import openize.io.IOStream;
+import openize.isobmff.Box;
+import openize.isobmff.BoxType;
+import openize.isobmff.EntityToGroupBox;
+import openize.isobmff.FileTypeBox;
+import openize.isobmff.IlocItem;
+import openize.isobmff.MetaBox;
 
 /**
  * <p>
  * Heic image class.
  * </p>
  */
-public class HeicImage
-{
+public class HeicImage {
     /**
      * <p>
      * Dictionary of Heic image frames.
      * </p>
      */
     private final HashMap<Long, HeicImageFrame> framesById;
+
     private final HeicHeader header;
 
     /**
@@ -44,8 +47,7 @@ public class HeicImage
      * @param header File header.
      * @param stream File stream.
      */
-    private HeicImage(HeicHeader header, BitStreamWithNalSupport stream)
-    {
+    private HeicImage(HeicHeader header, BitStreamWithNalSupport stream) {
         this.header = header;
         framesById = new HashMap<>();
         readFramesMeta(stream);
@@ -63,10 +65,8 @@ public class HeicImage
      * @param stream File stream.
      * @return Returns a HEIC image object with metadata read.
      */
-    public static HeicImage load(IOStream stream)
-    {
-        if (!canLoad(stream))
-        {
+    public static HeicImage load(IOStream stream) {
+        if (!canLoad(stream)) {
             throw new IOException("Not a HEIC image.");
         }
 
@@ -75,20 +75,17 @@ public class HeicImage
 
         /*UInt64*/
         Box.setExternalConstructor(BoxType.hvcC, (str, size) -> {
-            if (!(str instanceof BitStreamWithNalSupport))
-            {
+            if (!(str instanceof BitStreamWithNalSupport)) {
                 throw new UnsupportedOperationException("Stream dedication logic error.");
             }
             BitStreamWithNalSupport nalStream = (BitStreamWithNalSupport) str;
             return new HEVCConfigurationBox(nalStream, size);
         });
 
-        while (bitstream.moreData())
-        {
+        while (bitstream.moreData()) {
             Box box = Box.parseBox(bitstream);
 
-            if (box.type == BoxType.meta)
-            {
+            if (box.type == BoxType.meta) {
                 return new HeicImage(new HeicHeader((MetaBox) box), bitstream);
             }
         }
@@ -104,16 +101,13 @@ public class HeicImage
      * @param stream File stream.
      * @return True if file header contains HEIC signature, false otherwise.
      */
-    public static boolean canLoad(IOStream stream)
-    {
-        try
-        {
+    public static boolean canLoad(IOStream stream) {
+        try {
             BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(stream);
 
             Box box = Box.parseBox(bitstream);
 
-            if (!(box instanceof FileTypeBox))
-            {
+            if (!(box instanceof FileTypeBox)) {
                 return false;
             }
 
@@ -126,9 +120,7 @@ public class HeicImage
             bitstream.setBytePosition(0);
 
             return true;
-        }
-        catch (Exception ignored)
-        {
+        } catch (Exception ignored) {
             return false;
         }
     }
@@ -142,8 +134,7 @@ public class HeicImage
      * @param pixelFormat     Pixel format that defines the order of colors and the presence of alpha byte.
      * @return Byte array, null if frame does not contain image data.
      */
-    public final /*Byte*/byte[] getByteArray(PixelFormat pixelFormat)
-    {
+    public final /*Byte*/ byte[] getByteArray(PixelFormat pixelFormat) {
         return getByteArray(pixelFormat, new Rectangle(), null);
     }
 
@@ -158,8 +149,7 @@ public class HeicImage
      *                        necessary the new array will be allocated and returned.
      * @return Byte array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final /*Byte*/byte[] getByteArray(PixelFormat pixelFormat, byte[] dstArray)
-    {
+    public final /*Byte*/ byte[] getByteArray(PixelFormat pixelFormat, byte[] dstArray) {
         return getDefaultFrame().getByteArray(pixelFormat, new Rectangle(), dstArray);
     }
 
@@ -175,8 +165,7 @@ public class HeicImage
      *                        necessary the new array will be allocated and returned.
      * @return Byte array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final /*Byte*/byte[] getByteArray(PixelFormat pixelFormat, Rectangle boundsRectangle, byte[] dstArray)
-    {
+    public final /*Byte*/ byte[] getByteArray(PixelFormat pixelFormat, Rectangle boundsRectangle, byte[] dstArray) {
         return getDefaultFrame().getByteArray(pixelFormat, boundsRectangle, dstArray);
     }
 
@@ -189,8 +178,7 @@ public class HeicImage
      * @param pixelFormat     Pixel format that defines the order of colors.
      * @return Integer array, null if frame does not contain image data.
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat)
-    {
+    public final int[] getInt32Array(PixelFormat pixelFormat) {
         return getInt32Array(pixelFormat, new Rectangle(), null);
     }
 
@@ -205,8 +193,7 @@ public class HeicImage
      *                        necessary the new array will be allocated and returned.
      * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat, int[] dstArray)
-    {
+    public final int[] getInt32Array(PixelFormat pixelFormat, int[] dstArray) {
         return getInt32Array(pixelFormat, new Rectangle(), dstArray);
     }
 
@@ -220,8 +207,7 @@ public class HeicImage
      * @param boundsRectangle Bounds of the requested area.
      * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle)
-    {
+    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle) {
         return getDefaultFrame().getInt32Array(pixelFormat, boundsRectangle, null);
     }
     /**
@@ -236,8 +222,7 @@ public class HeicImage
      *                        necessary the new array will be allocated and returned.
      * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle, int[] dstArray)
-    {
+    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle, int[] dstArray) {
         return getDefaultFrame().getInt32Array(pixelFormat, boundsRectangle, dstArray);
     }
 
@@ -247,8 +232,7 @@ public class HeicImage
      * </p>
      * @return The HEIC image header.
      */
-    public final HeicHeader getHeader()
-    {
+    public final HeicHeader getHeader() {
         return header;
     }
 
@@ -258,29 +242,23 @@ public class HeicImage
      * </p>
      * @return The dictionary of public HEIC image frames with access by identifier.
      */
-    public final Map<Long, HeicImageFrame> getFrames()
-    {
-        Map<Long, HeicImageFrame> publicFramesById = framesById.entrySet().stream().filter((f) ->
-                !f.getValue().isHidden()
-                && f.getValue().getDerivativeType() != BoxType.thmb
-                &&  f.getValue().getImageType() != ImageFrameType.tmap)
-                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    public final Map<Long, HeicImageFrame> getFrames() {
+        Map<Long, HeicImageFrame> publicFramesById = framesById.entrySet().stream()
+                .filter((f) -> !f.getValue().isHidden()
+                        && f.getValue().getDerivativeType() != BoxType.thmb
+                        && f.getValue().getImageType() != ImageFrameType.tmap)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         List<EntityToGroupBox> groups = this.getHeader().getGroupsIfPresent();
-        if (groups == null)
-            return publicFramesById;
+        if (groups == null) return publicFramesById;
 
-        for (EntityToGroupBox grp : groups)
-        {
-            if (grp.type == BoxType.altr)
-            {
-                /*UInt32*/long[] entities = grp.entities;
+        for (EntityToGroupBox grp : groups) {
+            if (grp.type == BoxType.altr) {
+                /*UInt32*/ long[] entities = grp.entities;
                 boolean selected = false;
 
-                for (long entity : entities)
-                {
-                    if (publicFramesById.containsKey(entity))
-                    {
+                for (long entity : entities) {
+                    if (publicFramesById.containsKey(entity)) {
                         if (!selected) selected = true;
                         else publicFramesById.remove(entity);
                     }
@@ -297,8 +275,7 @@ public class HeicImage
      * </p>
      * @return The dictionary of all HEIC image frames with access by identifier.
      */
-    public final Map<Long, HeicImageFrame> getAllFrames()
-    {
+    public final Map<Long, HeicImageFrame> getAllFrames() {
         return framesById;
     }
 
@@ -308,8 +285,7 @@ public class HeicImage
      * </p>
      * @return the default image frame, which is specified in metadata.
      */
-    public final HeicImageFrame getDefaultFrame()
-    {
+    public final HeicImageFrame getDefaultFrame() {
         return framesById.get(getHeader().getDefaultFrameId());
     }
 
@@ -319,8 +295,7 @@ public class HeicImage
      * </p>
      * @return The width of the default image frame in pixels.
      */
-    public final /*UInt32*/long getWidth()
-    {
+    public final /*UInt32*/ long getWidth() {
         return getDefaultFrame().getWidth();
     }
 
@@ -330,8 +305,7 @@ public class HeicImage
      * </p>
      * @return The height of the default image frame in pixels.
      */
-    public final /*UInt32*/long getHeight()
-    {
+    public final /*UInt32*/ long getHeight() {
         return getDefaultFrame().getHeight();
     }
 
@@ -340,7 +314,9 @@ public class HeicImage
      * Exchangeable image metadata of the default image frame.
      * </p>
      */
-    public final ExifData getExif() { return getDefaultFrame().exif; }
+    public final ExifData getExif() {
+        return getDefaultFrame().exif;
+    }
 
     /**
      * <p>
@@ -349,30 +325,25 @@ public class HeicImage
      *
      * @param stream File stream.
      */
-    private void readFramesMeta(BitStreamWithNalSupport stream)
-    {
+    private void readFramesMeta(BitStreamWithNalSupport stream) {
         Map<Long, List<Box>> rawProperties = getHeader().getProperties();
 
-        for (IlocItem item : getHeader().getMeta().getiloc().items)
-        {
+        for (IlocItem item : getHeader().getMeta().getiloc().items) {
             long id = item.itemID;
             framesById.put(id, new HeicImageFrame(stream, this, id));
         }
 
-        for (Map.Entry<Long, HeicImageFrame> frame : framesById.entrySet())
-        {
+        for (Map.Entry<Long, HeicImageFrame> frame : framesById.entrySet()) {
             HeicImageFrame frameValue = frame.getValue();
             long frameValueID = frameValue.getID();
             if (rawProperties.containsKey(frameValueID))
                 frameValue.loadProperties(stream, rawProperties.get(frameValueID));
 
-            if (frameValue.getImageType() == ImageFrameType.exif)
-            {
-                /*UInt32*/long[] derived = getHeader().getDerivedList(frameValueID);
+            if (frameValue.getImageType() == ImageFrameType.exif) {
+                /*UInt32*/ long[] derived = getHeader().getDerivedList(frameValueID);
                 ExifData exif = new ExifData(stream, this, frameValue);
 
-                for (/*UInt32*/long derivedId : derived)
-                {
+                for (/*UInt32*/ long derivedId : derived) {
                     framesById.get(derivedId).exif = exif;
                 }
             }

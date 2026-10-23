@@ -12,14 +12,12 @@ package openize.heic.decoder;
 
 import openize.MathUtils;
 
-
 /**
  * <p>
  * Class used to convert colors from YUV colorspace to RGB.
  * </p>
  */
-class YuvConverter
-{
+class YuvConverter {
     /**
      * <p>
      * Full or TV range flag.
@@ -39,15 +37,13 @@ class YuvConverter
     private double cooffCbToG;
     private double cooffCbToB;
 
-    public YuvConverter(HeicImageFrame picture)
-    {
+    public YuvConverter(HeicImageFrame picture) {
         fullRangeFlag = picture.hvcConfig.getSPS().VuiParameters.videoFullRangeFlag;
 
         this.picture = picture;
 
         defineCoefficients(picture.hvcConfig.getSPS().VuiParameters);
     }
-
 
     // 8 bit!
 
@@ -58,8 +54,7 @@ class YuvConverter
      *
      * @return RGBA byte array.
      */
-    public final byte[][][] getRgbaByteArray()
-    {
+    public final byte[][][] getRgbaByteArray() {
         /*UInt32*/
         int width = (int) (picture.hvcConfig.getSPS().picWidthInLumaSamples & 0xFFFFFFFFL);
         /*UInt32*/
@@ -67,8 +62,7 @@ class YuvConverter
 
         byte[][][] pixels = new byte[width][height][4];
 
-        if (picture.rawPixels == null && picture.rawPixelsHighColorRange == null)
-            return pixels;
+        if (picture.rawPixels == null && picture.rawPixelsHighColorRange == null) return pixels;
 
         double Y, cr, cb, R, G, B;
         double[] rgb = new double[3];
@@ -82,50 +76,42 @@ class YuvConverter
         // conversion to 8 bit
         double bitKoefY = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthY() & 0xFF));
         double bitKoefC = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthC() & 0xFF));
-        final boolean isNotChroma = (picture.hvcConfig.getSPS()
-                                                      .getChromaArrayType() & 0xFFFFFFFFL) == 0;
-        final int configSpsSubWidthC = picture.hvcConfig.getSPS()
-                                                        .getSubWidthC() & 0xFF;
-        final int configSpsSubHeightC = picture.hvcConfig.getSPS()
-                                                         .getSubHeightC() & 0xFF;
+        final boolean isNotChroma = (picture.hvcConfig.getSPS().getChromaArrayType() & 0xFFFFFFFFL) == 0;
+        final int configSpsSubWidthC = picture.hvcConfig.getSPS().getSubWidthC() & 0xFF;
+        final int configSpsSubHeightC = picture.hvcConfig.getSPS().getSubHeightC() & 0xFF;
 
-        boolean highColorRange = (picture.hvcConfig.getSPS().getBitDepthY() & 0xFF) > 8 || (picture.hvcConfig.getSPS().getBitDepthC() & 0xFF) > 8;
+        boolean highColorRange = (picture.hvcConfig.getSPS().getBitDepthY() & 0xFF) > 8
+                || (picture.hvcConfig.getSPS().getBitDepthC() & 0xFF) > 8;
 
-        for (int row = 0; row < height; row++)
-        {
-            for (int col = 0; col < width; col++)
-            {
-                if (highColorRange)
-                    Y = picture.rawPixelsHighColorRange[0][col][row] & 0xFFFF;
-                else
-                    Y = picture.rawPixels[0][col][row] & 0xFF;
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                if (highColorRange) Y = picture.rawPixelsHighColorRange[0][col][row] & 0xFFFF;
+                else Y = picture.rawPixels[0][col][row] & 0xFF;
 
-                if (!fullRangeFlag)
-                {
+                if (!fullRangeFlag) {
                     Y = tvRangeCoeffLuma * (Y - lumaOffset);
                 }
 
-                if (isNotChroma)
-                {
+                if (isNotChroma) {
                     R = Y;
                     G = Y;
                     B = Y;
-                }
-                else
-                {
-                    if (highColorRange)
-                    {
-                        cb = (picture.rawPixelsHighColorRange[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFFFF) - chromaHalfRange;
-                        cr = (picture.rawPixelsHighColorRange[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFFFF) - chromaHalfRange;
-                    }
-                    else
-                    {
-                        cb = (picture.rawPixels[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF) - chromaHalfRange;
-                        cr = (picture.rawPixels[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF) - chromaHalfRange;
+                } else {
+                    if (highColorRange) {
+                        cb = (picture.rawPixelsHighColorRange[1][col / configSpsSubWidthC][row / configSpsSubHeightC]
+                                        & 0xFFFF)
+                                - chromaHalfRange;
+                        cr = (picture.rawPixelsHighColorRange[2][col / configSpsSubWidthC][row / configSpsSubHeightC]
+                                        & 0xFFFF)
+                                - chromaHalfRange;
+                    } else {
+                        cb = (picture.rawPixels[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF)
+                                - chromaHalfRange;
+                        cr = (picture.rawPixels[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF)
+                                - chromaHalfRange;
                     }
 
-                    if (!fullRangeFlag)
-                    {
+                    if (!fullRangeFlag) {
                         cb = tvRangeCoeffChroma * cb;
                         cr = tvRangeCoeffChroma * cr;
                     }
@@ -153,8 +139,7 @@ class YuvConverter
     /// <param name="Cb">Chroma blue value.</param>
     /// <param name="Cr">Chroma red value.</param>
     /// <returns>Red, Green and Blue values.</returns>
-    private void YCrCb2RGB(double Y, double cb, double cr, double[] outRef)
-    {
+    private void YCrCb2RGB(double Y, double cb, double cr, double[] outRef) {
         outRef[0] = Y + cooffCrToR * cr;
         outRef[1] = Y - cooffCrToG * cr - cooffCbToG * cb;
         outRef[2] = Y + cooffCbToB * cb;
@@ -167,17 +152,15 @@ class YuvConverter
      *
      * @param vui_parameters Image usability information data.
      */
-    private void defineCoefficients(VuiParameters VuiParameters)
-    {
-        //vui_parameters.video_full_range_flag;
-        //vui_parameters.colour_primaries;
-        //vui_parameters.transfer_characteristics;
-        //vui_parameters.matrix_coeffs;
+    private void defineCoefficients(VuiParameters VuiParameters) {
+        // vui_parameters.video_full_range_flag;
+        // vui_parameters.colour_primaries;
+        // vui_parameters.transfer_characteristics;
+        // vui_parameters.matrix_coeffs;
 
         double kr;
         double kb;
-        switch (VuiParameters.matrixCoeffs)
-        {
+        switch (VuiParameters.matrixCoeffs) {
             case 1:
                 kr = 0.2126;
                 kb = 0.0722;
@@ -214,29 +197,27 @@ class YuvConverter
                 final double tmpRmGGmR = p.yR * zG - p.yG * zR;
                 double denom = p.yW * (p.xR * tmpGmBBmG + p.xG * (p.yB * zR - p.yR * zB) + p.xB * tmpRmGGmR);
 
-                try
-                {
-                    kr = (p.yR * (p.xW * tmpGmBBmG + p.yW * (p.xB * zG - p.xG * zB) + zW * (p.xG * p.yB - p.xB * p.yG))) / denom;
-                    kb = (p.yB * (p.xW * tmpRmGGmR + p.yW * (p.xG * zR - p.xR * zG) + zW * (p.xR * p.yG - p.xG * p.yR))) / denom;
-                }
-                catch (java.lang.RuntimeException e)
-                {
+                try {
+                    kr = (p.yR * (p.xW * tmpGmBBmG + p.yW * (p.xB * zG - p.xG * zB) + zW * (p.xG * p.yB - p.xB * p.yG)))
+                            / denom;
+                    kb = (p.yB * (p.xW * tmpRmGGmR + p.yW * (p.xG * zR - p.xR * zG) + zW * (p.xR * p.yG - p.xG * p.yR)))
+                            / denom;
+                } catch (java.lang.RuntimeException e) {
                     kr = 0.299;
                     kb = 0.114;
                 }
                 break;
 
-            case 0:  // Identity; See Equations E-31 to E-33
-            case 2:  // Unspecified
-            case 3:  // Reserved
-            case 8:  // YCgCo;    See Equations E-28 to E-30
+            case 0: // Identity; See Equations E-31 to E-33
+            case 2: // Unspecified
+            case 3: // Reserved
+            case 8: // YCgCo;    See Equations E-28 to E-30
             case 11: // Y′D′ZD′X; See Equations E-59 to E-61
             case 14: // ICTCP
             default:
                 kr = 0.299;
                 kb = 0.114;
                 break;
-
         }
 
         double kg = 1 - kr - kb;
@@ -247,9 +228,7 @@ class YuvConverter
         cooffCbToB = 2 * (1 - kb);
     }
 
-
-    static class ColorPrimaries
-    {
+    static class ColorPrimaries {
         public final double xG;
         public final double yG;
         public final double xB;
@@ -259,8 +238,7 @@ class YuvConverter
         public final double xW;
         public final double yW;
 
-        public ColorPrimaries(double xG, double yG, double xB, double yB, double xR, double yR, double xW, double yW)
-        {
+        public ColorPrimaries(double xG, double yG, double xB, double yB, double xR, double yR, double xW, double yW) {
             this.xG = xG;
             this.yG = yG;
             this.xB = xB;
@@ -271,10 +249,8 @@ class YuvConverter
             this.yW = yW;
         }
 
-        public static ColorPrimaries getSpecified(int colourPrimaries)
-        {
-            switch (colourPrimaries)
-            {
+        public static ColorPrimaries getSpecified(int colourPrimaries) {
+            switch (colourPrimaries) {
                 case 1:
                     return new ColorPrimaries(0.300, 0.600, 0.150, 0.060, 0.640, 0.330, 0.3127, 0.3290);
                 case 4:
@@ -296,11 +272,10 @@ class YuvConverter
                     return new ColorPrimaries(0.265, 0.690, 0.150, 0.060, 0.680, 0.320, 0.3127, 0.3290);
                 case 22:
                     return new ColorPrimaries(0.295, 0.605, 0.155, 0.077, 0.630, 0.340, 0.3127, 0.3290);
-                case 2:  // Unspecified
+                case 2: // Unspecified
                 default: // Reserved
                     throw new UnsupportedOperationException("Unsupported colourPrimaries = " + colourPrimaries);
             }
         }
     }
 }
-

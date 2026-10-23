@@ -12,23 +12,19 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-public class NalUnit
-{
+public class NalUnit {
     public final NalHeader nalHeader;
     public final /*UInt64*/ long startPosition;
     public final int size;
 
-    public NalUnit(BitStreamWithNalSupport stream, /*UInt64*/long startPosition, int size)
-    {
+    public NalUnit(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
         nalHeader = new NalHeader(stream);
 
         this.startPosition = startPosition;
         this.size = size;
     }
 
-    public static NalUnit parseKnownUnit(BitStreamWithNalSupport stream, int size, NalUnitType type)
-    {
+    public static NalUnit parseKnownUnit(BitStreamWithNalSupport stream, int size, NalUnitType type) {
         NalUnit nalUnit;
         /*UInt64*/
         long startPosition = stream.getBitPosition();
@@ -39,23 +35,19 @@ public class NalUnit
 
         // throw away NALs from higher TIDs than currently selected
 
-        if (type.getUnitCode() < 32)
-        {
+        if (type.getUnitCode() < 32) {
             // VCL
             nalUnit = new SliceSegmentLayerRbsp(stream, startPosition, size);
-        }
-        else
-        {
+        } else {
             // non-VCL
-            switch (type)
-            {
-                case VPS_NUT:     // 32
+            switch (type) {
+                case VPS_NUT: // 32
                     nalUnit = new VideoParameterSetRbsp(stream, startPosition, size);
                     break;
-                case SPS_NUT:     // 33
+                case SPS_NUT: // 33
                     nalUnit = new SeqParameterSetRbsp(stream, startPosition, size);
                     break;
-                case PPS_NUT:     // 34
+                case PPS_NUT: // 34
                     nalUnit = new PicParameterSetRbsp(stream, startPosition, size);
                     break;
                 case PREFIX_SEI_NUT: // 39
@@ -72,35 +64,30 @@ public class NalUnit
         /*UInt64*/
         long currentPosition = stream.getBitPosition();
 
-        if (currentPosition - startPosition > (size & 0xFFFFFFFFL) * 8L)
-        {
+        if (currentPosition - startPosition > (size & 0xFFFFFFFFL) * 8L) {
             throw new IndexOutOfBoundsException();
         }
 
-        if (currentPosition - startPosition < (size & 0xFFFFFFFFL) * 8L)
-        {
+        if (currentPosition - startPosition < (size & 0xFFFFFFFFL) * 8L) {
             stream.skipBits(size * 8 - (int) (currentPosition - startPosition));
         }
 
         return nalUnit;
     }
 
-    public static NalUnit parseUnit(BitStreamWithNalSupport stream)
-    {
+    public static NalUnit parseUnit(BitStreamWithNalSupport stream) {
         int size = stream.read(32);
         int peek = stream.peek(8);
         NalUnitType type = NalUnitType.codeToType((peek >> 1) & 0x3F);
         return parseKnownUnit(stream, size, type);
     }
 
-    public final /*UInt64*/long getEndPosition()
-    {
+    public final /*UInt64*/ long getEndPosition() {
         return startPosition + (size & 0xFFFFFFFFL) * 8L;
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return "NAL Unit " + nalHeader.type;
     }
 }

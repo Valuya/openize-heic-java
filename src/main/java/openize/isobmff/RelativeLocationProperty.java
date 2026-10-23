@@ -12,7 +12,6 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The RelativeLocationProperty descriptive item property is used to describe the horizontal and
@@ -20,8 +19,7 @@ import openize.isobmff.io.BitStreamReader;
  * image of the related image item identified through the 'tbas' item reference.
  * </p>
  */
-public class RelativeLocationProperty extends FullBox
-{
+public class RelativeLocationProperty extends FullBox {
     /**
      * <p>
      * Specifies the horizontal offset in pixels of the left-most pixel column of the reconstructed image
@@ -48,8 +46,7 @@ public class RelativeLocationProperty extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public RelativeLocationProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public RelativeLocationProperty(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.rloc, size);
 
         horizontalOffset = stream.read(32) & 0xFFFFFFFFL;
@@ -62,8 +59,7 @@ public class RelativeLocationProperty extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s horiz offset: %d vert offset: %d", this.type, horizontalOffset, verticalOffset);
     }
 }

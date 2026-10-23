@@ -15,8 +15,7 @@ package openize;
  *     Provides additional mathematics methods.
  * </p>
  */
-public final class MathUtils
-{
+public final class MathUtils {
     /**
      * <p>
      *  Returns the natural logarithm (base {@code newBase}) of a double value.
@@ -25,14 +24,10 @@ public final class MathUtils
      * @param newBase a base
      * @return the value of ln(value), the natural logarithm of value.
      */
-    public static double log(double value, double newBase)
-    {
-        if (newBase == 1.0)
-        {
+    public static double log(double value, double newBase) {
+        if (newBase == 1.0) {
             return Double.NaN;
-        }
-        else
-        {
+        } else {
             double result = Math.log(value) / Math.log(newBase);
             return result == 0.0 ? 0.0 : result;
         }
@@ -49,20 +44,15 @@ public final class MathUtils
      *          floating-point value that is greater than or equal to
      *          the argument and is equal to a mathematical integer.
      */
-    public static double ceiling(double value)
-    {
-        if (!Double.isInfinite(value) && !Double.isNaN(value))
-        {
+    public static double ceiling(double value) {
+        if (!Double.isInfinite(value) && !Double.isNaN(value)) {
             double result = Math.floor(value);
-            if (result != value)
-            {
+            if (result != value) {
                 ++result;
             }
 
             return result;
-        }
-        else
-        {
+        } else {
             return value;
         }
     }
@@ -74,11 +64,8 @@ public final class MathUtils
      * @param doubleValue The double value.
      * @return The int value.
      */
-    public static int f64S32(double doubleValue)
-    {
-        return (doubleValue == doubleValue
-                && !(doubleValue < -2.147483647E9)
-                && !(doubleValue > 2.147483647E9))
+    public static int f64S32(double doubleValue) {
+        return (doubleValue == doubleValue && !(doubleValue < -2.147483647E9) && !(doubleValue > 2.147483647E9))
                 ? (int) doubleValue
                 : Integer.MIN_VALUE;
     }

@@ -10,13 +10,10 @@
 
 package openize.heic.decoder;
 
-
-enum IntraChromaPredMode
-{
+enum IntraChromaPredMode {
     INTRA_CHROMA_PLANAR_OR_34, /*  = 0 */
     INTRA_CHROMA_ANGULAR26_OR_34, /*  = 1 */
     INTRA_CHROMA_ANGULAR10_OR_34, /*  = 2 */
     INTRA_CHROMA_DC_OR_34, /*  = 3 */
     INTRA_CHROMA_LIKE_LUMA, /*  = 4 */
 }
-

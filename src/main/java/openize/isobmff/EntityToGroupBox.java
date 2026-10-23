@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The EntityToGroupBox specifies an entity group.
  * </p>
  */
-public class EntityToGroupBox extends FullBox
-{
+public class EntityToGroupBox extends FullBox {
     /**
      * <p>
      * A non-negative integer assigned to the particular grouping that shall not be equal
@@ -53,16 +51,14 @@ public class EntityToGroupBox extends FullBox
      *
      * @param stream File stream.
      */
-    public EntityToGroupBox(BitStreamReader stream)
-    {
+    public EntityToGroupBox(BitStreamReader stream) {
         super(stream);
 
         groupId = stream.read(32) & 0xFFFFFFFFL;
         numEntitiesInGroup = stream.read(32) & 0xFFFFFFFFL;
-        entities = new /*UInt32*/long[(int) (numEntitiesInGroup & 0xFFFFFFFFL)];
+        entities = new /*UInt32*/ long[(int) (numEntitiesInGroup & 0xFFFFFFFFL)];
 
-        for (int i = 0; i < (numEntitiesInGroup & 0xFFFFFFFFL); i++)
-            entities[i] = stream.read(32) & 0xFFFFFFFFL;
+        for (int i = 0; i < (numEntitiesInGroup & 0xFFFFFFFFL); i++) entities[i] = stream.read(32) & 0xFFFFFFFFL;
     }
 
     /**
@@ -71,12 +67,10 @@ public class EntityToGroupBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder str = new StringBuilder(50);
         str.append(String.format("%s group: %d count: %d", this.type, groupId, numEntitiesInGroup));
-        for (/*UInt32*/long id : entities)
-        {
+        for (/*UInt32*/ long id : entities) {
             str.append(" ").append(id);
         }
         return str.toString();

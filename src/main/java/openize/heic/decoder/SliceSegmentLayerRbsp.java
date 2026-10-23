@@ -12,53 +12,44 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-public class SliceSegmentLayerRbsp extends NalUnit
-{
+public class SliceSegmentLayerRbsp extends NalUnit {
     public final SliceSegmentHeader sliceHeader;
     public SliceSegmentData data;
 
-    public SliceSegmentLayerRbsp(BitStreamWithNalSupport stream, /*UInt64*/long startPosition, int size)
-    {
+    public SliceSegmentLayerRbsp(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
         super(stream, startPosition, size);
 
         sliceHeader = new SliceSegmentHeader(stream, this);
 
         stream.getCabac().initialization(sliceHeader);
 
-        if (sliceHeader.firstSliceSegmentInPicFlag)
-        {
+        if (sliceHeader.firstSliceSegmentInPicFlag) {
             HeicPicture picture = new HeicPicture(sliceHeader, nalHeader.copy());
             stream.getContext().getPictures().put(stream.getCurrentImageId(), picture);
             sliceHeader.parentPicture = picture;
 
-            if (nalHeader.isIrapPicture())
-            {
-                if (nalHeader.isIdrPicture() ||
-                        nalHeader.isBlaPicture() ||
-                        //first_decoded_picture ||
-                        stream.getContext().firstAfterEndOfSequenceNAL)
-                {
+            if (nalHeader.isIrapPicture()) {
+                if (nalHeader.isIdrPicture()
+                        || nalHeader.isBlaPicture()
+                        ||
+                        // first_decoded_picture ||
+                        stream.getContext().firstAfterEndOfSequenceNAL) {
                     stream.getContext().noRaslOutputFlag = true;
                     stream.getContext().firstAfterEndOfSequenceNAL = false;
-                }
-                else
-                {
+                } else {
                     stream.getContext().noRaslOutputFlag = false;
                     stream.getContext().handleCraAsBlaFlag = false;
                 }
             }
         }
 
-        if (stream.getContext().getPictures().isEmpty())
-        {
+        if (stream.getContext().getPictures().isEmpty()) {
             throw new IndexOutOfBoundsException();
         }
 
         HeicPicture currentPicture = stream.getContext().getPictures().get(stream.getCurrentImageId());
 
-        if (sliceHeader.parentPicture == null)
-        {
+        if (sliceHeader.parentPicture == null) {
             sliceHeader.parentPicture = currentPicture;
         }
 

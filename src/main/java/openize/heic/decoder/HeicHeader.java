@@ -8,30 +8,36 @@
  * available along with Openize.HEIC sources.
  */
 
-
 package openize.heic.decoder;
-
-import openize.isobmff.*;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
+import openize.isobmff.Box;
+import openize.isobmff.BoxType;
+import openize.isobmff.EntityToGroupBox;
+import openize.isobmff.GroupsListBox;
+import openize.isobmff.IlocItem;
+import openize.isobmff.ItemInfoEntry;
+import openize.isobmff.ItemReferenceBox;
+import openize.isobmff.MetaBox;
+import openize.isobmff.SingleItemTypeReferenceBox;
 
 /**
  * <p>
  * Heic image header class. Grants convenient access to IsoBmff metadata container.
  * </p>
  */
-public class HeicHeader
-{
+public class HeicHeader {
     /**
      * <p>
      * Meta data IsoBmff box.
      * </p>
      * @return The meta data IsoBmff box.
      */
-    public final MetaBox getMeta(){ return meta; }
+    public final MetaBox getMeta() {
+        return meta;
+    }
     /**
      * <p>
      * Meta data IsoBmff box.
@@ -45,7 +51,7 @@ public class HeicHeader
      * </p>
      * @return The identifier of the default frame.
      */
-    public final /*UInt32*/long getDefaultFrameId() {
+    public final /*UInt32*/ long getDefaultFrameId() {
         return (meta.getpitm() != null ? meta.getpitm().itemID : 0);
     }
 
@@ -55,8 +61,7 @@ public class HeicHeader
      * </p>
      * @param meta {@link MetaBox} data.
      */
-    HeicHeader(MetaBox meta)
-    {
+    HeicHeader(MetaBox meta) {
         this.meta = meta;
     }
 
@@ -66,8 +71,7 @@ public class HeicHeader
      * </p>
      * @return Dictionary filled with lists of properties that can be accessed by frame id.
      */
-    final Map<Long, List<Box>> getProperties()
-    {
+    final Map<Long, List<Box>> getProperties() {
         return meta.getiprp().getProperties();
     }
 
@@ -78,12 +82,9 @@ public class HeicHeader
      * @return {@link ItemInfoEntry} that contains type information.
      * @param id Identifier of the frame.
      */
-    final ItemInfoEntry getInfoBoxById(/*UInt32*/long id)
-    {
-        for (ItemInfoEntry info : meta.getiinf().itemInfos)
-        {
-            if (info.itemID == id)
-                return info;
+    final ItemInfoEntry getInfoBoxById(/*UInt32*/ long id) {
+        for (ItemInfoEntry info : meta.getiinf().itemInfos) {
+            if (info.itemID == id) return info;
         }
         throw new IllegalStateException();
     }
@@ -95,12 +96,9 @@ public class HeicHeader
      * @return {@link IlocItem} that contains location information.
      * @param id Identifier of the frame.
      */
-    final IlocItem getLocationBoxById(/*UInt32*/long id)
-    {
-        for (IlocItem item : meta.getiloc().items)
-        {
-            if (item.itemID == id)
-            {
+    final IlocItem getLocationBoxById(/*UInt32*/ long id) {
+        for (IlocItem item : meta.getiloc().items) {
+            if (item.itemID == id) {
                 return item;
             }
         }
@@ -115,12 +113,10 @@ public class HeicHeader
      * @param offset The offset from the start on the idat box.
      * @param length The length of the data.
      */
-    final byte[] getItemDataBoxContent(/*UInt32*/long offset, /*UInt32*/long length)
-    {
-        if (meta.getidat() == null)
-            return new byte[0];
+    final byte[] getItemDataBoxContent(/*UInt32*/ long offset, /*UInt32*/ long length) {
+        if (meta.getidat() == null) return new byte[0];
 
-        byte[] data = new byte[(int)(length & 0xFFFFFFFFL)];
+        byte[] data = new byte[(int) (length & 0xFFFFFFFFL)];
         System.arraycopy(meta.getidat().data, (int) offset, data, 0, (int) length);
         return data;
     }
@@ -132,18 +128,15 @@ public class HeicHeader
      * @return Unsigned integer array.
      * @param id Identifier of the parent frame.
      */
-    final /*UInt32*/long[] getDerivedList(/*UInt32*/long id)
-    {
+    final /*UInt32*/ long[] getDerivedList(/*UInt32*/ long id) {
         final ItemReferenceBox getiref = meta.getiref();
-        if (getiref == null)
-        {
-            return new /*UInt32*/long[0];
+        if (getiref == null) {
+            return new /*UInt32*/ long[0];
         }
         final Optional<SingleItemTypeReferenceBox> firstItem =
                 getiref.references.stream().filter((i) -> i.fromItemID == id).findFirst();
-        if (!firstItem.isPresent())
-        {
-            return new /*UInt32*/long[0];
+        if (!firstItem.isPresent()) {
+            return new /*UInt32*/ long[0];
         }
 
         return firstItem.get().toItemID;
@@ -156,15 +149,16 @@ public class HeicHeader
      * @return BoxType enum value.
      * @param id Identifier of the frame.
      */
-    final BoxType getDerivedType(/*UInt32*/long id)
-    {
+    final BoxType getDerivedType(/*UInt32*/ long id) {
         final ItemReferenceBox getiref = meta.getiref();
-        if (getiref == null)
-        {
+        if (getiref == null) {
             return null;
         }
-        final Optional<SingleItemTypeReferenceBox> firstItem = getiref.references.stream().filter((i) -> i.fromItemID == id).findFirst();
-        return firstItem.map(singleItemTypeReferenceBox -> singleItemTypeReferenceBox.type).orElse(null);
+        final Optional<SingleItemTypeReferenceBox> firstItem =
+                getiref.references.stream().filter((i) -> i.fromItemID == id).findFirst();
+        return firstItem
+                .map(singleItemTypeReferenceBox -> singleItemTypeReferenceBox.type)
+                .orElse(null);
     }
 
     /**
@@ -173,11 +167,9 @@ public class HeicHeader
      * </p>
      * @return List of {@link EntityToGroupBox}. Can be `null`.
      */
-    final List<EntityToGroupBox> getGroupsIfPresent()
-    {
+    final List<EntityToGroupBox> getGroupsIfPresent() {
         final GroupsListBox grplBox = this.meta.getgrpl();
-        if (grplBox == null)
-            return null;
+        if (grplBox == null) return null;
 
         return grplBox.boxes;
     }

@@ -10,11 +10,9 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.ArrayList;
 import java.util.List;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
@@ -22,14 +20,14 @@ import java.util.List;
  * All references for one item of a specific type are collected into a single item type reference box.
  * </p>
  */
-public class ItemReferenceBox extends FullBox
-{
+public class ItemReferenceBox extends FullBox {
     /**
      * <p>
      * List of references.
      * </p>
      */
     public final List<SingleItemTypeReferenceBox> references;
+
     private ObservableCollection<SingleItemTypeReferenceBox> children;
 
     /**
@@ -41,14 +39,12 @@ public class ItemReferenceBox extends FullBox
      * @param size     Box size in bytes.
      * @param startPos Start position in bits.
      */
-    public ItemReferenceBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
+    public ItemReferenceBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(stream, BoxType.iref, size);
 
         references = new ArrayList<>((int) size);
 
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
+        while (stream.getBitPosition() < startPos + size * 8) {
             SingleItemTypeReferenceBox box = new SingleItemTypeReferenceBox(stream, (version & 0xFF) == 0 ? 16 : 32);
             references.add(box);
         }
@@ -62,8 +58,7 @@ public class ItemReferenceBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.type.name();
     }
 
@@ -72,8 +67,7 @@ public class ItemReferenceBox extends FullBox
      * Observable collection of the references.
      * </p>
      */
-    public final ObservableCollection<SingleItemTypeReferenceBox> getChildren()
-    {
+    public final ObservableCollection<SingleItemTypeReferenceBox> getChildren() {
         return children;
     }
 
@@ -82,8 +76,7 @@ public class ItemReferenceBox extends FullBox
      * Observable collection of the references.
      * </p>
      */
-    public final void setChildren(ObservableCollection<SingleItemTypeReferenceBox> value)
-    {
+    public final void setChildren(ObservableCollection<SingleItemTypeReferenceBox> value) {
         children = value;
     }
 }

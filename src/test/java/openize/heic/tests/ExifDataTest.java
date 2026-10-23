@@ -10,6 +10,8 @@
 
 package openize.heic.tests;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.drew.lang.Rational;
 import com.drew.metadata.exif.ExifIFD0Directory;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
@@ -19,8 +21,6 @@ import openize.heic.decoder.HeicImage;
 import openize.io.IOFileStream;
 import openize.io.IOMode;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class ExifDataTest {
 

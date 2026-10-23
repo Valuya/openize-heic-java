@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The item information box provides extra information about file entries.
  * </p>
  */
-public class ItemInfoBox extends FullBox
-{
+public class ItemInfoBox extends FullBox {
     /**
      * <p>
      * A count of the number of entries in the info entry array.
@@ -34,6 +32,7 @@ public class ItemInfoBox extends FullBox
      * </p>
      */
     public final ItemInfoEntry[] itemInfos;
+
     private ObservableCollection<ItemInfoEntry> children;
 
     /**
@@ -44,15 +43,13 @@ public class ItemInfoBox extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public ItemInfoBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public ItemInfoBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.iinf, size);
 
         entryCount = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
 
         itemInfos = new ItemInfoEntry[(int) (entryCount & 0xFFFFFFFFL)];
-        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++)
-            itemInfos[i] = new ItemInfoEntry(stream);
+        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++) itemInfos[i] = new ItemInfoEntry(stream);
 
         setChildren(new ObservableCollection<>(itemInfos));
     }
@@ -63,8 +60,7 @@ public class ItemInfoBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s count: %d", this.type, entryCount);
     }
 
@@ -73,8 +69,7 @@ public class ItemInfoBox extends FullBox
      * Observable collection of entries of extra information.
      * </p>
      */
-    public final ObservableCollection<ItemInfoEntry> getChildren()
-    {
+    public final ObservableCollection<ItemInfoEntry> getChildren() {
         return children;
     }
 
@@ -83,8 +78,7 @@ public class ItemInfoBox extends FullBox
      * Observable collection of entries of extra information.
      * </p>
      */
-    public final void setChildren(ObservableCollection<ItemInfoEntry> value)
-    {
+    public final void setChildren(ObservableCollection<ItemInfoEntry> value) {
         children = value;
     }
 }

@@ -14,21 +14,17 @@ package openize.io;
  * Signals that an I/O exception has occurred.
  * Intended for throwing the uncontrollable exception
  */
-public class IOException extends RuntimeException
-{
+public class IOException extends RuntimeException {
     /**
      * Constructs an IOException with null as its error detail message.
      */
-    public IOException()
-    {
-    }
+    public IOException() {}
 
     /**
      * Constructs an IOException with the specified detail message.
      * @param message The detail message (which is saved for later retrieval by the getMessage() method)
      */
-    public IOException(String message)
-    {
+    public IOException(String message) {
         super(message);
     }
 
@@ -39,8 +35,7 @@ public class IOException extends RuntimeException
      * @param message The detail message (which is saved for later retrieval by the getMessage() method)
      * @param cause The cause (which is saved for later retrieval by the getCause() method). (A null value is permitted, and indicates that the cause is nonexistent or unknown.)
      */
-    public IOException(String message, Throwable cause)
-    {
+    public IOException(String message, Throwable cause) {
         super(message, cause);
     }
 }

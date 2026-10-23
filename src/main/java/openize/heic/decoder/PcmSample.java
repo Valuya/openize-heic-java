@@ -12,12 +12,9 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+class PcmSample {
 
-class PcmSample
-{
-
-    public PcmSample(BitStreamWithNalSupport stream, SliceSegmentHeader header, int log2CbSize)
-    {
+    public PcmSample(BitStreamWithNalSupport stream, SliceSegmentHeader header, int log2CbSize) {
         HeicPicture picture = header.parentPicture;
 
         picture.pcmSampleLuma = new int[1 << (log2CbSize << 1)];
@@ -25,12 +22,17 @@ class PcmSample
         for (int i = 0; i < 1 << (log2CbSize << 1); i++)
             picture.pcmSampleLuma[i] = stream.read(header.pps.sps.pcmSampleBitDepthLuma & 0xFF);
 
-        picture.pcmSampleChroma = new int[((2 << (log2CbSize << 1)) / ((header.pps.sps.getSubWidthC() & 0xFF) * (header.pps.sps.getSubHeightC() & 0xFF)))];
+        picture.pcmSampleChroma = new int
+                [((2 << (log2CbSize << 1))
+                        / ((header.pps.sps.getSubWidthC() & 0xFF) * (header.pps.sps.getSubHeightC() & 0xFF)))];
 
-        if ((header.pps.sps.getChromaArrayType() & 0xFFFFFFFFL) != 0)
-        {
-            for (int i = 0; i < ((2 << (log2CbSize << 1)) / ((header.pps.sps.getSubWidthC() & 0xFF) * (header.pps.sps.getSubHeightC() & 0xFF))); i++)
-                picture.pcmSampleChroma[i] = stream.read(header.pps.sps.pcmSampleBitDepthChroma & 0xFF);
+        if ((header.pps.sps.getChromaArrayType() & 0xFFFFFFFFL) != 0) {
+            for (int i = 0;
+                    i
+                            < ((2 << (log2CbSize << 1))
+                                    / ((header.pps.sps.getSubWidthC() & 0xFF)
+                                            * (header.pps.sps.getSubHeightC() & 0xFF)));
+                    i++) picture.pcmSampleChroma[i] = stream.read(header.pps.sps.pcmSampleBitDepthChroma & 0xFF);
         }
     }
 }

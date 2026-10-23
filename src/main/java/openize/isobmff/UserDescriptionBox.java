@@ -10,19 +10,16 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.ArrayList;
 import java.util.List;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
  * Contains text description of the image.
  * </p>
  */
-public class UserDescriptionBox extends FullBox
-{
+public class UserDescriptionBox extends FullBox {
     /**
      * <p>
      * List of text descriptions of the image.
@@ -39,14 +36,12 @@ public class UserDescriptionBox extends FullBox
      * @param size     Box size in bytes.
      * @param startPos Start position in bits.
      */
-    public UserDescriptionBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
+    public UserDescriptionBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(stream, BoxType.udes, size);
 
         description = new ArrayList<>((int) size);
 
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
+        while (stream.getBitPosition() < startPos + size * 8) {
             description.add(stream.readString());
         }
     }
@@ -57,15 +52,12 @@ public class UserDescriptionBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder sb = new StringBuilder(500);
         sb.append(String.format("%s description:\n", this.type));
-        for (String it : description)
-        {
+        for (String it : description) {
             sb.append(it).append('\n');
         }
         return sb.toString();
     }
 }
-

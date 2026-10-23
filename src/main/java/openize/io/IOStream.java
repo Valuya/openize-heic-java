@@ -15,8 +15,7 @@ import java.io.Closeable;
 /**
  * Interface provides support both reading and writing to a file/memory/etc.
  */
-public interface IOStream extends Closeable
-{
+public interface IOStream extends Closeable {
     /**
      * Reads up to {@code dst}. length bytes of data into an array of bytes. This method blocks until at least one byte of input is available.
      * @param dst the buffer into which the data is read.

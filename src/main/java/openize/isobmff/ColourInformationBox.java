@@ -12,7 +12,6 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * Contains colour information about the image.
@@ -20,8 +19,7 @@ import openize.isobmff.io.BitStreamReader;
  * this box takes precedence, and over‐rides the information in the bitstream.
  * </p>
  */
-public class ColourInformationBox extends Box
-{
+public class ColourInformationBox extends Box {
     /**
      * <p>
      * An indication of the type of colour information supplied.
@@ -65,29 +63,27 @@ public class ColourInformationBox extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public ColourInformationBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public ColourInformationBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.colr, size);
 
         colourType = stream.read(32) & 0xFFFFFFFFL;
 
-        if ((colourType & 0xFFFFFFFFL) == 0x6e636c78) /* nclx; on-screen colours */
-        {
+        if ((colourType & 0xFFFFFFFFL) == 0x6e636c78) /* nclx; on-screen colours */ {
             colourPrimaries = stream.read(16) & 0xFFFF;
             transferCharacteristics = stream.read(16) & 0xFFFF;
             matrixCoefficients = stream.read(16) & 0xFFFF;
             fullRangeFlag = stream.readFlag();
             stream.skipBits(7);
         }
-      /*  else if ((colour_type & 0xFFFFFFFFL) == 0x72494343) // rICC
+        /*  else if ((colour_type & 0xFFFFFFFFL) == 0x72494343) // rICC
         {
             //restricted ICC profile
-            //ICC_profile; 
+            //ICC_profile;
         }
         else if ((colour_type & 0xFFFFFFFFL) == 0x70726f66) // prof
         {
             //unrestricted ICC profile
-            //ICC_profile; 
+            //ICC_profile;
         }*/
     }
 
@@ -97,8 +93,7 @@ public class ColourInformationBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s Color type: %s", this.type, uintToString(colourType));
     }
 
@@ -107,8 +102,7 @@ public class ColourInformationBox extends Box
      * Color type code as a string.
      * </p>
      */
-    public final String getColourType()
-    {
+    public final String getColourType() {
         return uintToString(colourType);
     }
 }

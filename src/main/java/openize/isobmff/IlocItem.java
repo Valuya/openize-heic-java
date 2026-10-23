@@ -10,14 +10,12 @@
 
 package openize.isobmff;
 
-
 /**
  * <p>
  * Data class for organized storage on location data.
  * </p>
  */
-public class IlocItem
-{
+public class IlocItem {
     /**
      * <p>
      * An arbitrary integer 'name' for this resource which can be used to refer to it.
@@ -33,7 +31,7 @@ public class IlocItem
      * 2 means data are located in the external file.
      * </p>
      */
-    public  byte constructionMethod;
+    public byte constructionMethod;
 
     /**
      * <p>
@@ -71,12 +69,10 @@ public class IlocItem
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder sb = new StringBuilder(300);
         sb.append(String.format("item id: %d method: %d offset : %d\n", itemID, constructionMethod, baseOffset));
-        for (IlocItemExtent extent : extents)
-        {
+        for (IlocItemExtent extent : extents) {
             sb.append(extent.toString()).append('\n');
         }
         return sb.toString();

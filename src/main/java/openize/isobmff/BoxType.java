@@ -17,8 +17,7 @@ package openize.isobmff;
  * </p>
  */
 @SuppressWarnings({"SpellCheckingInspection", "unused"})
-public enum BoxType
-{
+public enum BoxType {
     /**
      * <p>
      * Unknown type.
@@ -388,8 +387,7 @@ public enum BoxType
      *
      * @param code The code of the box type.
      */
-    BoxType(long code)
-    {
+    BoxType(long code) {
         this.code = code;
     }
 
@@ -400,13 +398,10 @@ public enum BoxType
      * @param code The code of the box type.
      * @return The BoxType value.
      */
-    public static BoxType codeToType(long code)
-    {
+    public static BoxType codeToType(long code) {
         code &= 0xFFFFFFFFL;
-        for (BoxType type : values)
-        {
-            if (type.getCode() == code)
-            {
+        for (BoxType type : values) {
+            if (type.getCode() == code) {
                 return type;
             }
         }
@@ -421,8 +416,7 @@ public enum BoxType
      *
      * @return The code of type.
      */
-    public long getCode()
-    {
+    public long getCode() {
         return code;
     }
 }

@@ -12,15 +12,13 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * AuxiliaryTypeProperty box includes a URN identifying the type of the auxiliary image.
  * AuxiliaryTypeProperty may additionally include other fields, as required by the URN.
  * </p>
  */
-public class AuxiliaryTypeProperty extends FullBox
-{
+public class AuxiliaryTypeProperty extends FullBox {
     /**
      * <p>
      * A null-terminated UTF-8 character string of the Uniform Resource Name (URN) used to identify the type of the associated auxiliary image item.
@@ -43,8 +41,7 @@ public class AuxiliaryTypeProperty extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public AuxiliaryTypeProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public AuxiliaryTypeProperty(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.auxC, size);
 
         auxType = stream.readString();
@@ -52,8 +49,8 @@ public class AuxiliaryTypeProperty extends FullBox
         /*UInt64*/
         long count = size - (long) auxType.length() - 12;
         auxSubtype = new byte[(int) (count)];
-        for (/*UInt64*/long i = 0; i < count; i++)
-            auxSubtype[(int) (i)] = (byte) stream.read(8);
+        for (
+        /*UInt64*/ long i = 0; i < count; i++) auxSubtype[(int) (i)] = (byte) stream.read(8);
     }
 
     /**
@@ -62,8 +59,7 @@ public class AuxiliaryTypeProperty extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s type: %s", this.type, auxType);
     }
 }

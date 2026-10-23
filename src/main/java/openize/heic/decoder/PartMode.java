@@ -10,9 +10,7 @@
 
 package openize.heic.decoder;
 
-
-enum PartMode
-{
+enum PartMode {
     part2Nx2N, /*  = 0 */
     part2NxN, /*  = 1 */
     partNx2N, /*  = 2 */
@@ -22,4 +20,3 @@ enum PartMode
     partNLx2N, /*  = 6 */
     partNRx2N, /*  = 7 */
 }
-

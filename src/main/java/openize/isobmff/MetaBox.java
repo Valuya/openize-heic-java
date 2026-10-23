@@ -10,24 +10,22 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.HashMap;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
  * A common base structure that contains general metadata.
  * </p>
  */
-public class MetaBox extends FullBox
-{
+public class MetaBox extends FullBox {
     /**
      * <p>
      * Dictionary of nested boxes.
      * </p>
      */
     private final HashMap<BoxType, Box> boxes;
+
     private ObservableCollection<Box> children;
 
     /**
@@ -39,16 +37,14 @@ public class MetaBox extends FullBox
      * @param size     Box size in bytes.
      * @param startPos Start position in bits.
      */
-    public MetaBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
+    public MetaBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(stream, BoxType.meta, size);
 
         boxes = new HashMap<>();
 
         boxes.put(BoxType.hdlr, new HandlerBox(stream));
 
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
+        while (stream.getBitPosition() < startPos + size * 8) {
             Box box = Box.parseBox(stream);
             boxes.put(box.type, box);
         }
@@ -61,8 +57,7 @@ public class MetaBox extends FullBox
      * Handler box.
      * </p>
      */
-    public final HandlerBox gethdlr()
-    {
+    public final HandlerBox gethdlr() {
         return (HandlerBox) tryGetBox(BoxType.hdlr);
     }
 
@@ -71,8 +66,7 @@ public class MetaBox extends FullBox
      * Primary item box.
      * </p>
      */
-    public final PrimaryItemBox getpitm()
-    {
+    public final PrimaryItemBox getpitm() {
         return (PrimaryItemBox) tryGetBox(BoxType.pitm);
     }
 
@@ -81,8 +75,7 @@ public class MetaBox extends FullBox
      * Item location box.
      * </p>
      */
-    public final ItemLocationBox getiloc()
-    {
+    public final ItemLocationBox getiloc() {
         return (ItemLocationBox) tryGetBox(BoxType.iloc);
     }
 
@@ -91,8 +84,7 @@ public class MetaBox extends FullBox
      * Item info box.
      * </p>
      */
-    public final ItemInfoBox getiinf()
-    {
+    public final ItemInfoBox getiinf() {
         return (ItemInfoBox) tryGetBox(BoxType.iinf);
     }
 
@@ -101,8 +93,7 @@ public class MetaBox extends FullBox
      * Item properties box.
      * </p>
      */
-    public final ItemPropertiesBox getiprp()
-    {
+    public final ItemPropertiesBox getiprp() {
         return (ItemPropertiesBox) tryGetBox(BoxType.iprp);
     }
 
@@ -111,8 +102,7 @@ public class MetaBox extends FullBox
      * Item reference box.
      * </p>
      */
-    public final ItemReferenceBox getiref()
-    {
+    public final ItemReferenceBox getiref() {
         return (ItemReferenceBox) tryGetBox(BoxType.iref);
     }
 
@@ -121,8 +111,7 @@ public class MetaBox extends FullBox
      * Item data box.
      * </p>
      */
-    public final ItemDataBox getidat()
-    {
+    public final ItemDataBox getidat() {
         return (ItemDataBox) tryGetBox(BoxType.idat);
     }
 
@@ -131,8 +120,7 @@ public class MetaBox extends FullBox
      * Item group box.
      * </p>
      */
-    public final GroupsListBox getgrpl()
-    {
+    public final GroupsListBox getgrpl() {
         return (GroupsListBox) tryGetBox(BoxType.grpl);
     }
 
@@ -142,8 +130,7 @@ public class MetaBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.type.name();
     }
 
@@ -152,8 +139,7 @@ public class MetaBox extends FullBox
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final ObservableCollection<Box> getChildren()
-    {
+    public final ObservableCollection<Box> getChildren() {
         return children;
     }
 
@@ -162,8 +148,7 @@ public class MetaBox extends FullBox
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final void setChildren(ObservableCollection<Box> value)
-    {
+    public final void setChildren(ObservableCollection<Box> value) {
         children = value;
     }
 
@@ -175,9 +160,7 @@ public class MetaBox extends FullBox
      * @param type Box type.
      * @return Box.
      */
-    private Box tryGetBox(BoxType type)
-    {
+    private Box tryGetBox(BoxType type) {
         return boxes.get(type);
     }
 }
-

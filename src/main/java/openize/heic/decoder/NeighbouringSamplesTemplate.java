@@ -10,25 +10,18 @@
 
 package openize.heic.decoder;
 
-class NeighbouringSamplesTemplate
-{
+class NeighbouringSamplesTemplate {
     protected final int size;
 
-    public NeighbouringSamplesTemplate(int nTbS)
-    {
+    public NeighbouringSamplesTemplate(int nTbS) {
         size = nTbS;
     }
 
-    protected final int getIndex(int x, int y)
-    {
-        if (y == -1)
-        {
+    protected final int getIndex(int x, int y) {
+        if (y == -1) {
             return x + 1;
-        }
-        else
-        {
+        } else {
             return 2 * size + y + 1;
         }
     }
 }
-

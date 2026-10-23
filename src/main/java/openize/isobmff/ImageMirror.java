@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The image mirroring item property mirrors the image about either a vertical or horizontal axis.
  * </p>
  */
-public class ImageMirror extends Box
-{
+public class ImageMirror extends Box {
     /**
      * <p>
      * Specifies a vertical (axis = 0) or horizontal (axis = 1) axis for the mirroring operation.
@@ -35,8 +33,7 @@ public class ImageMirror extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public ImageMirror(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public ImageMirror(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.imir, size);
 
         stream.skipBits(7);
@@ -49,8 +46,7 @@ public class ImageMirror extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.type.name() + ((axis & 0xFF) == 0 ? "vertically" : "horizontal") + " mirrored";
     }
 }

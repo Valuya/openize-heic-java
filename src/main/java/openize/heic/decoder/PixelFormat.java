@@ -1,5 +1,5 @@
 /*
- * Openize.HEIC 
+ * Openize.HEIC
  * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of Openize.HEIC.
@@ -15,8 +15,7 @@ package openize.heic.decoder;
  * Specifies the format of the color data for each pixel in the image.
  * </p>
  */
-public enum PixelFormat
-{
+public enum PixelFormat {
     /**
      * <p>
      * Specifies that the format is 24 bits per pixel; 8 bits each are used for the red, green, and blue components.

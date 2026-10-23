@@ -12,7 +12,6 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The ImageSpatialExtentsProperty documents the width and height of the associated image item.
@@ -20,8 +19,7 @@ import openize.isobmff.io.BitStreamReader;
  * transformative properties.
  * </p>
  */
-public class ImageSpatialExtentsProperty extends FullBox
-{
+public class ImageSpatialExtentsProperty extends FullBox {
     /**
      * <p>
      * The width of the reconstructed image in pixels.
@@ -44,8 +42,7 @@ public class ImageSpatialExtentsProperty extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public ImageSpatialExtentsProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public ImageSpatialExtentsProperty(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.ispe, size);
 
         imageWidth = stream.read(32) & 0xFFFFFFFFL;
@@ -58,8 +55,7 @@ public class ImageSpatialExtentsProperty extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s width: %d height: %d", this.type, imageWidth, imageHeight);
     }
 }

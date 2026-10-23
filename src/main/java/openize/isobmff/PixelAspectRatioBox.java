@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * Contains the pixel aspect ratio information.
  * </p>
  */
-public class PixelAspectRatioBox extends Box
-{
+public class PixelAspectRatioBox extends Box {
     /**
      * <p>
      * Define the relative height of a pixel.
@@ -42,8 +40,7 @@ public class PixelAspectRatioBox extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public PixelAspectRatioBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public PixelAspectRatioBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.pasp, size);
 
         hSpacing = stream.read(32) & 0xFFFFFFFFL;
@@ -56,8 +53,7 @@ public class PixelAspectRatioBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s hSpacing: %d vSpacing: %d", this.type, hSpacing, vSpacing);
     }
 }

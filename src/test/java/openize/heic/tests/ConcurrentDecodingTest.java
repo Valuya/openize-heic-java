@@ -10,17 +10,16 @@
 
 package openize.heic.tests;
 
-import openize.heic.decoder.HeicImage;
-import openize.heic.decoder.PixelFormat;
-import openize.io.IOFileStream;
-import openize.io.IOMode;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import openize.heic.decoder.HeicImage;
+import openize.heic.decoder.PixelFormat;
+import openize.io.IOFileStream;
+import openize.io.IOMode;
+import org.junit.jupiter.api.Test;
 
 /** Several images decoded at the same time must decode exactly as they do alone. */
 class ConcurrentDecodingTest {

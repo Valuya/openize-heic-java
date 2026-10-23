@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * Contains light level information about the image.
  * </p>
  */
-public class ContentLightLevelInfo extends Box
-{
+public class ContentLightLevelInfo extends Box {
     /**
      * <p>
      * Indicates the max picture ligth level.
@@ -42,8 +40,7 @@ public class ContentLightLevelInfo extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public ContentLightLevelInfo(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public ContentLightLevelInfo(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.clli, size);
 
         maxContentLightLevel = stream.read(16) & 0xFFFF;
@@ -56,8 +53,7 @@ public class ContentLightLevelInfo extends Box
      * </p>
      */
     @Override
-    public final String toString()
-    {
+    public final String toString() {
         return String.format("%s Max: %d Avg: %d", type.name(), maxContentLightLevel, maxPicAverageLightLevel);
     }
 }

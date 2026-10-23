@@ -12,15 +12,13 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The PixelInformationProperty descriptive item property indicates the number and bit depth of
  * colour components in the reconstructed image of the associated image item.
  * </p>
  */
-public class PixelInformationProperty extends FullBox
-{
+public class PixelInformationProperty extends FullBox {
     /**
      * <p>
      * This field signals the number of channels by each pixel of the reconstructed image ofthe associated image item.
@@ -43,14 +41,12 @@ public class PixelInformationProperty extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public PixelInformationProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public PixelInformationProperty(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.pixi, size);
 
         numChannels = (byte) stream.read(8);
         bitsPerChannel = new byte[numChannels & 0xFF];
-        for (int i = 0; i < (numChannels & 0xFF); i++)
-            bitsPerChannel[i] = (byte) stream.read(8);
+        for (int i = 0; i < (numChannels & 0xFF); i++) bitsPerChannel[i] = (byte) stream.read(8);
     }
 
     /**
@@ -59,15 +55,12 @@ public class PixelInformationProperty extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("%s ch: %d bits:", type, numChannels));
-        for (byte b : bitsPerChannel)
-        {
+        for (byte b : bitsPerChannel) {
             sb.append(' ').append(String.format("%x", b));
         }
         return sb.toString();
     }
 }
-

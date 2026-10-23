@@ -1,5 +1,5 @@
 /*
- * Openize.HEIC 
+ * Openize.HEIC
  * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of Openize.HEIC.
@@ -10,10 +10,7 @@
 
 package openize.heic.decoder;
 
-
-
-public enum CabacType
-{
+public enum CabacType {
     saoMergeFlag,
     saoTypeIdx,
     splitCuFlag,
@@ -55,12 +52,9 @@ public enum CabacType
     cuChromaQpOffsetFlag,
     cuChromaQpOffsetIdx;
 
-    public static CabacType[] getValues()
-    {
+    public static CabacType[] getValues() {
         return values;
     }
 
     private static final CabacType[] values = CabacType.values();
 }
-
-

@@ -10,57 +10,46 @@
 
 package openize.heic.decoder;
 
-public class Rectangle
-{
+public class Rectangle {
     private int x;
     private int y;
     private int width;
     private int height;
 
-    public Rectangle()
-    {
-    }
+    public Rectangle() {}
 
-    public Rectangle(int x, int y, int width, int height)
-    {
+    public Rectangle(int x, int y, int width, int height) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
     }
 
-    public int getLeft()
-    {
+    public int getLeft() {
         return x;
     }
 
-    public int getTop()
-    {
+    public int getTop() {
         return y;
     }
 
-    public int getWidth()
-    {
+    public int getWidth() {
         return width;
     }
 
-    public int getHeight()
-    {
+    public int getHeight() {
         return height;
     }
 
-    public int getRight()
-    {
+    public int getRight() {
         return x + width;
     }
 
-    public int getBottom()
-    {
+    public int getBottom() {
         return y + height;
     }
 
-    public boolean isEmpty()
-    {
+    public boolean isEmpty() {
         return width <= 0 && height <= 0;
     }
 }

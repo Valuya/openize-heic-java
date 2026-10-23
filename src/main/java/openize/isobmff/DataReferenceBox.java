@@ -1,6 +1,6 @@
 /*
  * FileFormat.IsoBmff
- * Copyright (c) 2024-2026 Openize Pty Ltd. 
+ * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of FileFormat.IsoBmff.
  *
@@ -10,26 +10,23 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.ArrayList;
 import java.util.List;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
- * The data reference object contains a table of data references (normally URLs) that declare the 
+ * The data reference object contains a table of data references (normally URLs) that declare the
  * location(s) of the media data used within the presentation.
  * </p>
  */
-public class DataReferenceBox extends FullBox
-{
+public class DataReferenceBox extends FullBox {
     /**
      * <p>
      * The count of data references.
      * </p>
      */
-    public final /*UInt32*/long entryCount;
+    public final /*UInt32*/ long entryCount;
 
     /**
      * <p>
@@ -44,20 +41,27 @@ public class DataReferenceBox extends FullBox
      * </p>
      */
     @Override
-    public String toString() { return String.format("%s count: %d",this.type, entryCount); }
+    public String toString() {
+        return String.format("%s count: %d", this.type, entryCount);
+    }
 
     /**
      * <p>
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final ObservableCollection<Box> getChildren(){ return children; }
+    public final ObservableCollection<Box> getChildren() {
+        return children;
+    }
     /**
      * <p>
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final void setChildren(ObservableCollection<Box> value){ children = value; }
+    public final void setChildren(ObservableCollection<Box> value) {
+        children = value;
+    }
+
     private ObservableCollection<Box> children;
 
     /**
@@ -66,17 +70,15 @@ public class DataReferenceBox extends FullBox
      * </p>
      * @param stream File stream.
      */
-    public DataReferenceBox(BitStreamReader stream)
-    {
-    	super (stream, BoxType.dref);
-	
+    public DataReferenceBox(BitStreamReader stream) {
+        super(stream, BoxType.dref);
+
         entryCount = stream.read(32) & 0xFFFFFFFFL;
-        entries = new ArrayList<>((int)entryCount);
-        for (int i = 1; i <= (entryCount & 0xFFFFFFFFL); i++)
-        {
+        entries = new ArrayList<>((int) entryCount);
+        for (int i = 1; i <= (entryCount & 0xFFFFFFFFL); i++) {
             entries.add(new DataEntryUrlBox(stream));
         }
-        
+
         setChildren(new ObservableCollection<>(entries));
     }
 }

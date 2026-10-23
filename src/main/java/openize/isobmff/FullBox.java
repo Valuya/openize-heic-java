@@ -10,18 +10,15 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.BitSet;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
  * Structure for storing data in IsoBmff files with specified box version and flags.
  * </p>
  */
-public class FullBox extends Box
-{
+public class FullBox extends Box {
     /**
      * <p>
      * An integer that specifies the version of this format of the box.
@@ -43,14 +40,12 @@ public class FullBox extends Box
      *
      * @param stream File stream.
      */
-    public FullBox(BitStreamReader stream)
-    {
+    public FullBox(BitStreamReader stream) {
         super(stream);
 
         version = (byte) stream.read(8);
 
-        for (int i = 0; i < 24; i++)
-            flags.set(i, stream.readFlag());
+        for (int i = 0; i < 24; i++) flags.set(i, stream.readFlag());
     }
 
     /**
@@ -61,14 +56,12 @@ public class FullBox extends Box
      * @param stream  File stream.
      * @param boxtype Box type integer.
      */
-    public FullBox(BitStreamReader stream, BoxType boxtype)
-    {
+    public FullBox(BitStreamReader stream, BoxType boxtype) {
         super(stream, boxtype);
 
         version = (byte) stream.read(8);
 
-        for (int i = 0; i < 24; i++)
-            flags.set(i, stream.readFlag());
+        for (int i = 0; i < 24; i++) flags.set(i, stream.readFlag());
     }
 
     /**
@@ -80,14 +73,12 @@ public class FullBox extends Box
      * @param boxtype Box type integer.
      * @param size    Box size in bytes.
      */
-    public FullBox(BitStreamReader stream, BoxType boxtype, /*UInt64*/long size)
-    {
+    public FullBox(BitStreamReader stream, BoxType boxtype, /*UInt64*/ long size) {
         super(boxtype, size);
 
         version = (byte) stream.read(8);
 
-        for (int i = 0; i < 24; i++)
-            flags.set(i, stream.readFlag());
+        for (int i = 0; i < 24; i++) flags.set(i, stream.readFlag());
     }
 
     /**
@@ -101,12 +92,10 @@ public class FullBox extends Box
      * @param version The version of this format of the box.
      * @param flags   The map of flags.
      */
-    public FullBox(BoxType boxtype, /*UInt64*/long size, byte version, int flags)
-    {
+    public FullBox(BoxType boxtype, /*UInt64*/ long size, byte version, int flags) {
         super(boxtype, size);
 
         this.version = version;
-        this.flags = BitSet.valueOf(new long[]{flags});
+        this.flags = BitSet.valueOf(new long[] {flags});
     }
 }
-

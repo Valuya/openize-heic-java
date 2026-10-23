@@ -15,15 +15,12 @@ import openize.isobmff.Box;
 import openize.isobmff.BoxType;
 import openize.isobmff.ObservableCollection;
 
-
-class HEVCConfigurationBox extends Box
-{
+class HEVCConfigurationBox extends Box {
     public HEVCDecoderConfigurationRecord record;
     public final /*UInt64*/ long offset;
     private ObservableCollection<HEVCDecoderConfigurationRecord> children;
 
-    public HEVCConfigurationBox(BitStreamWithNalSupport stream, /*UInt64*/long size)
-    {
+    public HEVCConfigurationBox(BitStreamWithNalSupport stream, /*UInt64*/ long size) {
         super(BoxType.hvcC, size);
 
         offset = stream.getBitPosition() / 8;
@@ -31,19 +28,15 @@ class HEVCConfigurationBox extends Box
     }
 
     @Override
-    public final String toString()
-    {
+    public final String toString() {
         return type.name();
     }
 
-    public final ObservableCollection<HEVCDecoderConfigurationRecord> getChildren()
-    {
+    public final ObservableCollection<HEVCDecoderConfigurationRecord> getChildren() {
         return children;
     }
 
-    public final void setChildren(ObservableCollection<HEVCDecoderConfigurationRecord> value)
-    {
+    public final void setChildren(ObservableCollection<HEVCDecoderConfigurationRecord> value) {
         children = value;
     }
 }
-

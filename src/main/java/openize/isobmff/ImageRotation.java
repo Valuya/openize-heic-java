@@ -12,15 +12,13 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The image rotation  transformative item property rotates the reconstructed image of the
  * associated image item in anti-clockwise direction in units of 90 degrees.
  * </p>
  */
-public class ImageRotation extends Box
-{
+public class ImageRotation extends Box {
     /**
      * <p>
      * Specifies the angle (in anti-clockwise direction) in units of 90 degrees.
@@ -36,8 +34,7 @@ public class ImageRotation extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public ImageRotation(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public ImageRotation(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.irot, size);
 
         stream.skipBits(6);
@@ -50,8 +47,7 @@ public class ImageRotation extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s angle: %d", this.type, (angle & 0xFF) * 90);
     }
 }

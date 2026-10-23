@@ -12,31 +12,24 @@ package openize.heic.decoder;
 
 import java.util.Arrays;
 
-
-class NeighbouringSamples extends NeighbouringSamplesTemplate
-{
+class NeighbouringSamples extends NeighbouringSamplesTemplate {
     private final short[] data;
 
-    public NeighbouringSamples(int nTbS)
-    {
+    public NeighbouringSamples(int nTbS) {
         super(nTbS);
         data = new short[4 * nTbS + 1];
     }
 
-    public final int get(int x, int y)
-    {
+    public final int get(int x, int y) {
         return data[getIndex(x, y)];
     }
 
-    public final void set(int x, int y, int value)
-    {
+    public final void set(int x, int y, int value) {
         data[getIndex(x, y)] = (short) value;
     }
 
-    public final void reset(int bitDepth)
-    {
+    public final void reset(int bitDepth) {
         int value = 1 << (bitDepth - 1);
-        Arrays.fill(data, (short)(value & 0xFFFF));
+        Arrays.fill(data, (short) (value & 0xFFFF));
     }
 }
-

@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The clean aperture transformative item property defines a cropping transformation of the input image.
  * </p>
  */
-public class CleanApertureBox extends Box
-{
+public class CleanApertureBox extends Box {
     /**
      * <p>
      * A numerator of the fractional number which defines the exact clean aperture width, in counted pixels, of the image.
@@ -84,8 +82,7 @@ public class CleanApertureBox extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public CleanApertureBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public CleanApertureBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.clap, size);
 
         cleanApertureWidthN = stream.read(32) & 0xFFFFFFFFL;
@@ -104,9 +101,7 @@ public class CleanApertureBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s size: %d", this.type, size);
     }
 }
-

@@ -10,25 +10,21 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.HashMap;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
  * Structure for storing data in IsoBmff files.
  * </p>
  */
-public class Box
-{
+public class Box {
     /**
      * <p>
      * Dictionary of external box constructors.
      * </p>
      */
-    private static final HashMap<BoxType, ExternalBoxConstructor> externalParsersDictionary
-            = new HashMap<>();
+    private static final HashMap<BoxType, ExternalBoxConstructor> externalParsersDictionary = new HashMap<>();
     /**
      * <p>
      * An integer that specifies the number of bytes in this box, including all its fields and
@@ -53,13 +49,11 @@ public class Box
      *
      * @param stream File stream.
      */
-    public Box(BitStreamReader stream)
-    {
+    public Box(BitStreamReader stream) {
         size = stream.read(32);
         type = BoxType.codeToType(stream.read(32));
 
-        if (size == 1)
-        {
+        if (size == 1) {
             size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
         }
     }
@@ -73,8 +67,7 @@ public class Box
      * @param boxtype Box type integer.
      * @param size    Box size in bytes.
      */
-    public Box(BoxType boxtype, /*UInt64*/long size)
-    {
+    public Box(BoxType boxtype, /*UInt64*/ long size) {
         this.size = size;
         type = boxtype;
     }
@@ -87,20 +80,17 @@ public class Box
      * @param stream  File stream.
      * @param boxtype Box type integer.
      */
-    public Box(BitStreamReader stream, BoxType boxtype)
-    {
+    public Box(BitStreamReader stream, BoxType boxtype) {
         size = stream.read(32) & 0xFFFFFFFFL;
         BoxType readType = BoxType.codeToType(stream.read(32));
 
-        if (readType != boxtype)
-        {
+        if (readType != boxtype) {
             throw new IllegalStateException();
         }
 
         type = readType;
 
-        if (size == 1)
-        {
+        if (size == 1) {
             size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
         }
     }
@@ -113,22 +103,19 @@ public class Box
      * @param stream File stream reader.
      * @return The parsed box.
      */
-    public static Box parseBox(BitStreamReader stream)
-    {
+    public static Box parseBox(BitStreamReader stream) {
         /*UInt64*/
         long startPosition = stream.getBitPosition();
         /*UInt64*/
         long size = stream.read(32) & 0xFFFFFFFFL;
         BoxType type = BoxType.codeToType(stream.read(32));
 
-        if (size == 1)
-        {
+        if (size == 1) {
             size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
         }
 
         Box box;
-        switch (type)
-        {
+        switch (type) {
             case ftyp:
                 box = new FileTypeBox(stream, size);
                 break;
@@ -211,12 +198,9 @@ public class Box
             case hvcC:
             case av1C:
             default:
-                if (externalParsersDictionary.containsKey(type))
-                {
+                if (externalParsersDictionary.containsKey(type)) {
                     box = externalParsersDictionary.get(type).invoke(stream, size);
-                }
-                else
-                {
+                } else {
                     box = new Box(type, size);
                 }
                 break;
@@ -225,11 +209,9 @@ public class Box
         /*UInt64*/
         long currentPosition = stream.getBitPosition();
 
-        if (currentPosition - startPosition > size * 8L)
-            throw new IndexOutOfBoundsException();
+        if (currentPosition - startPosition > size * 8L) throw new IndexOutOfBoundsException();
 
-        if (currentPosition - startPosition < size * 8)
-        {
+        if (currentPosition - startPosition < size * 8) {
             stream.skipBits((int) (size * 8 - (currentPosition - startPosition)));
         }
 
@@ -244,10 +226,8 @@ public class Box
      * @param type   Box type.
      * @param parser External box constructor.
      */
-    public static void setExternalConstructor(BoxType type, ExternalBoxConstructor parser)
-    {
-        synchronized (externalParsersDictionary)
-        {
+    public static void setExternalConstructor(BoxType type, ExternalBoxConstructor parser) {
+        synchronized (externalParsersDictionary) {
             externalParsersDictionary.putIfAbsent(type, parser);
         }
     }
@@ -260,12 +240,10 @@ public class Box
      * @param value Unsigned integer.
      * @return ASCII string.
      */
-    protected static String uintToString(/*UInt32*/long value)
-    {
+    protected static String uintToString(/*UInt32*/ long value) {
         StringBuilder str = new StringBuilder(50);
 
-        for (int i = 24; i >= 0; i -= 8)
-        {
+        for (int i = 24; i >= 0; i -= 8) {
             /*UInt32*/
             long b = ((((value & 0xFFFFFFFFL) >> i) & 0xFFFFFFFFL) & 0xFF) & 0xFFFFFFFFL;
             str.append((char) b);
@@ -279,8 +257,7 @@ public class Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s size: %d [Box to string]", this.type, size);
     }
 
@@ -289,8 +266,7 @@ public class Box
      * External box constructor for unimplemented box types.
      * </p>
      */
-    public interface ExternalBoxConstructor
-    {
+    public interface ExternalBoxConstructor {
         /**
          * <p>
          * External box constructor for unimplemented box types.
@@ -299,6 +275,6 @@ public class Box
          * @param stream Stream reader.
          * @param size   Box size in bytes.
          */
-        Box invoke(BitStreamReader stream, /*UInt64*/long size);
+        Box invoke(BitStreamReader stream, /*UInt64*/ long size);
     }
 }

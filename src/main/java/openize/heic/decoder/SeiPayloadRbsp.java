@@ -12,31 +12,24 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-class SeiPayloadRbsp extends NalUnit
-{
-    public SeiPayloadRbsp(BitStreamWithNalSupport stream, /*UInt64*/long startPosition, int size)
-    {
+class SeiPayloadRbsp extends NalUnit {
+    public SeiPayloadRbsp(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
         super(stream, startPosition, size);
 
         // int payloadType = 0;
-        while (true)
-        {
-            int read = (/*Byte*/byte) stream.read(8) & 0xFF;
-            //payloadType += read;
-            if (read != 255)
-            {
+        while (true) {
+            int read = (/*Byte*/ byte) stream.read(8) & 0xFF;
+            // payloadType += read;
+            if (read != 255) {
                 break;
             }
         }
 
         int payloadSize = 0;
-        while (true)
-        {
-            int read = (/*Byte*/byte) stream.read(8) & 0xFF;
+        while (true) {
+            int read = (/*Byte*/ byte) stream.read(8) & 0xFF;
             payloadSize += read;
-            if (read != 255)
-            {
+            if (read != 255) {
                 break;
             }
         }

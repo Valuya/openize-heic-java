@@ -10,6 +10,8 @@
 
 package openize.heic.decoder.io;
 
+import java.util.HashMap;
+import java.util.Map;
 import openize.heic.decoder.Cabac;
 import openize.heic.decoder.CabacType;
 import openize.heic.decoder.DecoderContext;
@@ -18,18 +20,13 @@ import openize.io.IOSeekMode;
 import openize.io.IOStream;
 import openize.isobmff.io.BitStreamReader;
 
-import java.util.HashMap;
-import java.util.Map;
-
-
 /**
  * <p>
  * The BitStreamWithNalSupport class is designed to read bits from a specified stream.
  * It allows to ignore specified byte sequences while reading.
  * </p>
  */
-public class BitStreamWithNalSupport extends BitStreamReader
-{
+public class BitStreamWithNalSupport extends BitStreamReader {
     private final Cabac cabac;
     /**
      * <p>
@@ -37,6 +34,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * </p>
      */
     private final HashMap<Long, DecoderContext> contextDictionary;
+
     private /*UInt32*/ long currentImageId;
     /**
      * <p>
@@ -49,16 +47,15 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Previous read byte.
      * </p>
      */
-    private  short prevReadByte = (short) 0xFF;
+    private short prevReadByte = (short) 0xFF;
     /**
      * <p>
      * The byte read before previous.
      * </p>
      */
-    private  short prevPrevReadByte = (short) 0xFF;
+    private short prevPrevReadByte = (short) 0xFF;
 
-    public BitStreamWithNalSupport(IOStream stream)
-    {
+    public BitStreamWithNalSupport(IOStream stream) {
         this(stream, 4096);
     }
 
@@ -70,8 +67,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * @param stream     The source stream.
      * @param bufferSize The buffer size.
      */
-    public BitStreamWithNalSupport(IOStream stream, int bufferSize)
-    {
+    public BitStreamWithNalSupport(IOStream stream, int bufferSize) {
         super(stream, bufferSize);
 
         contextDictionary = new HashMap<>();
@@ -83,8 +79,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Context-adaptive arithmetic entropy-decoder.
      * </p>
      */
-    public final Cabac getCabac()
-    {
+    public final Cabac getCabac() {
         return cabac;
     }
 
@@ -93,8 +88,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Returns the current image context.
      * </p>
      */
-    public final DecoderContext getContext()
-    {
+    public final DecoderContext getContext() {
         return contextDictionary.get(getCurrentImageId());
     }
 
@@ -103,8 +97,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Current image identifier.
      * </p>
      */
-    public final /*UInt32*/long getCurrentImageId()
-    {
+    public final /*UInt32*/ long getCurrentImageId() {
         return currentImageId;
     }
 
@@ -113,8 +106,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Current image identifier.
      * </p>
      */
-    public final void setCurrentImageId(/*UInt32*/long value)
-    {
+    public final void setCurrentImageId(/*UInt32*/ long value) {
         currentImageId = value;
     }
 
@@ -125,10 +117,8 @@ public class BitStreamWithNalSupport extends BitStreamReader
      *
      * @param imageId Image identifier.
      */
-    public final void createNewImageContext(/*UInt32*/long imageId)
-    {
-        if (!contextDictionary.containsKey(imageId))
-        {
+    public final void createNewImageContext(/*UInt32*/ long imageId) {
+        if (!contextDictionary.containsKey(imageId)) {
             contextDictionary.put(imageId, new DecoderContext());
         }
         setCurrentImageId(imageId);
@@ -141,12 +131,9 @@ public class BitStreamWithNalSupport extends BitStreamReader
      *
      * @param imageId Image identifier.
      */
-    public final void deleteImageContext(/*UInt32*/long imageId)
-    {
-        for (Map.Entry<Long, HeicPicture> entry : contextDictionary.get(imageId)
-                                                                   .getPictures()
-                                                                   .entrySet())
-        {
+    public final void deleteImageContext(/*UInt32*/ long imageId) {
+        for (Map.Entry<Long, HeicPicture> entry :
+                contextDictionary.get(imageId).getPictures().entrySet()) {
             entry.getValue().cleanMemory();
         }
 
@@ -158,8 +145,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Turns on Nal Unit reader mode which ignores specified by standard byte sequences.
      * </p>
      */
-    public final void turnOnNalUnitMode()
-    {
+    public final void turnOnNalUnitMode() {
         nalMode = true;
         prevReadByte = (short) 0xFF;
         prevPrevReadByte = (short) 0xFF;
@@ -170,17 +156,17 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Turns off Nal Unit reader mode.
      * </p>
      */
-    public final void turnOffNulUnitMode()
-    {
+    public final void turnOffNulUnitMode() {
         nalMode = false;
     }
 
-    // shall not occur 
+    // shall not occur
     // 0x000000
     // 0x000001
     // 0x000002
 
-    // any four-byte sequence that starts with 0x000003 other than the following sequences shall not occur at any byte-aligned position:
+    // any four-byte sequence that starts with 0x000003 other than the following sequences shall not occur at any
+    // byte-aligned position:
     // 0x00000300
     // 0x00000301
     // 0x00000302
@@ -195,12 +181,9 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * @return The integer value.
      */
     @Override
-    public int read(int bitCount)
-    {
-        if (bitCount <= 0 || bitCount > 32)
-        {
-            if (bitCount == 0)
-            {
+    public int read(int bitCount) {
+        if (bitCount <= 0 || bitCount > 32) {
+            if (bitCount == 0) {
                 return 0;
             }
 
@@ -210,41 +193,33 @@ public class BitStreamWithNalSupport extends BitStreamReader
         int value = 0;
         int remainingBits = bitCount;
 
-        if (state.getBufferPosition() < 0)
-        {
+        if (state.getBufferPosition() < 0) {
             fillBufferFromStream();
         }
 
-        while (remainingBits > 0)
-        {
-            if (state.getBitIndex() == 8)
-            {
-                if (nalMode)
-                {
+        while (remainingBits > 0) {
+            if (state.getBitIndex() == 8) {
+                if (nalMode) {
                     prevPrevReadByte = prevReadByte;
-                    prevReadByte = (short)(state.getBuffer()[state.getBufferPosition()] & 0xFF);
+                    prevReadByte = (short) (state.getBuffer()[state.getBufferPosition()] & 0xFF);
                 }
 
                 state.setBitIndex(0);
-                state.setBufferPosition(state.getBufferPosition() + 1)/*Property++*/;
+                state.setBufferPosition(state.getBufferPosition() + 1) /*Property++*/;
 
-                if (state.getBufferPosition() == state.getBufferActiveLength())
-                {
+                if (state.getBufferPosition() == state.getBufferActiveLength()) {
                     fillBufferFromStream();
                 }
             }
 
-            if (nalMode)
-            {
-                if ((prevPrevReadByte & 0xFF) == 0x00 &&
-                        (prevReadByte & 0xFF) == 0x00 &&
-                        (state.getBuffer()[state.getBufferPosition()] & 0xFF) == 0x03)
-                {
+            if (nalMode) {
+                if ((prevPrevReadByte & 0xFF) == 0x00
+                        && (prevReadByte & 0xFF) == 0x00
+                        && (state.getBuffer()[state.getBufferPosition()] & 0xFF) == 0x03) {
                     prevPrevReadByte = prevReadByte;
-                    prevReadByte = (short)(state.getBuffer()[state.getBufferPosition()] & 0xFF);
-                    state.setBufferPosition(state.getBufferPosition() + 1)/*Property++*/;
-                    if (state.getBufferPosition() == state.getBufferActiveLength())
-                    {
+                    prevReadByte = (short) (state.getBuffer()[state.getBufferPosition()] & 0xFF);
+                    state.setBufferPosition(state.getBufferPosition() + 1) /*Property++*/;
+                    if (state.getBufferPosition() == state.getBufferActiveLength()) {
                         fillBufferFromStream();
                     }
                 }
@@ -254,7 +229,8 @@ public class BitStreamWithNalSupport extends BitStreamReader
             int mask = (1 << bitsToRead) - 1;
 
             value <<= bitsToRead;
-            value |= ((state.getBuffer()[state.getBufferPosition()] & 0xFF) >> (8 - state.getBitIndex() - bitsToRead)) & mask;
+            value |= ((state.getBuffer()[state.getBufferPosition()] & 0xFF) >> (8 - state.getBitIndex() - bitsToRead))
+                    & mask;
 
             state.setBitIndex(state.getBitIndex() + bitsToRead);
             remainingBits -= bitsToRead;
@@ -271,15 +247,13 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * @return String value.
      */
     @Override
-    public final /*new*/ String readString()
-    {
+    public final /*new*/ String readString() {
         StringBuilder output = new StringBuilder(50);
         int b;
 
-        do
-        {
+        do {
             b = read(8);
-            //if (b < 127 && b > 31)
+            // if (b < 127 && b > 31)
             output.append((char) b);
         } while (b != 0);
 
@@ -294,45 +268,38 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * @param bitsNumber Number of bits to skip.
      */
     @Override
-    public /*new*/ void skipBits(int bitsNumber)
-    {
+    public /*new*/ void skipBits(int bitsNumber) {
         int remainingBits = bitsNumber;
 
-        int bitsInBuffer = Math.min(remainingBits, (state.getBufferActiveLength() - state.getBufferPosition()) * 8 - state.getBitIndex());
+        int bitsInBuffer = Math.min(
+                remainingBits, (state.getBufferActiveLength() - state.getBufferPosition()) * 8 - state.getBitIndex());
 
         int bitsToRead = Math.min(remainingBits, bitsInBuffer);
 
-        while (bitsToRead > 0)
-        {
+        while (bitsToRead > 0) {
             int limitCount = Math.min(bitsToRead, 32);
             read(limitCount);
             bitsToRead -= limitCount;
             remainingBits -= limitCount;
         }
 
-        if (remainingBits == 0)
-        {
+        if (remainingBits == 0) {
             return;
         }
 
-        if (nalMode)
-        {
-            while (remainingBits >= 32)
-            {
+        if (nalMode) {
+            while (remainingBits >= 32) {
                 read(32);
                 remainingBits -= 32;
             }
-        }
-        else
-        {
+        } else {
             stream.seek(remainingBits / 8, IOSeekMode.CURRENT);
             fillBufferFromStream();
             state.setBitIndex(0);
             remainingBits = remainingBits % 8;
         }
 
-        if (remainingBits != 0)
-        {
+        if (remainingBits != 0) {
             read(remainingBits);
         }
     }
@@ -344,12 +311,10 @@ public class BitStreamWithNalSupport extends BitStreamReader
      *
      * @return An unsigned integer.
      */
-    public final /*UInt32*/long readUev()
-    {
+    public final /*UInt32*/ long readUev() {
         int leadingZeroBits = 0;
 
-        while (read(1) == 0)
-            leadingZeroBits++;
+        while (read(1) == 0) leadingZeroBits++;
 
         return ((((long) 1 << leadingZeroBits) - 1 + read(leadingZeroBits)) & 0xFFFFFFFFL);
     }
@@ -361,8 +326,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      *
      * @return A signed integer.
      */
-    public final int readSev()
-    {
+    public final int readSev() {
         /*UInt32*/
         long codeNum = readUev();
 
@@ -370,8 +334,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
         return (negative ? -1 : 1) * (int) ((((codeNum & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL) / 2);
     }
 
-    public final int readAev()
-    {
+    public final int readAev() {
         return readAev(CabacType.saoMergeFlag);
     }
 
@@ -380,13 +343,11 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Placeholder for not implemented CABAC syntax elements. Always throws an exception.
      * </p>
      */
-    public final int readAev(CabacType type)
-    {
+    public final int readAev(CabacType type) {
         throw new UnsupportedOperationException();
     }
 
-    public final boolean readAevFlag()
-    {
+    public final boolean readAevFlag() {
         return readAevFlag(CabacType.saoMergeFlag);
     }
 
@@ -395,8 +356,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Placeholder for not implemented CABAC syntax flag elements. Always throws an exception.
      * </p>
      */
-    final boolean readAevFlag(CabacType type)
-    {
+    final boolean readAevFlag(CabacType type) {
         throw new UnsupportedOperationException();
     }
 
@@ -408,30 +368,28 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * @param endPosition End position of current RBSP.
      * @return True if there is more data in the RBSP, false otherwise
      */
-    public final boolean hasMoreRbspData(/*UInt64*/long endPosition)
-    {
-        // - If there is no more data in the raw byte sequence payload (RBSP), the return value of more_rbsp_data( ) is equal to FALSE
-        // - Otherwise, the RBSP data are searched for the last (least significant, right-most) bit equal to 1 that is present in
-        //   the RBSP. Given the position of this bit, which is the first bit(rbsp_stop_one_bit) of the rbsp_trailing_bits()
+    public final boolean hasMoreRbspData(/*UInt64*/ long endPosition) {
+        // - If there is no more data in the raw byte sequence payload (RBSP), the return value of more_rbsp_data( ) is
+        // equal to FALSE
+        // - Otherwise, the RBSP data are searched for the last (least significant, right-most) bit equal to 1 that is
+        // present in
+        //   the RBSP. Given the position of this bit, which is the first bit(rbsp_stop_one_bit) of the
+        // rbsp_trailing_bits()
         //   syntax structure, the following applies:
         //     - If there is more data in an RBSP before the rbsp_trailing_bits() syntax structure, the return value of
         //       more_rbsp_data() is equal to TRUE.
-        //     – Otherwise, the return value of more_rbsp_data() is equal to FALSE. 
+        //     – Otherwise, the return value of more_rbsp_data() is equal to FALSE.
 
-        if (getBitPosition() >= endPosition)
-        {
+        if (getBitPosition() >= endPosition) {
             throw new UnsupportedOperationException("Parser logic error!");
         }
 
-        if (getBitPosition() == endPosition)
-        {
+        if (getBitPosition() == endPosition) {
             return false;
         }
 
-        while (notByteAligned())
-            skipBits(1);
+        while (notByteAligned()) skipBits(1);
 
         return peek(8) != 0x80;
     }
 }
-

@@ -12,9 +12,7 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-class PpsSccExtension
-{
+class PpsSccExtension {
     final boolean ppsCurrPicRefEnabledFlag;
     final boolean residualAdaptiveColourTransformEnabledFlag;
     final boolean ppsPalettePredictorInitializersPresentFlag;
@@ -29,46 +27,44 @@ class PpsSccExtension
 
     /// *UInt16*/int[][] pps_palette_predictor_initializer;
 
-    public PpsSccExtension(BitStreamWithNalSupport stream)
-    {
-        ppsCurrPicRefEnabledFlag = stream.readFlag();           // u(1)
-        residualAdaptiveColourTransformEnabledFlag = stream.readFlag();// u(1)
-        if (residualAdaptiveColourTransformEnabledFlag)
-        {
-            ppsSliceActQpOffsetsPresentFlag = stream.readFlag();                                   // u(1)
-            ppsActYQpOffsetPlus5 = stream.readSev();                    // se(v)
-            ppsActCbQpOffsetPlus5 = stream.readSev();                   // se(v)
-            ppsActCrQpOffsetPlus3 = stream.readSev();                   // se(v)
+    public PpsSccExtension(BitStreamWithNalSupport stream) {
+        ppsCurrPicRefEnabledFlag = stream.readFlag(); // u(1)
+        residualAdaptiveColourTransformEnabledFlag = stream.readFlag(); // u(1)
+        if (residualAdaptiveColourTransformEnabledFlag) {
+            ppsSliceActQpOffsetsPresentFlag = stream.readFlag(); // u(1)
+            ppsActYQpOffsetPlus5 = stream.readSev(); // se(v)
+            ppsActCbQpOffsetPlus5 = stream.readSev(); // se(v)
+            ppsActCrQpOffsetPlus3 = stream.readSev(); // se(v)
         }
-        ppsPalettePredictorInitializersPresentFlag = stream.readFlag();// u(1)
-        if (ppsPalettePredictorInitializersPresentFlag)
-        {
-            ppsNumPalettePredictorInitializers = stream.readUev();     // ue(v)
-            if ((ppsNumPalettePredictorInitializers & 0xFFFFFFFFL) > 0)
-            {
-                monochromePaletteFlag = stream.readFlag();         // u(1)
-                lumaBitDepthEntryMinus8 = (byte) stream.readUev();       // ue(v)
-                if (!monochromePaletteFlag)
-                {
+        ppsPalettePredictorInitializersPresentFlag = stream.readFlag(); // u(1)
+        if (ppsPalettePredictorInitializersPresentFlag) {
+            ppsNumPalettePredictorInitializers = stream.readUev(); // ue(v)
+            if ((ppsNumPalettePredictorInitializers & 0xFFFFFFFFL) > 0) {
+                monochromePaletteFlag = stream.readFlag(); // u(1)
+                lumaBitDepthEntryMinus8 = (byte) stream.readUev(); // ue(v)
+                if (!monochromePaletteFlag) {
                     chromaBitDepthEntryMinus8 = (byte) stream.readUev();
                 }
 
                 int numComps = monochromePaletteFlag ? 1 : 3;
-                //pps_palette_predictor_initializer = new /*UInt16*/int[numComps][(int)(pps_num_palette_predictor_initializers & 0xFFFFFFFFL)];
+                // pps_palette_predictor_initializer = new
+                // /*UInt16*/int[numComps][(int)(pps_num_palette_predictor_initializers & 0xFFFFFFFFL)];
 
                 for (int comp = 0; comp < numComps; comp++)
-                    for (int i = 0; i < (ppsNumPalettePredictorInitializers & 0xFFFFFFFFL); i++)
-                    {
+                    for (int i = 0; i < (ppsNumPalettePredictorInitializers & 0xFFFFFFFFL); i++) {
                         // pps_palette_predictor_initializer[comp][i] =
-                        stream.read(8 + ((comp == 0 ?        // u(v)
-                                lumaBitDepthEntryMinus8 : chromaBitDepthEntryMinus8) & 0xFF)); // & 0xFFFF;
+                        stream.read(8
+                                + ((comp == 0
+                                                ? // u(v)
+                                                lumaBitDepthEntryMinus8
+                                                : chromaBitDepthEntryMinus8)
+                                        & 0xFF)); // & 0xFFFF;
                     }
             }
         }
     }
 
-    public PpsSccExtension()
-    {
+    public PpsSccExtension() {
         ppsCurrPicRefEnabledFlag = false;
         residualAdaptiveColourTransformEnabledFlag = false;
         ppsSliceActQpOffsetsPresentFlag = false;
@@ -80,7 +76,6 @@ class PpsSccExtension
         monochromePaletteFlag = false;
         lumaBitDepthEntryMinus8 = 0;
         chromaBitDepthEntryMinus8 = 0;
-        //pps_palette_predictor_initializer = new /*UInt16*/int[3][0];
+        // pps_palette_predictor_initializer = new /*UInt16*/int[3][0];
     }
 }
-

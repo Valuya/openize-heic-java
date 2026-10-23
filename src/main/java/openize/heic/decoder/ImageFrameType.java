@@ -10,14 +10,12 @@
 
 package openize.heic.decoder;
 
-
 /**
  * <p>
  * Type of image frame.
  * </p>
  */
-public enum ImageFrameType /*: uint*/
-{
+public enum ImageFrameType /*: uint*/ {
     unknown(0L),
 
     /**
@@ -96,8 +94,7 @@ public enum ImageFrameType /*: uint*/
      *
      * @param code The code of the image frame type.
      */
-    ImageFrameType(long code)
-    {
+    ImageFrameType(long code) {
         this.code = code;
     }
 
@@ -108,12 +105,9 @@ public enum ImageFrameType /*: uint*/
      * @param code The code of the box type.
      * @return The BoxType value.
      */
-    public static ImageFrameType codeToType(long code)
-    {
-        for (ImageFrameType type : values)
-        {
-            if (type.code == code)
-            {
+    public static ImageFrameType codeToType(long code) {
+        for (ImageFrameType type : values) {
+            if (type.code == code) {
                 return type;
             }
         }
@@ -126,8 +120,7 @@ public enum ImageFrameType /*: uint*/
      *     Returns the code of frame type.
      * </p>
      */
-    public long getCode()
-    {
+    public long getCode() {
         return code;
     }
 

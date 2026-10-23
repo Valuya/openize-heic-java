@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The data information box contains objects that declare the location of the media information in a track.
  * </p>
  */
-public class DataInformationBox extends Box
-{
+public class DataInformationBox extends Box {
     /**
      * <p>
      * The data reference object contains a table of data references (normally URLs) that declare the
@@ -27,6 +25,7 @@ public class DataInformationBox extends Box
      * </p>
      */
     private final DataReferenceBox dref;
+
     private ObservableCollection<Box> children;
 
     /**
@@ -37,8 +36,7 @@ public class DataInformationBox extends Box
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public DataInformationBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public DataInformationBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(BoxType.dinf, size);
 
         dref = new DataReferenceBox(stream);
@@ -54,8 +52,7 @@ public class DataInformationBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.type.name();
     }
 
@@ -64,8 +61,7 @@ public class DataInformationBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final ObservableCollection<Box> getChildren()
-    {
+    public final ObservableCollection<Box> getChildren() {
         return children;
     }
 
@@ -74,8 +70,7 @@ public class DataInformationBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final void setChildren(ObservableCollection<Box> value)
-    {
+    public final void setChildren(ObservableCollection<Box> value) {
         children = value;
     }
 }

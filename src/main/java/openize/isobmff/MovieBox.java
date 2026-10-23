@@ -10,25 +10,23 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.ArrayList;
 import java.util.List;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
  * The metadata for a presentation is stored in the single Movie Box which occurs at the top‐level of a file.
  * </p>
  */
-public class MovieBox extends Box
-{
+public class MovieBox extends Box {
     /**
      * <p>
      * List of nested boxes.
      * </p>
      */
     private final List<Box> boxes;
+
     private ObservableCollection<Box> children;
 
     /**
@@ -40,14 +38,12 @@ public class MovieBox extends Box
      * @param size     Box size in bytes.
      * @param startPos Start position in bits.
      */
-    public MovieBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
+    public MovieBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(BoxType.moov, size);
 
         boxes = new ArrayList<>((int) size);
 
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
+        while (stream.getBitPosition() < startPos + size * 8) {
             Box box = Box.parseBox(stream);
             boxes.add(box);
         }
@@ -61,8 +57,7 @@ public class MovieBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.type.name();
     }
 
@@ -71,8 +66,7 @@ public class MovieBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final ObservableCollection<Box> getChildren()
-    {
+    public final ObservableCollection<Box> getChildren() {
         return children;
     }
 
@@ -81,8 +75,7 @@ public class MovieBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final void setChildren(ObservableCollection<Box> value)
-    {
+    public final void setChildren(ObservableCollection<Box> value) {
         children = value;
     }
 }

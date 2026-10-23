@@ -12,9 +12,7 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-class SpsSccExtension
-{
+class SpsSccExtension {
     final boolean spsCurrPicRefEnabledFlag;
     final boolean paletteModeEnabledFlag;
     /*UInt32*/ long paletteMaxSize;
@@ -25,38 +23,41 @@ class SpsSccExtension
     byte motionVectorResolutionControlIdc;
     boolean intraBoundaryFilteringDisabledFlag;
 
-    public SpsSccExtension(BitStreamWithNalSupport stream, /*UInt32*/long chromaFormatIdc, byte bitDepthLumaMinus8, byte bitDepthChromaMinus8)
-    {
-        spsCurrPicRefEnabledFlag = stream.readFlag();           // u(1)
-        paletteModeEnabledFlag = stream.readFlag();               // u(1)
-        if (paletteModeEnabledFlag)
-        {
-            paletteMaxSize = stream.readUev();                           // ue(v)
-            deltaPaletteMaxPredictorSize = stream.readUev();           // ue(v)
+    public SpsSccExtension(
+            BitStreamWithNalSupport stream, /*UInt32*/
+            long chromaFormatIdc,
+            byte bitDepthLumaMinus8,
+            byte bitDepthChromaMinus8) {
+        spsCurrPicRefEnabledFlag = stream.readFlag(); // u(1)
+        paletteModeEnabledFlag = stream.readFlag(); // u(1)
+        if (paletteModeEnabledFlag) {
+            paletteMaxSize = stream.readUev(); // ue(v)
+            deltaPaletteMaxPredictorSize = stream.readUev(); // ue(v)
             spsPalettePredictorInitializersPresentFlag = stream.readFlag(); // u(1)
-            if (spsPalettePredictorInitializersPresentFlag)
-            {
+            if (spsPalettePredictorInitializersPresentFlag) {
                 spsNumPalettePredictorInitializersMinus1 = stream.readUev(); // ue(v)
-                assert ((((spsNumPalettePredictorInitializersMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL) <= (((paletteMaxSize & 0xFFFFFFFFL) + (deltaPaletteMaxPredictorSize & 0xFFFFFFFFL)) & 0xFFFFFFFFL));
+                assert ((((spsNumPalettePredictorInitializersMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)
+                        <= (((paletteMaxSize & 0xFFFFFFFFL) + (deltaPaletteMaxPredictorSize & 0xFFFFFFFFL))
+                                & 0xFFFFFFFFL));
 
                 int numComps = ((chromaFormatIdc & 0xFFFFFFFFL) == 0) ? 1 : 3;
 
-                // sps_palette_predictor_initializer = new /*UInt16*/int[numComps][(int) (((sps_num_palette_predictor_initializers_minus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)];
+                // sps_palette_predictor_initializer = new /*UInt16*/int[numComps][(int)
+                // (((sps_num_palette_predictor_initializers_minus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)];
 
                 for (int comp = 0; comp < numComps; comp++)
-                    for (int i = 0; i <= (spsNumPalettePredictorInitializersMinus1 & 0xFFFFFFFFL); i++)
-                    {
-                        /*sps_palette_predictor_initializer[comp][i] =*/        // u(v)
+                    for (int i = 0; i <= (spsNumPalettePredictorInitializersMinus1 & 0xFFFFFFFFL); i++) {
+                        /*sps_palette_predictor_initializer[comp][i] =*/
+                        // u(v)
                         stream.read(((comp == 0 ? bitDepthLumaMinus8 : bitDepthChromaMinus8) & 0xFF) + 8); // & 0xFFFF;
                     }
             }
         }
-        motionVectorResolutionControlIdc = (byte) stream.read(2);   // u(2)
-        intraBoundaryFilteringDisabledFlag = stream.readFlag();  // u(1)
+        motionVectorResolutionControlIdc = (byte) stream.read(2); // u(2)
+        intraBoundaryFilteringDisabledFlag = stream.readFlag(); // u(1)
     }
 
-    public SpsSccExtension(/*UInt32*/long chromaFormatIdc)
-    {
+    public SpsSccExtension(/*UInt32*/ long chromaFormatIdc) {
         spsCurrPicRefEnabledFlag = false;
         paletteModeEnabledFlag = false;
         paletteMaxSize = 0;
@@ -65,7 +66,8 @@ class SpsSccExtension
         spsNumPalettePredictorInitializersMinus1 = 0;
 
         // int numComps = ((chroma_format_idc & 0xFFFFFFFFL) == 0) ? 1 : 3;
-        //sps_palette_predictor_initializer = new /*UInt16*/int[numComps][(int) (((sps_num_palette_predictor_initializers_minus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)];
+        // sps_palette_predictor_initializer = new /*UInt16*/int[numComps][(int)
+        // (((sps_num_palette_predictor_initializers_minus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)];
 
         motionVectorResolutionControlIdc = 0;
         intraBoundaryFilteringDisabledFlag = false;

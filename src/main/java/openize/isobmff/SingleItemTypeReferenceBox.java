@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * Collects all references for one item of a specific type.
  * </p>
  */
-public class SingleItemTypeReferenceBox extends Box
-{
+public class SingleItemTypeReferenceBox extends Box {
     /**
      * <p>
      * The ID of the item that refers to other items.
@@ -49,17 +47,15 @@ public class SingleItemTypeReferenceBox extends Box
      * @param stream  File stream.
      * @param id_size Item id size in bytes.
      */
-    public SingleItemTypeReferenceBox(BitStreamReader stream, int idSize)
-    {
+    public SingleItemTypeReferenceBox(BitStreamReader stream, int idSize) {
         super(stream);
 
         fromItemID = stream.read(idSize) & 0xFFFFFFFFL;
         referenceCount = stream.read(16) & 0xFFFFFFFFL;
 
-        toItemID = new /*UInt32*/long[(int) (referenceCount & 0xFFFFFFFFL)];
+        toItemID = new /*UInt32*/ long[(int) (referenceCount & 0xFFFFFFFFL)];
 
-        for (int j = 0; j < (referenceCount & 0xFFFFFFFFL); j++)
-        {
+        for (int j = 0; j < (referenceCount & 0xFFFFFFFFL); j++) {
             toItemID[j] = stream.read(idSize) & 0xFFFFFFFFL;
         }
     }
@@ -70,12 +66,10 @@ public class SingleItemTypeReferenceBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder str = new StringBuilder(50);
         str.append(String.format("%1$s from_item_ID: %2$d refs: ", type, fromItemID));
-        for (/*UInt32*/long id : toItemID)
-        {
+        for (/*UInt32*/ long id : toItemID) {
             str.append(id).append(' ');
         }
 

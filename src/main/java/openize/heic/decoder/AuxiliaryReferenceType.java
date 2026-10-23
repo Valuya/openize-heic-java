@@ -10,14 +10,12 @@
 
 package openize.heic.decoder;
 
-
 /**
  * <p>
  * Type of auxiliary reference layer.
  * </p>
  */
-public enum AuxiliaryReferenceType
-{
+public enum AuxiliaryReferenceType {
     /**
      * <p>
      * Transparency layer.

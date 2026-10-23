@@ -1,5 +1,5 @@
 /*
- * Openize.HEIC 
+ * Openize.HEIC
  * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of Openize.HEIC.
@@ -12,20 +12,18 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-
-
-class CodingTreeUnit
-{
-    public CodingTreeUnit(BitStreamWithNalSupport stream, 
-        SliceSegmentHeader header)
-    {
+class CodingTreeUnit {
+    public CodingTreeUnit(BitStreamWithNalSupport stream, SliceSegmentHeader header) {
         SeqParameterSetRbsp sps = header.pps.sps;
         HeicPicture picture = header.parentPicture;
 
-        int xCtb = (int)((header.getCtbAddrInRs() & 0xFFFFFFFFL) % (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) << (sps.getCtbLog2SizeY() & 0xFF);
-        int yCtb = (int)((header.getCtbAddrInRs() & 0xFFFFFFFFL) / (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) << (sps.getCtbLog2SizeY() & 0xFF);
+        int xCtb = (int) ((header.getCtbAddrInRs() & 0xFFFFFFFFL) % (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL))
+                << (sps.getCtbLog2SizeY() & 0xFF);
+        int yCtb = (int) ((header.getCtbAddrInRs() & 0xFFFFFFFFL) / (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL))
+                << (sps.getCtbLog2SizeY() & 0xFF);
 
-        picture.sliceAddrRs[xCtb >> (sps.getCtbLog2SizeY() & 0xFF)][yCtb >> (sps.getCtbLog2SizeY() & 0xFF)] = (int)header.getSliceAddrRs();
+        picture.sliceAddrRs[xCtb >> (sps.getCtbLog2SizeY() & 0xFF)][yCtb >> (sps.getCtbLog2SizeY() & 0xFF)] =
+                (int) header.getSliceAddrRs();
         picture.sliceHeaderIndex[xCtb][yCtb] = header.sliceIndex;
 
         if (header.sliceSaoLumaFlag || header.sliceSaoChromaFlag)
@@ -34,4 +32,3 @@ class CodingTreeUnit
         new CodingQuadtree(stream, header, xCtb, yCtb, sps.getCtbLog2SizeY() & 0xFF, 0);
     }
 }
-

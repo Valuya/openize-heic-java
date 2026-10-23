@@ -10,113 +10,147 @@
 
 package openize.heic.decoder;
 
+import java.util.Arrays;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-import java.util.Arrays;
-
-
-class TransformTree
-{
-    public TransformTree(BitStreamWithNalSupport stream, SliceSegmentHeader header,
-                          boolean intraSplitFlag, /*UInt32*/long maxTrafoDepth, PartMode partMode,
-                          int x0, int y0, int xBase, int yBase, int log2TrafoSize, int trafoDepth, int blkIdx)
-    {
+class TransformTree {
+    public TransformTree(
+            BitStreamWithNalSupport stream,
+            SliceSegmentHeader header,
+            boolean intraSplitFlag, /*UInt32*/
+            long maxTrafoDepth,
+            PartMode partMode,
+            int x0,
+            int y0,
+            int xBase,
+            int yBase,
+            int log2TrafoSize,
+            int trafoDepth,
+            int blkIdx) {
         SeqParameterSetRbsp sps = header.pps.sps;
         HeicPicture picture = header.parentPicture;
 
         int trafoDepthMax = (int) Math.max(maxTrafoDepth & 0xFFFFFFFFL, trafoDepth) + 1;
 
-        if (picture.cbfCb[x0][y0] == null)
-        {
+        if (picture.cbfCb[x0][y0] == null) {
             picture.cbfCb[x0][y0] = new boolean[trafoDepthMax];
-        }
-        else if(picture.cbfCb[x0][y0].length <= trafoDepth)
-        {
+        } else if (picture.cbfCb[x0][y0].length <= trafoDepth) {
             picture.cbfCb[x0][y0] = Arrays.copyOf(picture.cbfCb[x0][y0], trafoDepthMax);
         }
 
-        if (picture.cbfCr[x0][y0] == null)
-        {
+        if (picture.cbfCr[x0][y0] == null) {
             picture.cbfCr[x0][y0] = new boolean[trafoDepthMax];
-        }
-        else if(picture.cbfCr[x0][y0].length <= trafoDepth)
-        {
+        } else if (picture.cbfCr[x0][y0].length <= trafoDepth) {
             picture.cbfCr[x0][y0] = Arrays.copyOf(picture.cbfCr[x0][y0], trafoDepthMax);
         }
 
-        if (picture.cbfLuma[x0][y0] == null)
-        {
+        if (picture.cbfLuma[x0][y0] == null) {
             picture.cbfLuma[x0][y0] = new boolean[trafoDepthMax];
-        }
-        else if(picture.cbfLuma[x0][y0].length <= trafoDepth)
-        {
+        } else if (picture.cbfLuma[x0][y0].length <= trafoDepth) {
             picture.cbfLuma[x0][y0] = Arrays.copyOf(picture.cbfLuma[x0][y0], trafoDepthMax);
         }
 
         boolean splitTransformFlag;
-        if (log2TrafoSize <= (sps.getMaxTbLog2SizeY() & 0xFF) &&
-                log2TrafoSize > (sps.getMinTbLog2SizeY() & 0xFF) &&
-                trafoDepth < (maxTrafoDepth & 0xFFFFFFFFL) &&
-                !(intraSplitFlag && (trafoDepth == 0)))
-        {
+        if (log2TrafoSize <= (sps.getMaxTbLog2SizeY() & 0xFF)
+                && log2TrafoSize > (sps.getMinTbLog2SizeY() & 0xFF)
+                && trafoDepth < (maxTrafoDepth & 0xFFFFFFFFL)
+                && !(intraSplitFlag && (trafoDepth == 0))) {
             splitTransformFlag = stream.getCabac().readSplitTransformFlag(log2TrafoSize);
-        }
-        else
-        {
-            boolean interSplitFlag =
-                    (sps.maxTransformHierarchyDepthInter & 0xFFFFFFFFL) == 0 &&
-                            picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTER &&
-                            partMode != PartMode.part2Nx2N &&
-                            trafoDepth == 0;
+        } else {
+            boolean interSplitFlag = (sps.maxTransformHierarchyDepthInter & 0xFFFFFFFFL) == 0
+                    && picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTER
+                    && partMode != PartMode.part2Nx2N
+                    && trafoDepth == 0;
 
-            splitTransformFlag =
-                    log2TrafoSize > (sps.getMaxTbLog2SizeY() & 0xFF) ||
-                            (intraSplitFlag && trafoDepth == 0) ||
-                            interSplitFlag;
+            splitTransformFlag = log2TrafoSize > (sps.getMaxTbLog2SizeY() & 0xFF)
+                    || (intraSplitFlag && trafoDepth == 0)
+                    || interSplitFlag;
         }
 
-        if ((log2TrafoSize > 2 && (sps.getChromaArrayType() & 0xFFFFFFFFL) != 0) || (sps.getChromaArrayType() & 0xFFFFFFFFL) == 3)
-        {
-            if (trafoDepth == 0 || picture.cbfCb[xBase][yBase][trafoDepth - 1])
-            {
+        if ((log2TrafoSize > 2 && (sps.getChromaArrayType() & 0xFFFFFFFFL) != 0)
+                || (sps.getChromaArrayType() & 0xFFFFFFFFL) == 3) {
+            if (trafoDepth == 0 || picture.cbfCb[xBase][yBase][trafoDepth - 1]) {
                 picture.cbfCb[x0][y0][trafoDepth] = stream.getCabac().readCbfChroma(trafoDepth);
 
-                if ((sps.getChromaArrayType() & 0xFFFFFFFFL) == 2 && (!splitTransformFlag || log2TrafoSize == 3))
-                {
-                    picture.cbfCb[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth] = stream.getCabac().readCbfChroma(trafoDepth);
+                if ((sps.getChromaArrayType() & 0xFFFFFFFFL) == 2 && (!splitTransformFlag || log2TrafoSize == 3)) {
+                    picture.cbfCb[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth] =
+                            stream.getCabac().readCbfChroma(trafoDepth);
                 }
             }
 
-            if (trafoDepth == 0 || picture.cbfCr[xBase][yBase][trafoDepth - 1])
-            {
+            if (trafoDepth == 0 || picture.cbfCr[xBase][yBase][trafoDepth - 1]) {
                 picture.cbfCr[x0][y0][trafoDepth] = stream.getCabac().readCbfChroma(trafoDepth);
 
-                if ((sps.getChromaArrayType() & 0xFFFFFFFFL) == 2 && (!splitTransformFlag || log2TrafoSize == 3))
-                {
-                    picture.cbfCr[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth] = stream.getCabac().readCbfChroma(trafoDepth);
+                if ((sps.getChromaArrayType() & 0xFFFFFFFFL) == 2 && (!splitTransformFlag || log2TrafoSize == 3)) {
+                    picture.cbfCr[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth] =
+                            stream.getCabac().readCbfChroma(trafoDepth);
                 }
             }
         }
 
-        if (splitTransformFlag)
-        {
+        if (splitTransformFlag) {
             int x1 = x0 + (1 << (log2TrafoSize - 1));
             int y1 = y0 + (1 << (log2TrafoSize - 1));
-            new TransformTree(stream, header, intraSplitFlag, maxTrafoDepth, partMode, x0, y0, x0, y0, log2TrafoSize - 1, trafoDepth + 1, 0);
-            new TransformTree(stream, header, intraSplitFlag, maxTrafoDepth, partMode, x1, y0, x0, y0, log2TrafoSize - 1, trafoDepth + 1, 1);
-            new TransformTree(stream, header, intraSplitFlag, maxTrafoDepth, partMode, x0, y1, x0, y0, log2TrafoSize - 1, trafoDepth + 1, 2);
-            new TransformTree(stream, header, intraSplitFlag, maxTrafoDepth, partMode, x1, y1, x0, y0, log2TrafoSize - 1, trafoDepth + 1, 3);
-        }
-        else
-        {
-            if (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA ||
-                    trafoDepth != 0 ||
-                    picture.cbfCb[x0][y0][trafoDepth] ||
-                    picture.cbfCr[x0][y0][trafoDepth] ||
-                    ((header.pps.sps.getChromaArrayType() & 0xFFFFFFFFL) == 2 &&
-                            (picture.cbfCb[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth] ||
-                                    picture.cbfCr[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth])))
-            {
+            new TransformTree(
+                    stream,
+                    header,
+                    intraSplitFlag,
+                    maxTrafoDepth,
+                    partMode,
+                    x0,
+                    y0,
+                    x0,
+                    y0,
+                    log2TrafoSize - 1,
+                    trafoDepth + 1,
+                    0);
+            new TransformTree(
+                    stream,
+                    header,
+                    intraSplitFlag,
+                    maxTrafoDepth,
+                    partMode,
+                    x1,
+                    y0,
+                    x0,
+                    y0,
+                    log2TrafoSize - 1,
+                    trafoDepth + 1,
+                    1);
+            new TransformTree(
+                    stream,
+                    header,
+                    intraSplitFlag,
+                    maxTrafoDepth,
+                    partMode,
+                    x0,
+                    y1,
+                    x0,
+                    y0,
+                    log2TrafoSize - 1,
+                    trafoDepth + 1,
+                    2);
+            new TransformTree(
+                    stream,
+                    header,
+                    intraSplitFlag,
+                    maxTrafoDepth,
+                    partMode,
+                    x1,
+                    y1,
+                    x0,
+                    y0,
+                    log2TrafoSize - 1,
+                    trafoDepth + 1,
+                    3);
+        } else {
+            if (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA
+                    || trafoDepth != 0
+                    || picture.cbfCb[x0][y0][trafoDepth]
+                    || picture.cbfCr[x0][y0][trafoDepth]
+                    || ((header.pps.sps.getChromaArrayType() & 0xFFFFFFFFL) == 2
+                            && (picture.cbfCb[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth]
+                                    || picture.cbfCr[x0][y0 + (1 << (log2TrafoSize - 1))][trafoDepth]))) {
                 picture.cbfLuma[x0][y0][trafoDepth] = stream.getCabac().readCbfLuma(trafoDepth);
             }
 
@@ -125,4 +159,3 @@ class TransformTree
         }
     }
 }
-

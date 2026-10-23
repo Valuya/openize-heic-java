@@ -1,6 +1,6 @@
 /*
- * Openize.HEIC 
- * Copyright (c) 2024-2026 Openize Pty Ltd. 
+ * Openize.HEIC
+ * Copyright (c) 2024-2026 Openize Pty Ltd.
  *
  * This file is part of Openize.HEIC.
  *
@@ -10,18 +10,13 @@
 
 package openize.heic.decoder;
 
-
-
-enum SliceType /*: byte*/
-{
+enum SliceType /*: byte*/ {
     B, /*  = 0 */
     P, /*  = 1 */
     I; /*  = 2 */
 
-    public static SliceType get(long code)
-    {
-        switch ((int)code)
-        {
+    public static SliceType get(long code) {
+        switch ((int) code) {
             case 0:
                 return B;
             case 1:

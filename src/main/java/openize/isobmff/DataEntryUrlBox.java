@@ -12,7 +12,6 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * Data reference URL that declare the location of the media data used within the presentation.
@@ -20,8 +19,7 @@ import openize.isobmff.io.BitStreamReader;
  * A track may be split over several sources in this way.
  * </p>
  */
-public class DataEntryUrlBox extends FullBox
-{
+public class DataEntryUrlBox extends FullBox {
     /**
      * <p>
      * Name of the entry.
@@ -43,14 +41,11 @@ public class DataEntryUrlBox extends FullBox
      *
      * @param stream File stream.
      */
-    public DataEntryUrlBox(BitStreamReader stream)
-    {
+    public DataEntryUrlBox(BitStreamReader stream) {
         super(stream);
 
-        if (flags.get(0))
-        {
-            if (type == BoxType.urn)
-            {
+        if (flags.get(0)) {
+            if (type == BoxType.urn) {
                 name = stream.readString();
             }
 
@@ -64,8 +59,7 @@ public class DataEntryUrlBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s %s %s", this.type, location, name == null ? "" : name);
     }
 }

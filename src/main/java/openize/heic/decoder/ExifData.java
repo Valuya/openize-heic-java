@@ -19,10 +19,55 @@ import com.drew.metadata.adobe.AdobeJpegDirectory;
 import com.drew.metadata.avi.AviDirectory;
 import com.drew.metadata.bmp.BmpHeaderDirectory;
 import com.drew.metadata.eps.EpsDirectory;
-import com.drew.metadata.exif.*;
-import com.drew.metadata.exif.makernotes.*;
+import com.drew.metadata.exif.ExifIFD0Directory;
+import com.drew.metadata.exif.ExifImageDirectory;
+import com.drew.metadata.exif.ExifInteropDirectory;
+import com.drew.metadata.exif.ExifSubIFDDirectory;
+import com.drew.metadata.exif.ExifThumbnailDirectory;
+import com.drew.metadata.exif.GpsDirectory;
+import com.drew.metadata.exif.PanasonicRawDistortionDirectory;
+import com.drew.metadata.exif.PanasonicRawIFD0Directory;
+import com.drew.metadata.exif.PanasonicRawWbInfo2Directory;
+import com.drew.metadata.exif.PanasonicRawWbInfoDirectory;
+import com.drew.metadata.exif.PrintIMDirectory;
+import com.drew.metadata.exif.makernotes.AppleMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.CanonMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.CasioType1MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.CasioType2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.FujifilmMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.KodakMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.KyoceraMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.LeicaMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.LeicaType5MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.NikonPictureControl1Directory;
+import com.drew.metadata.exif.makernotes.NikonPictureControl2Directory;
+import com.drew.metadata.exif.makernotes.NikonType1MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.NikonType2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusCameraSettingsMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusEquipmentMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusFocusInfoMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusImageProcessingMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusRawDevelopment2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusRawDevelopmentMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusRawInfoMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.PanasonicMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.PentaxMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.ReconyxHyperFire2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.ReconyxHyperFireMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.ReconyxUltraFireMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.RicohMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SamsungType2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SanyoMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SigmaMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SonyType1MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SonyType6MakernoteDirectory;
 import com.drew.metadata.file.FileTypeDirectory;
-import com.drew.metadata.gif.*;
+import com.drew.metadata.gif.GifAnimationDirectory;
+import com.drew.metadata.gif.GifCommentDirectory;
+import com.drew.metadata.gif.GifControlDirectory;
+import com.drew.metadata.gif.GifHeaderDirectory;
+import com.drew.metadata.gif.GifImageDirectory;
 import com.drew.metadata.icc.IccDirectory;
 import com.drew.metadata.ico.IcoDirectory;
 import com.drew.metadata.iptc.IptcDirectory;
@@ -40,16 +85,14 @@ import com.drew.metadata.png.PngChromaticitiesDirectory;
 import com.drew.metadata.png.PngDirectory;
 import com.drew.metadata.webp.WebpDirectory;
 import com.drew.metadata.xmp.XmpDirectory;
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-import openize.isobmff.IlocItem;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
+import openize.heic.decoder.io.BitStreamWithNalSupport;
+import openize.isobmff.IlocItem;
 
 /**
  * <p>
@@ -57,8 +100,7 @@ import java.util.stream.StreamSupport;
  * Grants access to raw exif-data and to data by specific tags.
  * </p>
  */
-public class ExifData
-{
+public class ExifData {
     /**
      * <p>
      * List of exif directories in frame.
@@ -83,52 +125,41 @@ public class ExifData
      * @param exifFrame Exif HEIC frame.
      * @throws RuntimeException Unexpected Exif header
      */
-    ExifData(BitStreamWithNalSupport stream, HeicImage image, HeicImageFrame exifFrame)
-    {
-        IlocItem locationBox = Arrays.stream(image.getHeader()
-                                                  .getMeta()
-                                                  .getiloc().items)
-                                     .filter((item) -> item.itemID == exifFrame.getID())
-                                     .findFirst()
-                                     .orElseThrow(() -> new RuntimeException("Unexpected Exif header"));
+    ExifData(BitStreamWithNalSupport stream, HeicImage image, HeicImageFrame exifFrame) {
+        IlocItem locationBox = Arrays.stream(image.getHeader().getMeta().getiloc().items)
+                .filter((item) -> item.itemID == exifFrame.getID())
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Unexpected Exif header"));
 
         stream.setBytePosition(locationBox.baseOffset + locationBox.extents[0].offset);
         long end = locationBox.baseOffset + locationBox.extents[0].offset + locationBox.extents[0].length;
 
         int offset = stream.read(32); // 0x00000006
 
-        if (offset == 6)
-        {
+        if (offset == 6) {
             int define = stream.read(32); // 0x45786966 "Exif"
             int zero = stream.read(16); // 0x0000 "\0\0"
 
-            if (define != 0x45786966 || zero != 0x0000)
-            {
+            if (define != 0x45786966 || zero != 0x0000) {
                 throw new RuntimeException("Unexpected Exif header");
             }
-        }
-        else if (offset > 0)
-        {
+        } else if (offset > 0) {
             throw new RuntimeException("Unexpected Exif header");
         }
 
-        this.rawBytes = new /*Byte*/byte[(int) (locationBox.extents[0].length - 4 - offset)];
+        this.rawBytes = new /*Byte*/ byte[(int) (locationBox.extents[0].length - 4 - offset)];
 
-        for (int i = 0; stream.getBitPosition() / 8 < end; i++)
-        {
-            getRawBytes()[i] = (/*Byte*/byte) stream.read(8);
+        for (int i = 0; stream.getBitPosition() / 8 < end; i++) {
+            getRawBytes()[i] = (/*Byte*/ byte) stream.read(8);
         }
 
-        try
-        {
+        try {
             Iterable<Directory> directories = ImageMetadataReader.readMetadata(new ByteArrayInputStream(getRawBytes()))
-                                                                 .getDirectories();
+                    .getDirectories();
             this.directoriesList = StreamSupport.stream(directories.spliterator(), false)
-                                            .filter(x -> !(x instanceof FileTypeDirectory))
-                                            .collect(Collectors.toList());
-        }
-        catch (ImageProcessingException | IOException e)
-        {
+                    .filter(x -> !(x instanceof FileTypeDirectory))
+                    .collect(Collectors.toList());
+        } catch (ImageProcessingException | IOException e) {
             throw new openize.io.IOException(e.getMessage(), e);
         }
     }
@@ -138,8 +169,7 @@ public class ExifData
      * List of exif directories in frame.
      * </p>
      */
-    public final List<Directory> getDirectoriesList()
-    {
+    public final List<Directory> getDirectoriesList() {
         return directoriesList;
     }
 
@@ -148,12 +178,8 @@ public class ExifData
      * List of all tags that present in directories.
      * </p>
      */
-    public final List<Tag> getTagList()
-    {
-        return getDirectoriesList().stream()
-                                   .flatMap(d -> d.getTags()
-                                                  .stream())
-                                   .collect(Collectors.toList());
+    public final List<Tag> getTagList() {
+        return getDirectoriesList().stream().flatMap(d -> d.getTags().stream()).collect(Collectors.toList());
     }
 
     /**
@@ -161,8 +187,7 @@ public class ExifData
      * Raw exif data in bytes.
      * </p>
      */
-    public final /*Byte*/byte[] getRawBytes()
-    {
+    public final /*Byte*/ byte[] getRawBytes() {
         return rawBytes;
     }
 
@@ -176,12 +201,11 @@ public class ExifData
      * @param tagType The tag type identifier
      * @return The string value for the particular tag type
      */
-    public final <T extends Directory> String getExifString(Class<T> dirType, int tagType)
-    {
+    public final <T extends Directory> String getExifString(Class<T> dirType, int tagType) {
         Directory directory = getDirectoriesList().stream()
-                                                  .filter(dirType::isInstance)
-                                                  .findFirst()
-                                                  .orElse(null);
+                .filter(dirType::isInstance)
+                .findFirst()
+                .orElse(null);
         return (directory != null ? directory.getDescription(tagType) : null);
     }
 
@@ -196,12 +220,11 @@ public class ExifData
      *                <p>{@code T}: The directory class</p>
      * @return The raw value for the particular tag type.
      */
-    public final <T extends Directory> Object getExifRawData(Class<T> dirType, int tagType)
-    {
+    public final <T extends Directory> Object getExifRawData(Class<T> dirType, int tagType) {
         Directory directory = getDirectoriesList().stream()
-                                                  .filter(dirType::isInstance)
-                                                  .findFirst()
-                                                  .orElse(null);
+                .filter(dirType::isInstance)
+                .findFirst()
+                .orElse(null);
         return (directory != null ? directory.getObject(tagType) : null);
     }
 
@@ -214,8 +237,7 @@ public class ExifData
      * @param tagType The tag type identifier
      * @return The string value for the particular tag type
      */
-    public final String getExifString(ExifDirectoryType dirType, int tagType)
-    {
+    public final String getExifString(ExifDirectoryType dirType, int tagType) {
         Directory directory = getExifDirectory(dirType);
         return (directory != null ? directory.getDescription(tagType) : null);
     }
@@ -229,12 +251,10 @@ public class ExifData
      * @param tagType The tag type identifier
      * @return The raw value for the particular tag type
      */
-    public final Object getExifRawData(ExifDirectoryType dirType, int tagType)
-    {
+    public final Object getExifRawData(ExifDirectoryType dirType, int tagType) {
         Directory directory = getExifDirectory(dirType);
         return (directory != null ? directory.getObject(tagType) : null);
     }
-
 
     /**
      * <p>
@@ -245,420 +265,426 @@ public class ExifData
      * @return {@link Directory} object.
      * @throws UnsupportedOperationException Throws an exception for unknown directory types.
      */
-    private Directory getExifDirectory(ExifDirectoryType dirType)
-    {
-        switch (dirType)
-        {
+    private Directory getExifDirectory(ExifDirectoryType dirType) {
+        switch (dirType) {
             // ExifDirectoryBase nested:
 
             case ExifIfd0Directory:
                 return getDirectoriesList().stream()
-                                           .filter(ExifIFD0Directory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ExifIFD0Directory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case ExifImageDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ExifImageDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ExifImageDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case ExifInteropDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ExifInteropDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ExifInteropDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case ExifSubIfdDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ExifSubIFDDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ExifSubIFDDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case ExifThumbnailDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ExifThumbnailDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ExifThumbnailDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case GpsDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(GpsDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(GpsDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
 
             // Directory nested:
 
             case AdobeJpegDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(AdobeJpegDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(AdobeJpegDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case AppleMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(AppleMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(AppleMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case AviDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(AviDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(AviDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case BmpHeaderDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(BmpHeaderDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(BmpHeaderDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case CanonMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(CanonMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(CanonMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case CasioType1MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(CasioType1MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(CasioType1MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case CasioType2MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(CasioType2MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case DjiMakernoteDirectory:
-//                return getDirectoriesList().<DjiMakernoteDirectory>ofType().firstOrDefault();
+                        .filter(CasioType2MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case DjiMakernoteDirectory:
+            //                return getDirectoriesList().<DjiMakernoteDirectory>ofType().firstOrDefault();
             case DuckyDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(DuckyDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(DuckyDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case EpsDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(EpsDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(EpsDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case ErrorDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ErrorDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case FileMetadataDirectory:
-//                return getDirectoriesList().<FileMetadataDirectory>ofType().firstOrDefault();
+                        .filter(ErrorDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case FileMetadataDirectory:
+            //                return getDirectoriesList().<FileMetadataDirectory>ofType().firstOrDefault();
             case FileTypeDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(FileTypeDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case FlirCameraInfoDirectory:
-//                return getDirectoriesList().<FlirCameraInfoDirectory>ofType().firstOrDefault();
-//            case FlirHeaderDirectory:
-//                return getDirectoriesList().<FlirHeaderDirectory>ofType().firstOrDefault();
-//            case FlirMakernoteDirectory:
-//                return getDirectoriesList().<FlirMakernoteDirectory>ofType().firstOrDefault();
-//            case FlirRawDataDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<FlirRawDataDirectory>ofType().firstOrDefault();
+                        .filter(FileTypeDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case FlirCameraInfoDirectory:
+            //                return getDirectoriesList().<FlirCameraInfoDirectory>ofType().firstOrDefault();
+            //            case FlirHeaderDirectory:
+            //                return getDirectoriesList().<FlirHeaderDirectory>ofType().firstOrDefault();
+            //            case FlirMakernoteDirectory:
+            //                return getDirectoriesList().<FlirMakernoteDirectory>ofType().firstOrDefault();
+            //            case FlirRawDataDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<FlirRawDataDirectory>ofType().firstOrDefault();
             case FujifilmMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(FujifilmMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case GeoTiffDirectory:
-//                return getDirectoriesList().<GeoTiffDirectory>ofType().firstOrDefault();
+                        .filter(FujifilmMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case GeoTiffDirectory:
+            //                return getDirectoriesList().<GeoTiffDirectory>ofType().firstOrDefault();
             case GifAnimationDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(GifAnimationDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(GifAnimationDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case GifCommentDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(GifCommentDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(GifCommentDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case GifControlDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(GifControlDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(GifControlDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case GifHeaderDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(GifHeaderDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(GifHeaderDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case GifImageDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(GifImageDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case HeicImagePropertiesDirectory:
-//                return getDirectoriesList().<HeicImagePropertiesDirectory>ofType().firstOrDefault();
-//            case HeicThumbnailDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<HeicThumbnailDirectory>ofType().firstOrDefault();
+                        .filter(GifImageDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case HeicImagePropertiesDirectory:
+            //                return getDirectoriesList().<HeicImagePropertiesDirectory>ofType().firstOrDefault();
+            //            case HeicThumbnailDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<HeicThumbnailDirectory>ofType().firstOrDefault();
             case HuffmanTablesDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(HuffmanTablesDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(HuffmanTablesDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case IccDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(IccDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(IccDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case IcoDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(IcoDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(IcoDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case IptcDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(IptcDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(IptcDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case JfifDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(JfifDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(JfifDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case JfxxDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(JfxxDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(JfxxDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case JpegCommentDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(JpegCommentDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(JpegCommentDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case JpegDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(JpegDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case JpegDnlDirectory:
-//                return getDirectoriesList().<JpegDnlDirectory>ofType().firstOrDefault();
+                        .filter(JpegDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case JpegDnlDirectory:
+            //                return getDirectoriesList().<JpegDnlDirectory>ofType().firstOrDefault();
             case KodakMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(KodakMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(KodakMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case KyoceraMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(KyoceraMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(KyoceraMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case LeicaMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(LeicaMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(LeicaMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case LeicaType5MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(LeicaType5MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(LeicaType5MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case Mp3Directory:
                 return getDirectoriesList().stream()
-                                           .filter(Mp3Directory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case NetpbmHeaderDirectory:
-//                return getDirectoriesList().<NetpbmHeaderDirectory>ofType().firstOrDefault();
+                        .filter(Mp3Directory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case NetpbmHeaderDirectory:
+            //                return getDirectoriesList().<NetpbmHeaderDirectory>ofType().firstOrDefault();
             case NikonPictureControl1Directory:
                 return getDirectoriesList().stream()
-                                           .filter(NikonPictureControl1Directory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(NikonPictureControl1Directory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case NikonPictureControl2Directory:
                 return getDirectoriesList().stream()
-                                           .filter(NikonPictureControl2Directory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(NikonPictureControl2Directory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case NikonType1MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(NikonType1MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(NikonType1MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case NikonType2MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(NikonType2MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(NikonType2MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusCameraSettingsMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusCameraSettingsMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusCameraSettingsMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusEquipmentMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusEquipmentMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusEquipmentMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusFocusInfoMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusFocusInfoMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusFocusInfoMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusImageProcessingMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusImageProcessingMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusImageProcessingMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusRawDevelopment2MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusRawDevelopment2MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusRawDevelopment2MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusRawDevelopmentMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusRawDevelopmentMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusRawDevelopmentMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case OlympusRawInfoMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(OlympusRawInfoMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(OlympusRawInfoMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PanasonicMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PanasonicMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PanasonicMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PanasonicRawDistortionDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PanasonicRawDistortionDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PanasonicRawDistortionDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PanasonicRawIfd0Directory:
                 return getDirectoriesList().stream()
-                                           .filter(PanasonicRawIFD0Directory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PanasonicRawIFD0Directory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PanasonicRawWbInfo2Directory:
                 return getDirectoriesList().stream()
-                                           .filter(PanasonicRawWbInfo2Directory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PanasonicRawWbInfo2Directory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PanasonicRawWbInfoDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PanasonicRawWbInfoDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PanasonicRawWbInfoDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PcxDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PcxDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PcxDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PentaxMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PentaxMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case PentaxType2MakernoteDirectory:
-//                return getDirectoriesList().<PentaxType2MakernoteDirectory>ofType().firstOrDefault();
+                        .filter(PentaxMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case PentaxType2MakernoteDirectory:
+            //                return getDirectoriesList().<PentaxType2MakernoteDirectory>ofType().firstOrDefault();
             case PhotoshopDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PhotoshopDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PhotoshopDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PngChromaticitiesDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PngChromaticitiesDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PngChromaticitiesDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PngDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PngDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PngDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PrintIMDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PrintIMDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(PrintIMDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case PsdHeaderDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(PsdHeaderDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case QuickTimeFileTypeDirectory:
-//                return getDirectoriesList().<QuickTimeFileTypeDirectory>ofType().firstOrDefault();
-//            case QuickTimeMetadataHeaderDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<QuickTimeMetadataHeaderDirectory>ofType().firstOrDefault();
-//            case QuickTimeMovieHeaderDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<QuickTimeMovieHeaderDirectory>ofType().firstOrDefault();
-//            case QuickTimeTrackHeaderDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<QuickTimeTrackHeaderDirectory>ofType().firstOrDefault();
+                        .filter(PsdHeaderDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case QuickTimeFileTypeDirectory:
+            //                return getDirectoriesList().<QuickTimeFileTypeDirectory>ofType().firstOrDefault();
+            //            case QuickTimeMetadataHeaderDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<QuickTimeMetadataHeaderDirectory>ofType().firstOrDefault();
+            //            case QuickTimeMovieHeaderDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<QuickTimeMovieHeaderDirectory>ofType().firstOrDefault();
+            //            case QuickTimeTrackHeaderDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<QuickTimeTrackHeaderDirectory>ofType().firstOrDefault();
             case ReconyxHyperFire2MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ReconyxHyperFire2MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ReconyxHyperFire2MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case ReconyxHyperFireMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ReconyxHyperFireMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ReconyxHyperFireMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case ReconyxUltraFireMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(ReconyxUltraFireMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(ReconyxUltraFireMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case RicohMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(RicohMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(RicohMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case SamsungType2MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(SamsungType2MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(SamsungType2MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case SanyoMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(SanyoMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(SanyoMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case SigmaMakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(SigmaMakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(SigmaMakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case SonyType1MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(SonyType1MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(SonyType1MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case SonyType6MakernoteDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(SonyType6MakernoteDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
-//            case TgaDeveloperDirectory:
-//                return getDirectoriesList().<TgaDeveloperDirectory>ofType().firstOrDefault();
-//            case TgaExtensionDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<TgaExtensionDirectory>ofType().firstOrDefault();
-//            case TgaHeaderDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<TgaHeaderDirectory>ofType().firstOrDefault();
-//            case WavFactDirectory:
-//                return getDirectoriesList().<WavFactDirectory>ofType().firstOrDefault();
-//            case WavFormatDirectory:
-//                return getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
-//                return getDirectoriesList().<WavFormatDirectory>ofType().firstOrDefault();
+                        .filter(SonyType6MakernoteDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
+            //            case TgaDeveloperDirectory:
+            //                return getDirectoriesList().<TgaDeveloperDirectory>ofType().firstOrDefault();
+            //            case TgaExtensionDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<TgaExtensionDirectory>ofType().firstOrDefault();
+            //            case TgaHeaderDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<TgaHeaderDirectory>ofType().firstOrDefault();
+            //            case WavFactDirectory:
+            //                return getDirectoriesList().<WavFactDirectory>ofType().firstOrDefault();
+            //            case WavFormatDirectory:
+            //                return
+            // getDirectoriesList().stream().filter(GpsDirectory.class::isInstance).findFirst().orElse(null);
+            //                return getDirectoriesList().<WavFormatDirectory>ofType().firstOrDefault();
             case WebPDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(WebpDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(WebpDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             case XmpDirectory:
                 return getDirectoriesList().stream()
-                                           .filter(XmpDirectory.class::isInstance)
-                                           .findFirst()
-                                           .orElse(null);
+                        .filter(XmpDirectory.class::isInstance)
+                        .findFirst()
+                        .orElse(null);
             default:
                 throw new UnsupportedOperationException("Undefined Exif directory type");
         }

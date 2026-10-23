@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * This box contains the identifier of the primary item.
  * </p>
  */
-public class PrimaryItemBox extends FullBox
-{
+public class PrimaryItemBox extends FullBox {
     /**
      * <p>
      * The identifier of the primary item.
@@ -35,8 +33,7 @@ public class PrimaryItemBox extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public PrimaryItemBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public PrimaryItemBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.pitm, size);
 
         itemID = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
@@ -48,8 +45,7 @@ public class PrimaryItemBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s \nitem_ID: %d", this.type, itemID);
     }
 }

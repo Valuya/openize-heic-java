@@ -10,6 +10,8 @@
 
 package openize.heic.tests;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -20,8 +22,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.stream.Stream;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Locates the sample files and checks decoded output against the reference digests in {@code TestsData/references}.
@@ -46,7 +46,8 @@ final class TestSamples {
 
     static List<Path> listHeicFiles(Path directory) {
         try (Stream<Path> paths = Files.walk(directory)) {
-            return paths.filter(path -> path.getFileName().toString().toLowerCase().endsWith(".heic"))
+            return paths.filter(
+                            path -> path.getFileName().toString().toLowerCase().endsWith(".heic"))
                     .sorted()
                     .toList();
         } catch (IOException exception) {
@@ -65,7 +66,8 @@ final class TestSamples {
                 return;
             }
 
-            String referenceDigest = Files.readString(referenceFile, StandardCharsets.US_ASCII).trim();
+            String referenceDigest =
+                    Files.readString(referenceFile, StandardCharsets.US_ASCII).trim();
             assertThat(decodedDigest)
                     .as("decoded data of %s against its reference digest", referenceName)
                     .isEqualTo(referenceDigest);

@@ -15,8 +15,7 @@ package openize.io;
  *     Specifies the stream/file access mode
  * </p>
  */
-public enum IOMode
-{
+public enum IOMode {
     /**
      * <p>
      *     Read only mode.
@@ -43,8 +42,7 @@ public enum IOMode
      * </p>
      * @param mode The access mode for {@link java.io.RandomAccessFile}
      */
-    IOMode(String mode)
-    {
+    IOMode(String mode) {
         this.mode = mode;
     }
 
@@ -53,8 +51,7 @@ public enum IOMode
      *     Returns the access mode.
      * </p>
      */
-    public String getMode()
-    {
+    public String getMode() {
         return mode;
     }
 }

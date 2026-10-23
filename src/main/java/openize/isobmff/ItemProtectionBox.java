@@ -12,14 +12,12 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The item protection box provides an array of item protection information, for use by the Item Information Box.
  * </p>
  */
-public class ItemProtectionBox extends FullBox
-{
+public class ItemProtectionBox extends FullBox {
     /**
      * <p>
      * Count of protection information schemas.
@@ -42,8 +40,7 @@ public class ItemProtectionBox extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public ItemProtectionBox(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public ItemProtectionBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.ipro, size);
 
         protectionCount = stream.read(16) & 0xFFFF;
@@ -59,8 +56,7 @@ public class ItemProtectionBox extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return type.name();
     }
 }

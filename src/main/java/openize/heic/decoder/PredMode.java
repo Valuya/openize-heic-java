@@ -10,20 +10,16 @@
 
 package openize.heic.decoder;
 
-
 import java.util.Arrays;
 
-public enum PredMode
-{
+public enum PredMode {
     MODE_INTRA, /*  = 0 */
     MODE_INTER, /*  = 1 */
     MODE_SKIP; /*  = 2 */
 
-    static PredMode[][] createArray2D(int count1, int count2)
-    {
+    static PredMode[][] createArray2D(int count1, int count2) {
         PredMode[][] array = new PredMode[count1][count2];
-        for (PredMode[] modes : array)
-        {
+        for (PredMode[] modes : array) {
             Arrays.fill(modes, MODE_INTRA);
         }
         return array;

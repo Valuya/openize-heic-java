@@ -10,6 +10,9 @@
 
 package openize.heic.tests;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Map;
 import openize.heic.decoder.HeicImage;
 import openize.heic.decoder.HeicImageFrame;
 import openize.heic.decoder.PixelFormat;
@@ -18,10 +21,6 @@ import openize.io.IOMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /** Decodes the samples and compares the output with the reference digests. */
 class HeicDecodingTest {

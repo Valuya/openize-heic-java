@@ -12,7 +12,6 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * The 'oinf' property informs about the different operating points provided by a bitstream and their
@@ -20,8 +19,7 @@ import openize.isobmff.io.BitStreamReader;
  * and tier.
  * </p>
  */
-public class OperatingPointsInformationProperty extends FullBox
-{
+public class OperatingPointsInformationProperty extends FullBox {
     /**
      * <p>
      * Create the box object from the bitstream and box size.
@@ -30,8 +28,7 @@ public class OperatingPointsInformationProperty extends FullBox
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public OperatingPointsInformationProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
+    public OperatingPointsInformationProperty(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.oinf, size);
 
         throw new UnsupportedOperationException();
@@ -43,8 +40,7 @@ public class OperatingPointsInformationProperty extends FullBox
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s OMITTED", this.type);
     }
 }

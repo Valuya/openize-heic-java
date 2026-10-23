@@ -10,11 +10,9 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.ArrayList;
 import java.util.List;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
  * <p>
@@ -22,8 +20,7 @@ import java.util.List;
  * share a particular characteristic or have a particular relationship, as indicated by the grouping type.
  * </p>
  */
-public class GroupsListBox extends Box
-{
+public class GroupsListBox extends Box {
     /**
      * <p>
      * List of nested boxes.
@@ -47,14 +44,12 @@ public class GroupsListBox extends Box
      * @param size     Box size in bytes.
      * @param startPos Start position in bits.
      */
-    public GroupsListBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
+    public GroupsListBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(BoxType.grpl, size);
 
         boxes = new ArrayList<>((int) size);
 
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
+        while (stream.getBitPosition() < startPos + size * 8) {
             boxes.add(new EntityToGroupBox(stream));
         }
 
@@ -67,8 +62,7 @@ public class GroupsListBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.type.name();
     }
 
@@ -77,8 +71,7 @@ public class GroupsListBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final ObservableCollection<EntityToGroupBox> getChildren()
-    {
+    public final ObservableCollection<EntityToGroupBox> getChildren() {
         return children;
     }
 
@@ -87,8 +80,7 @@ public class GroupsListBox extends Box
      * Observable collection of the nested boxes.
      * </p>
      */
-    public final void setChildren(ObservableCollection<EntityToGroupBox> value)
-    {
+    public final void setChildren(ObservableCollection<EntityToGroupBox> value) {
         children = value;
     }
 }

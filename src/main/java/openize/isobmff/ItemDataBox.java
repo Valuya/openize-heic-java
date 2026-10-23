@@ -12,15 +12,13 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
  * <p>
  * This box contains the data of metadata items that use the construction method indicating that an item’s
  * data extents are stored within this box.
  * </p>
  */
-public class ItemDataBox extends Box
-{
+public class ItemDataBox extends Box {
     /**
      * <p>
      * The contained meta data in raw format.
@@ -37,15 +35,14 @@ public class ItemDataBox extends Box
      * @param size     Box size in bytes.
      * @param startPos Start position in bits.
      */
-    public ItemDataBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
+    public ItemDataBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(BoxType.idat, size);
 
         /*UInt64*/
         long count = size - (stream.getBitPosition() - startPos) / 8;
         data = new byte[(int) (count)];
-        for (/*UInt64*/long i = 0; i < count; i++)
-            data[(int) (i)] = (byte) stream.read(8);
+        for (
+        /*UInt64*/ long i = 0; i < count; i++) data[(int) (i)] = (byte) stream.read(8);
     }
 
     /**
@@ -54,12 +51,10 @@ public class ItemDataBox extends Box
      * </p>
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         StringBuilder hexSB = new StringBuilder(50);
         hexSB.append(this.type.name()).append(' ');
-        for (byte b : data)
-        {
+        for (byte b : data) {
             hexSB.append(String.format("%02x", b)).append(' ');
         }
         return hexSB.toString();

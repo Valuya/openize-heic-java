@@ -20,25 +20,20 @@ import java.util.Collections;
  * </p>
  * @param <T> The type of storing elements.
  */
-public class ObservableCollection<T> extends ArrayList<T>
-{
-    public ObservableCollection(int initialCapacity)
-    {
+public class ObservableCollection<T> extends ArrayList<T> {
+    public ObservableCollection(int initialCapacity) {
         super(initialCapacity);
     }
 
-    public ObservableCollection()
-    {
+    public ObservableCollection() {
         super();
     }
 
-    public ObservableCollection(Collection<? extends T> c)
-    {
+    public ObservableCollection(Collection<? extends T> c) {
         super(c);
     }
 
-    public ObservableCollection(T[] args)
-    {
+    public ObservableCollection(T[] args) {
         super(args.length);
         Collections.addAll(this, args);
     }
