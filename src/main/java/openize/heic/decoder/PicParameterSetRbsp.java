@@ -48,28 +48,28 @@ public class PicParameterSetRbsp extends NalUnit {
     // pps_multilayer_extension pps_multilayer_ext;
     final PpsRangeExtension ppsRangeExt;
     // the width of the i-th tile column in units of CTBs
-    public /*UInt32*/ long[] colWidth;
+    private int[] colWidth;
     // the height of the j-th tile row in units of CTBs
-    public /*UInt32*/ long[] rowHeight;
+    private int[] rowHeight;
     // the location of the i-th tile column boundary in units of CTBs
-    private /*UInt32*/ long[] colBd;
+    private int[] colBd;
     // the location of the j-th tile row boundary in units of CTBs
-    private /*UInt32*/ long[] rowBd;
+    private int[] rowBd;
     // the conversion from a CTB address in CTB raster scan of a picture to a CTB address in tile scan
-    private /*UInt32*/ long[] ctbAddrRsToTs;
+    private int[] ctbAddrRsToTs;
     // the conversion from a CTB address in tile scan to a CTB address in CTB raster scan of a picture
-    private /*UInt32*/ long[] ctbAddrTsToRs;
+    private int[] ctbAddrTsToRs;
     // the conversion from a CTB address in tile scan to a tile ID
-    private /*UInt32*/ long[] tileIdByCtbAddrTs;
+    private int[] tileIdByCtbAddrTs;
     // the conversion from a CTB address in CTB raster scan to a tile ID
-    private /*UInt32*/ long[] tileIdFromRs;
+    private int[] tileIdFromRs;
     // the width of the i-th tile column in units of luma samples
     //    public /*UInt32*/ long[] ColumnWidthInLumaSamples;
     // the height of the j-th tile row in units of luma samples
     //  public /*UInt32*/ long[] RowHeightInLumaSamples;
     // the conversion from a location (x, y) in units of minimum transform blocks
     // to a transform block address in z-scan order
-    private /*UInt32*/ int[][] minTbAddrZs;
+    private int[][] minTbAddrZs;
     /*UInt32*/ long diffCuQpDeltaDepth;
     /*UInt32*/ long numTileColumnsMinus1;
     /*UInt32*/ long numTileRowsMinus1;
@@ -123,6 +123,14 @@ public class PicParameterSetRbsp extends NalUnit {
         if (tilesEnabledFlag) {
             numTileColumnsMinus1 = stream.readUev(); // ue(v)
             numTileRowsMinus1 = stream.readUev(); // ue(v)
+            if (numTileColumnsMinus1 >= sps.getPicWidthInCtbsY() || numTileRowsMinus1 >= sps.getPicHeightInCtbsY()) {
+                throw new HeicFormatException("%d x %d tiles in a picture of %d x %d CTBs"
+                        .formatted(
+                                numTileColumnsMinus1 + 1,
+                                numTileRowsMinus1 + 1,
+                                sps.getPicWidthInCtbsY(),
+                                sps.getPicHeightInCtbsY()));
+            }
             uniformSpacingFlag = stream.readFlag(); // u(1)
 
             if (!uniformSpacingFlag) {
@@ -198,32 +206,32 @@ public class PicParameterSetRbsp extends NalUnit {
         }
     }
 
-    long[] getColBd() {
+    int[] getColBd() {
         ensureScanTables();
         return colBd;
     }
 
-    long[] getRowBd() {
+    int[] getRowBd() {
         ensureScanTables();
         return rowBd;
     }
 
-    long[] getCtbAddrRsToTs() {
+    int[] getCtbAddrRsToTs() {
         ensureScanTables();
         return ctbAddrRsToTs;
     }
 
-    long[] getCtbAddrTsToRs() {
+    int[] getCtbAddrTsToRs() {
         ensureScanTables();
         return ctbAddrTsToRs;
     }
 
-    long[] getTileIdByCtbAddrTs() {
+    int[] getTileIdByCtbAddrTs() {
         ensureScanTables();
         return tileIdByCtbAddrTs;
     }
 
-    long[] getTileIdFromRs() {
+    int[] getTileIdFromRs() {
         ensureScanTables();
         return tileIdFromRs;
     }
@@ -265,207 +273,118 @@ public class PicParameterSetRbsp extends NalUnit {
     }
 
     // 6.5.1 CTB raster and tile scanning conversion process
-    final void ctbRasterAndTileScan() {
-        colWidth = new /*UInt32*/ long[(int) (((numTileColumnsMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)];
-        rowHeight = new /*UInt32*/ long[(int) (((numTileRowsMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)];
+    private void ctbRasterAndTileScan() {
+        int picWidthInCtbs = (int) sps.getPicWidthInCtbsY();
+        int picHeightInCtbs = (int) sps.getPicHeightInCtbsY();
+        int tileColumnCount = (int) numTileColumnsMinus1 + 1;
+        int tileRowCount = (int) numTileRowsMinus1 + 1;
 
-        if (uniformSpacingFlag) {
-            for (int i = 0; i <= (numTileColumnsMinus1 & 0xFFFFFFFFL); i++) {
-                colWidth[i] = ((((i + 1) * (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                        / (((numTileColumnsMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)
-                                - ((i * (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                        / (((numTileColumnsMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL))
-                        & 0xFFFFFFFFL;
-            }
+        colWidth = tileSizes(tileColumnCount, picWidthInCtbs, columnWidthMinus1);
+        rowHeight = tileSizes(tileRowCount, picHeightInCtbs, rowHeightMinus1);
+        colBd = tileBoundaries(colWidth);
+        rowBd = tileBoundaries(rowHeight);
 
-            for (int j = 0; j <= (numTileRowsMinus1 & 0xFFFFFFFFL); j++) {
-                rowHeight[j] = ((((j + 1) * (sps.getPicHeightInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                        / (((numTileRowsMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)
-                                - ((j * (sps.getPicHeightInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                        / (((numTileRowsMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL))
-                        & 0xFFFFFFFFL;
-            }
-        } else {
-            colWidth[(int) (numTileColumnsMinus1)] = sps.getPicWidthInCtbsY();
-            rowHeight[(int) (numTileRowsMinus1)] = sps.getPicHeightInCtbsY();
+        int picSizeInCtbs = picWidthInCtbs * picHeightInCtbs;
+        ctbAddrRsToTs = new int[picSizeInCtbs];
+        ctbAddrTsToRs = new int[picSizeInCtbs];
+        for (int ctbAddrRs = 0; ctbAddrRs < picSizeInCtbs; ctbAddrRs++) {
+            int tbX = ctbAddrRs % picWidthInCtbs;
+            int tbY = ctbAddrRs / picWidthInCtbs;
+            int tileX = tileIndex(tbX, colBd);
+            int tileY = tileIndex(tbY, rowBd);
 
-            for (int i = 0; i < (numTileColumnsMinus1 & 0xFFFFFFFFL); i++) {
-                colWidth[i] = ((columnWidthMinus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL;
-                colWidth[(int) (numTileColumnsMinus1)] =
-                        ((colWidth[(int) (numTileColumnsMinus1)] & 0xFFFFFFFFL) - (colWidth[i] & 0xFFFFFFFFL))
-                                & 0xFFFFFFFFL;
+            int ctbAddrTs = 0;
+            for (int i = 0; i < tileX; i++) {
+                ctbAddrTs += rowHeight[tileY] * colWidth[i];
             }
+            for (int j = 0; j < tileY; j++) {
+                ctbAddrTs += picWidthInCtbs * rowHeight[j];
+            }
+            ctbAddrTs += (tbY - rowBd[tileY]) * colWidth[tileX] + tbX - colBd[tileX];
 
-            for (int j = 0; j < (numTileRowsMinus1 & 0xFFFFFFFFL); j++) {
-                rowHeight[j] = ((rowHeightMinus1[j] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL;
-                rowHeight[(int) (numTileRowsMinus1)] =
-                        ((rowHeight[(int) (numTileRowsMinus1)] & 0xFFFFFFFFL) - (rowHeight[j] & 0xFFFFFFFFL))
-                                & 0xFFFFFFFFL;
-            }
+            ctbAddrRsToTs[ctbAddrRs] = ctbAddrTs;
+            ctbAddrTsToRs[ctbAddrTs] = ctbAddrRs;
         }
 
-        colBd = new /*UInt32*/ long[(int) (((numTileColumnsMinus1 & 0xFFFFFFFFL) + 2) & 0xFFFFFFFFL)];
-        rowBd = new /*UInt32*/ long[(int) (((numTileRowsMinus1 & 0xFFFFFFFFL) + 2) & 0xFFFFFFFFL)];
-
-        colBd[0] = 0;
-        rowBd[0] = 0;
-
-        for (int i = 0; i <= (numTileColumnsMinus1 & 0xFFFFFFFFL); i++)
-            colBd[i + 1] = ((colBd[i] & 0xFFFFFFFFL) + (colWidth[i] & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
-
-        for (int j = 0; j <= (numTileRowsMinus1 & 0xFFFFFFFFL); j++)
-            rowBd[j + 1] = ((rowBd[j] & 0xFFFFFFFFL) + (rowHeight[j] & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
-
-        ctbAddrRsToTs = new /*UInt32*/ long[(int) (sps.getPicSizeInCtbsY())];
-        ctbAddrTsToRs = new /*UInt32*/ long[(int) (sps.getPicSizeInCtbsY())];
-        tileIdByCtbAddrTs = new /*UInt32*/ long[(int) (sps.getPicSizeInCtbsY())];
-        tileIdFromRs = new /*UInt32*/ long[(int) (sps.getPicSizeInCtbsY())];
-
-        /*UInt32*/
-        long tbX, tbY;
-        /*UInt32*/
-        long tileX = 0;
-        /*UInt32*/
-        long tileY = 0;
-
-        for (
-        /*UInt32*/ long ctbAddrRs = 0;
-                (ctbAddrRs & 0xFFFFFFFFL) < (sps.getPicSizeInCtbsY() & 0xFFFFFFFFL);
-                ctbAddrRs++) {
-            tbX = ((ctbAddrRs & 0xFFFFFFFFL) % (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
-            tbY = ((ctbAddrRs & 0xFFFFFFFFL) / (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
-
-            for (
-            /*UInt32*/ long i = 0; (i & 0xFFFFFFFFL) <= (numTileColumnsMinus1 & 0xFFFFFFFFL); i++)
-                if ((tbX & 0xFFFFFFFFL) >= (colBd[(int) (i)] & 0xFFFFFFFFL)) {
-                    tileX = i;
-                }
-
-            for (
-            /*UInt32*/ long j = 0; (j & 0xFFFFFFFFL) <= (numTileRowsMinus1 & 0xFFFFFFFFL); j++)
-                if ((tbY & 0xFFFFFFFFL) >= (rowBd[(int) (j)] & 0xFFFFFFFFL)) {
-                    tileY = j;
-                }
-
-            ctbAddrRsToTs[(int) (ctbAddrRs)] = 0;
-
-            for (int i = 0; i < (tileX & 0xFFFFFFFFL); i++)
-                ctbAddrRsToTs[(int) (ctbAddrRs)] = ((ctbAddrRsToTs[(int) (ctbAddrRs)] & 0xFFFFFFFFL)
-                                + (((rowHeight[(int) (tileY)] & 0xFFFFFFFFL) * (colWidth[i] & 0xFFFFFFFFL))
-                                        & 0xFFFFFFFFL))
-                        & 0xFFFFFFFFL;
-
-            for (int j = 0; j < (tileY & 0xFFFFFFFFL); j++)
-                ctbAddrRsToTs[(int) (ctbAddrRs)] = ((ctbAddrRsToTs[(int) (ctbAddrRs)] & 0xFFFFFFFFL)
-                                + (((sps.getPicWidthInCtbsY() & 0xFFFFFFFFL) * (rowHeight[j] & 0xFFFFFFFFL))
-                                        & 0xFFFFFFFFL))
-                        & 0xFFFFFFFFL;
-
-            ctbAddrRsToTs[(int) (ctbAddrRs)] = ((ctbAddrRsToTs[(int) (ctbAddrRs)] & 0xFFFFFFFFL)
-                            + (((((((((tbY & 0xFFFFFFFFL) - (rowBd[(int) (tileY)] & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                                                            * (colWidth[(int) (tileX)] & 0xFFFFFFFFL))
-                                                                    & 0xFFFFFFFFL)
-                                                            + (tbX & 0xFFFFFFFFL))
-                                                    & 0xFFFFFFFFL)
-                                            - (colBd[(int) (tileX)] & 0xFFFFFFFFL))
-                                    & 0xFFFFFFFFL))
-                    & 0xFFFFFFFFL;
-
-            ctbAddrTsToRs[(int) (ctbAddrRsToTs[(int) (ctbAddrRs)])] = ctbAddrRs;
-        }
-
-        for (
-        /*UInt32*/ long j = 0, tileIdx = 0; (j & 0xFFFFFFFFL) <= (numTileRowsMinus1 & 0xFFFFFFFFL); j++) {
-            for (
-            /*UInt32*/ long i = 0; (i & 0xFFFFFFFFL) <= (numTileColumnsMinus1 & 0xFFFFFFFFL); i++, tileIdx++) {
-                for (
-                /*UInt32*/ long y = rowBd[(int) (j)];
-                        (y & 0xFFFFFFFFL) < (rowBd[(int) (((j & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)] & 0xFFFFFFFFL);
-                        y++) {
-                    for (
-                    /*UInt32*/ long x = colBd[(int) (i)];
-                            (x & 0xFFFFFFFFL) < (colBd[(int) (((i & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)] & 0xFFFFFFFFL);
-                            x++) {
-                        tileIdByCtbAddrTs[
-                                (int) (ctbAddrRsToTs[
-                                        (int) (((((y & 0xFFFFFFFFL) * (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL))
-                                                                & 0xFFFFFFFFL)
-                                                        + (x & 0xFFFFFFFFL))
-                                                & 0xFFFFFFFFL)])] = tileIdx;
-                        tileIdFromRs[
-                                (int) (((((y & 0xFFFFFFFFL) * (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                                + (x & 0xFFFFFFFFL))
-                                        & 0xFFFFFFFFL)] = tileIdx;
+        tileIdByCtbAddrTs = new int[picSizeInCtbs];
+        tileIdFromRs = new int[picSizeInCtbs];
+        int tileIdx = 0;
+        for (int j = 0; j < tileRowCount; j++) {
+            for (int i = 0; i < tileColumnCount; i++, tileIdx++) {
+                for (int y = rowBd[j]; y < rowBd[j + 1]; y++) {
+                    for (int x = colBd[i]; x < colBd[i + 1]; x++) {
+                        int ctbAddrRs = y * picWidthInCtbs + x;
+                        tileIdByCtbAddrTs[ctbAddrRsToTs[ctbAddrRs]] = tileIdx;
+                        tileIdFromRs[ctbAddrRs] = tileIdx;
                     }
                 }
             }
         }
+    }
 
-        //        ColumnWidthInLumaSamples = new /*UInt32*/long[(int) (((num_tile_columns_minus1 & 0xFFFFFFFFL) + 1) &
-        // 0xFFFFFFFFL)];
-        //        RowHeightInLumaSamples = new /*UInt32*/long[(int) (((num_tile_rows_minus1 & 0xFFFFFFFFL) + 1) &
-        // 0xFFFFFFFFL)];
-        //
-        //        for (int i = 0; i <= (num_tile_columns_minus1 & 0xFFFFFFFFL); i++)
-        //            ColumnWidthInLumaSamples[i] = ((colWidth[i] & 0xFFFFFFFFL) << ((sps.getCtbLog2SizeY() & 0xFF) &
-        // 0x1F)) & 0xFFFFFFFFL;
-        //
-        //        for (int i = 0; i <= (num_tile_rows_minus1 & 0xFFFFFFFFL); i++)
-        //            RowHeightInLumaSamples[i] = ((rowHeight[i] & 0xFFFFFFFFL) << ((sps.getCtbLog2SizeY() & 0xFF) &
-        // 0x1F)) & 0xFFFFFFFFL;
+    // colWidth / rowHeight (6-3, 6-4): uniform, or as coded with the last tile taking what remains
+    private int[] tileSizes(int tileCount, int sizeInCtbs, long[] codedSizesMinus1) {
+        int[] sizes = new int[tileCount];
+        if (uniformSpacingFlag) {
+            for (int i = 0; i < tileCount; i++) {
+                sizes[i] = (i + 1) * sizeInCtbs / tileCount - i * sizeInCtbs / tileCount;
+            }
+            return sizes;
+        }
+
+        int remainingCtbs = sizeInCtbs;
+        for (int i = 0; i < tileCount - 1; i++) {
+            sizes[i] = (int) codedSizesMinus1[i] + 1;
+            remainingCtbs -= sizes[i];
+        }
+        if (remainingCtbs <= 0) {
+            throw new HeicFormatException("Tiles wider or taller than the %d-CTB picture".formatted(sizeInCtbs));
+        }
+        sizes[tileCount - 1] = remainingCtbs;
+        return sizes;
+    }
+
+    // colBd / rowBd (6-5, 6-6): where each tile starts, and the end of the last one
+    private static int[] tileBoundaries(int[] tileSizes) {
+        int[] boundaries = new int[tileSizes.length + 1];
+        for (int i = 0; i < tileSizes.length; i++) {
+            boundaries[i + 1] = boundaries[i] + tileSizes[i];
+        }
+        return boundaries;
+    }
+
+    private static int tileIndex(int ctbPosition, int[] tileBoundaries) {
+        int tileIndex = 0;
+        for (int i = 0; i < tileBoundaries.length - 1; i++) {
+            if (ctbPosition >= tileBoundaries[i]) {
+                tileIndex = i;
+            }
+        }
+        return tileIndex;
     }
 
     // 6.5.2 Z-scan order array initialization process
-    final void zscanInit() {
-        /*UInt32*/
-        long tbX, tbY, ctbAddrRs, p, m;
-        /*UInt32*/
-        long xMax = ((sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)
-                        << (((sps.getCtbLog2SizeY() & 0xFF) - (sps.getMinTbLog2SizeY() & 0xFF)) & 0x1F))
-                & 0xFFFFFFFFL;
-        /*UInt32*/
-        long yMax = ((sps.getPicHeightInCtbsY() & 0xFFFFFFFFL)
-                        << (((sps.getCtbLog2SizeY() & 0xFF) - (sps.getMinTbLog2SizeY() & 0xFF)) & 0x1F))
-                & 0xFFFFFFFFL;
-        minTbAddrZs = new /*UInt32*/ int[(int) (xMax & 0xFFFFFFFFL)][(int) (yMax & 0xFFFFFFFFL)];
+    private void zscanInit() {
+        int picWidthInCtbs = (int) sps.getPicWidthInCtbsY();
+        int ctbLog2Size = sps.getCtbLog2SizeY() & 0xFF;
+        int minTbLog2Size = sps.getMinTbLog2SizeY() & 0xFF;
+        int log2MinTbsPerCtb = ctbLog2Size - minTbLog2Size;
+        int xMax = picWidthInCtbs << log2MinTbsPerCtb;
+        int yMax = (int) sps.getPicHeightInCtbsY() << log2MinTbsPerCtb;
 
-        for (
-        /*UInt32*/ long y = 0; (y & 0xFFFFFFFFL) < (yMax & 0xFFFFFFFFL); y++) {
-            for (
-            /*UInt32*/ long x = 0; (x & 0xFFFFFFFFL) < (xMax & 0xFFFFFFFFL); x++) {
-                tbX = ((((x & 0xFFFFFFFFL) << ((sps.getMinTbLog2SizeY() & 0xFF) & 0x1F)) & 0xFFFFFFFFL)
-                                >> (sps.getCtbLog2SizeY() & 0xFF))
-                        & 0xFFFFFFFFL;
-                tbY = ((((y & 0xFFFFFFFFL) << ((sps.getMinTbLog2SizeY() & 0xFF) & 0x1F)) & 0xFFFFFFFFL)
-                                >> (sps.getCtbLog2SizeY() & 0xFF))
-                        & 0xFFFFFFFFL;
-                ctbAddrRs = ((((sps.getPicWidthInCtbsY() & 0xFFFFFFFFL) * (tbY & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                + (tbX & 0xFFFFFFFFL))
-                        & 0xFFFFFFFFL;
-                minTbAddrZs[(int) (x)][(int) (y)] = (int) ((ctbAddrRsToTs[(int) (ctbAddrRs)] & 0xFFFFFFFFL)
-                        << ((((sps.getCtbLog2SizeY() & 0xFF) - (sps.getMinTbLog2SizeY() & 0xFF)) * 2) & 0x1F));
+        minTbAddrZs = new int[xMax][yMax];
+        for (int y = 0; y < yMax; y++) {
+            for (int x = 0; x < xMax; x++) {
+                int tbX = (x << minTbLog2Size) >> ctbLog2Size;
+                int tbY = (y << minTbLog2Size) >> ctbLog2Size;
+                int ctbAddrRs = picWidthInCtbs * tbY + tbX;
 
-                p = 0;
-                for (byte i = 0;
-                        (i & 0xFF) < ((sps.getCtbLog2SizeY() & 0xFF) - (sps.getMinTbLog2SizeY() & 0xFF));
-                        i++) {
-                    m = (1L << (i & 0xFF)) & 0xFFFFFFFFL;
-                    p = ((p & 0xFFFFFFFFL)
-                                    + ((((m & x) & 0xFFFFFFFFL) != 0
-                                                    ? (((m & 0xFFFFFFFFL) * (m & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
-                                                    : 0)
-                                            & 0xFFFFFFFFL))
-                            & 0xFFFFFFFFL;
-                    p = ((p & 0xFFFFFFFFL)
-                                    + ((((m & y) & 0xFFFFFFFFL) != 0
-                                                    ? ((((2 * (m & 0xFFFFFFFFL)) & 0xFFFFFFFFL) * (m & 0xFFFFFFFFL))
-                                                            & 0xFFFFFFFFL)
-                                                    : 0)
-                                            & 0xFFFFFFFFL))
-                            & 0xFFFFFFFFL;
+                int address = ctbAddrRsToTs[ctbAddrRs] << (log2MinTbsPerCtb * 2);
+                for (int i = 0; i < log2MinTbsPerCtb; i++) {
+                    int m = 1 << i;
+                    address += ((m & x) != 0 ? m * m : 0) + ((m & y) != 0 ? 2 * m * m : 0);
                 }
-                minTbAddrZs[(int) (x)][(int) (y)] =
-                        (int) ((minTbAddrZs[(int) (x)][(int) (y)] & 0xFFFFFFFFL) + (p & 0xFFFFFFFFL));
+                minTbAddrZs[x][y] = address;
             }
         }
     }

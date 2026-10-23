@@ -122,6 +122,20 @@ public class BitStreamWithNalSupport extends BitStreamReader {
         return ((1L << leadingZeroBits) - 1 + Integer.toUnsignedLong(read(leadingZeroBits))) & 0xFFFFFFFFL;
     }
 
+    /**
+     * Reads an unsigned exp-Golomb value the syntax bounds to {@code maximum}, as an int.
+     *
+     * @throws HeicFormatException if the value is larger
+     */
+    public final int readUevAtMost(int maximum) {
+        long value = readUev();
+        if (value > maximum) {
+            throw new HeicFormatException(
+                    "Exp-Golomb value %d at bit %d, more than %d".formatted(value, getBitPosition(), maximum));
+        }
+        return (int) value;
+    }
+
     public final int readSev() {
         long codeNum = readUev();
 

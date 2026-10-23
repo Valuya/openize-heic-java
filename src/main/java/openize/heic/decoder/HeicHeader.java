@@ -62,6 +62,9 @@ public class HeicHeader {
      * @param meta {@link MetaBox} data.
      */
     HeicHeader(MetaBox meta) {
+        if (meta.getiinf() == null) {
+            throw new HeicFormatException("No item information box (iinf)");
+        }
         this.meta = meta;
     }
 
@@ -72,7 +75,7 @@ public class HeicHeader {
      * @return Dictionary filled with lists of properties that can be accessed by frame id.
      */
     final Map<Long, List<Box>> getProperties() {
-        return meta.getiprp().getProperties();
+        return meta.getiprp() == null ? Map.of() : meta.getiprp().getProperties();
     }
 
     /**
@@ -97,6 +100,9 @@ public class HeicHeader {
      * @param id Identifier of the frame.
      */
     final IlocItem getLocationBoxById(/*UInt32*/ long id) {
+        if (meta.getiloc() == null) {
+            return null;
+        }
         for (IlocItem item : meta.getiloc().items) {
             if (item.itemID == id) {
                 return item;
@@ -116,8 +122,13 @@ public class HeicHeader {
     final byte[] getItemDataBoxContent(/*UInt32*/ long offset, /*UInt32*/ long length) {
         if (meta.getidat() == null) return new byte[0];
 
-        byte[] data = new byte[(int) (length & 0xFFFFFFFFL)];
-        System.arraycopy(meta.getidat().data, (int) offset, data, 0, (int) length);
+        byte[] itemDataBox = meta.getidat().data;
+        if (offset < 0 || length < 0 || offset + length > itemDataBox.length) {
+            throw new HeicFormatException("Item data at %d, %d bytes long, is outside the %d-byte idat box"
+                    .formatted(offset, length, itemDataBox.length));
+        }
+        byte[] data = new byte[(int) length];
+        System.arraycopy(itemDataBox, (int) offset, data, 0, (int) length);
         return data;
     }
 

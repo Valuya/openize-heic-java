@@ -114,7 +114,17 @@ public class ItemPropertiesBox extends Box {
                 //                List<Box> nonEssential = new ArrayList<>();
 
                 for (ItemPropertyAssociation.ItemPropertyEntryAssociation prop : itemProperty.associations) {
-                    all.add(propertyContainer.getPropertyByIndex(prop.propertyIndex & 0xFFFF));
+                    int propertyIndex = prop.propertyIndex & 0xFFFF;
+                    // index 0 associates no property
+                    if (propertyIndex == 0) {
+                        continue;
+                    }
+                    Box property = propertyContainer.getPropertyByIndex(propertyIndex);
+                    if (property == null) {
+                        throw new IsoBmffFormatException("Item %d is associated with property %d, which does not exist"
+                                .formatted(itemProperty.itemID, propertyIndex));
+                    }
+                    all.add(property);
                     //                    if (prop.essential)
                     //                    {
                     //                        essential.add(property_container.getPropertyByIndex(prop.property_index &

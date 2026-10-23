@@ -48,6 +48,8 @@ public class ItemInfoBox extends FullBox {
 
         entryCount = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
 
+        // an item info entry is a box of at least 12 bytes
+        requireEntriesFit(entryCount, 12);
         itemInfos = new ItemInfoEntry[(int) (entryCount & 0xFFFFFFFFL)];
         for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++) itemInfos[i] = new ItemInfoEntry(stream);
 

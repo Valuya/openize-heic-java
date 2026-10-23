@@ -45,16 +45,18 @@ public class ItemPropertyAssociation extends FullBox {
         super(stream, BoxType.ipma);
 
         entryCount = stream.read(32) & 0xFFFFFFFFL;
+        // an entry takes at least 3 bytes (item id, association count)
+        requireEntriesFit(entryCount, 3);
         entries = new ItemPropertyEntry[(int) (entryCount & 0xFFFFFFFFL)];
 
         for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++) {
             entries[i] = new ItemPropertyEntry();
 
             entries[i].itemID = stream.read((version & 0xFF) < 1 ? 16 : 32) & 0xFFFFFFFFL;
-            entries[i].associationCount = (byte) stream.read(8);
+            entries[i].associationCount = stream.read(8);
 
             entries[i].associations = new ItemPropertyEntryAssociation[entries[i].associationCount];
-            for (int j = 0; j < (entries[i].associationCount & 0xFF); j++) {
+            for (int j = 0; j < entries[i].associationCount; j++) {
                 entries[i].associations[j] = new ItemPropertyEntryAssociation();
                 entries[i].associations[j].essential = stream.readFlag();
                 entries[i].associations[j].propertyIndex = stream.read(flags.get(0) ? 15 : 7) & 0xFFFF;
@@ -110,7 +112,7 @@ public class ItemPropertyAssociation extends FullBox {
          * Count of associations.
          * </p>
          */
-        public byte associationCount;
+        public int associationCount;
 
         /**
          * <p>

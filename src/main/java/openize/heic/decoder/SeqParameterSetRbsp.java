@@ -15,36 +15,35 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 public class SeqParameterSetRbsp extends NalUnit {
     public final VideoParameterSetRbsp vps;
+    private static final int MAX_PICTURE_DIMENSION = 65536;
+
     final byte spsVideoParameterSetId;
     final byte spsMaxSubLayersMinus1;
     final boolean spsTemporalIdNestingFlag;
     final ProfileTierLevel ProfileTierLevel;
     final byte spsSeqParameterSetId; // max - 16
-    final /*UInt32*/ long chromaFormatIdc;
-    final /*UInt32*/ long picWidthInLumaSamples;
-    final /*UInt32*/ long picHeightInLumaSamples;
+    final int chromaFormatIdc;
+    final int picWidthInLumaSamples;
+    final int picHeightInLumaSamples;
     final boolean conformanceWindowFlag;
-    final byte bitDepthLumaMinus8;
-    final byte bitDepthChromaMinus8;
-    final byte log2MaxPicOrderCntLsbMinus4;
+    final int bitDepthLumaMinus8;
+    final int bitDepthChromaMinus8;
+    final int log2MaxPicOrderCntLsbMinus4;
     final boolean spsSubLayerOrderingInfoPresentFlag;
-    // final /*UInt32*/ long[] sps_max_dec_pic_buffering_minus1;
-    //    final /*UInt32*/ long[] sps_max_num_reorder_pics;
-    //    final /*UInt32*/ long[] sps_max_latency_increase_plus1;
-    final byte log2MinLumaCodingBlockSizeMinus3;
-    final byte log2DiffMaxMinLumaCodingBlockSize;
-    final byte log2MinLumaTransformBlockSizeMinus2;
-    final byte log2DiffMaxMinLumaTransformBlockSize;
-    final /*UInt32*/ long maxTransformHierarchyDepthInter;
-    final /*UInt32*/ long maxTransformHierarchyDepthIntra;
+    final int log2MinLumaCodingBlockSizeMinus3;
+    final int log2DiffMaxMinLumaCodingBlockSize;
+    final int log2MinLumaTransformBlockSizeMinus2;
+    final int log2DiffMaxMinLumaTransformBlockSize;
+    final int maxTransformHierarchyDepthInter;
+    final int maxTransformHierarchyDepthIntra;
     final boolean scalingListEnabledFlag;
     final boolean ampEnabledFlag;
     final boolean sampleAdaptiveOffsetEnabledFlag;
     final boolean pcmEnabledFlag;
-    final /*UInt32*/ long numShortTermRefPicSets;
+    final int numShortTermRefPicSets;
     final HashMap<Integer, StRefPicSet> stRefPicSets;
     final boolean longTermRefPicsPresentFlag;
-    /*UInt32*/ long numLongTermRefPicsSps;
+    int numLongTermRefPicsSps;
     int[] ltRefPicPocLsbSps;
     boolean[] usedByCurrPicLtSpsFlag;
     final boolean spsTemporalMvpEnabledFlag;
@@ -63,10 +62,10 @@ public class SeqParameterSetRbsp extends NalUnit {
     boolean spsExtensionDataFlag;
     final VuiParameters VuiParameters;
     boolean separateColourPlaneFlag;
-    /*UInt32*/ long confWinLeftOffset;
-    /*UInt32*/ long confWinRightOffset;
-    /*UInt32*/ long confWinTopOffset;
-    /*UInt32*/ long confWinBottomOffset;
+    int confWinLeftOffset;
+    int confWinRightOffset;
+    int confWinTopOffset;
+    int confWinBottomOffset;
     boolean spsScalingListDataPresentFlag;
     ScalingListData ScalingListData;
     byte pcmSampleBitDepthLuma;
@@ -88,42 +87,58 @@ public class SeqParameterSetRbsp extends NalUnit {
         ProfileTierLevel = new ProfileTierLevel(stream, true, spsMaxSubLayersMinus1 & 0xFF);
 
         spsSeqParameterSetId = (byte) stream.readUev(); // ue(v)
-        chromaFormatIdc = stream.readUev(); // ue(v)
-        if ((chromaFormatIdc & 0xFFFFFFFFL) == 3) {
+        chromaFormatIdc = stream.readUevAtMost(3); // ue(v)
+        if (chromaFormatIdc == 3) {
             separateColourPlaneFlag = stream.readFlag(); // u(1)
         }
 
-        picWidthInLumaSamples = stream.readUev(); // ue(v)
-        picHeightInLumaSamples = stream.readUev(); // ue(v)
+        // far beyond the 16888 samples of any HEVC level, and small enough for int arithmetic on sample counts
+        picWidthInLumaSamples = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
+        picHeightInLumaSamples = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
         conformanceWindowFlag = stream.readFlag(); // u(1)
         if (conformanceWindowFlag) {
-            confWinLeftOffset = stream.readUev(); // ue(v)
-            confWinRightOffset = stream.readUev(); // ue(v)
-            confWinTopOffset = stream.readUev(); // ue(v)
-            confWinBottomOffset = stream.readUev(); // ue(v)
+            confWinLeftOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
+            confWinRightOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
+            confWinTopOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
+            confWinBottomOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
         }
 
-        bitDepthLumaMinus8 = (byte) stream.readUev(); // ue(v)
-        bitDepthChromaMinus8 = (byte) stream.readUev(); // ue(v)
-        log2MaxPicOrderCntLsbMinus4 = (byte) stream.readUev(); // ue(v)
+        bitDepthLumaMinus8 = stream.readUevAtMost(8); // ue(v)
+        bitDepthChromaMinus8 = stream.readUevAtMost(8); // ue(v)
+        log2MaxPicOrderCntLsbMinus4 = stream.readUevAtMost(12); // ue(v)
         spsSubLayerOrderingInfoPresentFlag = stream.readFlag(); // u(1)
 
-        int layersCount = (spsSubLayerOrderingInfoPresentFlag ? 0 : spsMaxSubLayersMinus1) & 0xFF;
-        // sps_max_dec_pic_buffering_minus1 = new /*UInt32*/long[(sps_max_sub_layers_minus1 & 0xFF) + 1];
-        //        sps_max_num_reorder_pics = new /*UInt32*/long[(sps_max_sub_layers_minus1 & 0xFF) + 1];
-        //        sps_max_latency_increase_plus1 = new /*UInt32*/long[(sps_max_sub_layers_minus1 & 0xFF) + 1];
-        for (int i = layersCount; i <= (spsMaxSubLayersMinus1 & 0xFF); i++) {
-            /*sps_max_dec_pic_buffering_minus1[i] =*/ stream.readUev(); // ue(v)
-            /*sps_max_num_reorder_pics[i] =*/ stream.readUev(); // ue(v)
-            /*sps_max_latency_increase_plus1[i] =*/ stream.readUev(); // ue(v)
+        // sps_max_dec_pic_buffering_minus1, sps_max_num_reorder_pics and sps_max_latency_increase_plus1 per
+        // sub-layer only matter to sequences
+        int firstSubLayer = spsSubLayerOrderingInfoPresentFlag ? 0 : spsMaxSubLayersMinus1 & 0xFF;
+        for (int i = firstSubLayer; i <= (spsMaxSubLayersMinus1 & 0xFF); i++) {
+            stream.readUev(); // ue(v)
+            stream.readUev(); // ue(v)
+            stream.readUev(); // ue(v)
         }
 
-        log2MinLumaCodingBlockSizeMinus3 = (byte) stream.readUev(); // ue(v)
-        log2DiffMaxMinLumaCodingBlockSize = (byte) stream.readUev(); // ue(v)
-        log2MinLumaTransformBlockSizeMinus2 = (byte) stream.readUev(); // ue(v)
-        log2DiffMaxMinLumaTransformBlockSize = (byte) stream.readUev(); // ue(v)
-        maxTransformHierarchyDepthInter = stream.readUev(); // ue(v)
-        maxTransformHierarchyDepthIntra = stream.readUev(); // ue(v)
+        // CTBs of 16 to 64, coding blocks from 8, transform blocks of 4 to 32 no larger than the CTB (7.4.3.2.1)
+        log2MinLumaCodingBlockSizeMinus3 = stream.readUevAtMost(3); // ue(v)
+        log2DiffMaxMinLumaCodingBlockSize = stream.readUevAtMost(3 - log2MinLumaCodingBlockSizeMinus3); // ue(v)
+        log2MinLumaTransformBlockSizeMinus2 = stream.readUevAtMost(3); // ue(v)
+        log2DiffMaxMinLumaTransformBlockSize = stream.readUevAtMost(3 - log2MinLumaTransformBlockSizeMinus2); // ue(v)
+        if (getCtbLog2SizeY() < 4
+                || getMaxTbLog2SizeY() > getCtbLog2SizeY()
+                || getMinTbLog2SizeY() >= getMinCbLog2SizeY()) {
+            throw new HeicFormatException("Inconsistent block sizes: CTB %d, coding block %d, transform blocks %d to %d"
+                    .formatted(
+                            1 << getCtbLog2SizeY(),
+                            1 << getMinCbLog2SizeY(),
+                            1 << getMinTbLog2SizeY(),
+                            1 << getMaxTbLog2SizeY()));
+        }
+        // the coded size is a whole number of minimum coding blocks (7.4.3.2.1), which prediction relies on
+        if (picWidthInLumaSamples % getMinCbSizeY() != 0 || picHeightInLumaSamples % getMinCbSizeY() != 0) {
+            throw new HeicFormatException("A %dx%d picture is not made of whole %d-sample coding blocks"
+                    .formatted(picWidthInLumaSamples, picHeightInLumaSamples, getMinCbSizeY()));
+        }
+        maxTransformHierarchyDepthInter = stream.readUevAtMost(getCtbLog2SizeY() - getMinTbLog2SizeY()); // ue(v)
+        maxTransformHierarchyDepthIntra = stream.readUevAtMost(getCtbLog2SizeY() - getMinTbLog2SizeY()); // ue(v)
 
         scalingListEnabledFlag = stream.readFlag(); // u(1)
         if (scalingListEnabledFlag) {
@@ -145,20 +160,20 @@ public class SeqParameterSetRbsp extends NalUnit {
             pcmLoopFilterDisabledFlag = stream.readFlag(); // u(1)
         }
 
-        numShortTermRefPicSets = stream.readUev(); // ue(v)
+        numShortTermRefPicSets = stream.readUevAtMost(64); // ue(v)
 
         stRefPicSets = new HashMap<>();
-        for (
-        /*UInt32*/ long i = 0; (i & 0xFFFFFFFFL) < (numShortTermRefPicSets & 0xFFFFFFFFL); i++)
-            stRefPicSets.put((int) i, new StRefPicSet(stream, this, i));
+        for (int i = 0; i < numShortTermRefPicSets; i++) {
+            stRefPicSets.put(i, new StRefPicSet(stream, this, i));
+        }
 
         longTermRefPicsPresentFlag = stream.readFlag(); // u(1)
         if (longTermRefPicsPresentFlag) {
-            numLongTermRefPicsSps = stream.readUev(); // ue(v)
-            ltRefPicPocLsbSps = new int[(int) (numLongTermRefPicsSps & 0xFFFFFFFFL)];
-            usedByCurrPicLtSpsFlag = new boolean[(int) (numLongTermRefPicsSps & 0xFFFFFFFFL)];
-            for (int i = 0; i < (numLongTermRefPicsSps & 0xFFFFFFFFL); i++) {
-                ltRefPicPocLsbSps[i] = stream.read((log2MaxPicOrderCntLsbMinus4 & 0xFF) + 1); // u(v)
+            numLongTermRefPicsSps = stream.readUevAtMost(32); // ue(v)
+            ltRefPicPocLsbSps = new int[numLongTermRefPicsSps];
+            usedByCurrPicLtSpsFlag = new boolean[numLongTermRefPicsSps];
+            for (int i = 0; i < numLongTermRefPicsSps; i++) {
+                ltRefPicPocLsbSps[i] = stream.read(log2MaxPicOrderCntLsbMinus4 + 4); // u(v)
                 usedByCurrPicLtSpsFlag[i] = stream.readFlag(); // u(1)
             }
         }
@@ -191,9 +206,9 @@ public class SeqParameterSetRbsp extends NalUnit {
             sps3dExt = new Sps3dExtension(stream); /* specified in Annex I */
         }
 
-        spsSccExt = spsRangeExtensionFlag
+        spsSccExt = spsSccExtensionFlag
                 ? new SpsSccExtension(stream, chromaFormatIdc, bitDepthLumaMinus8, bitDepthChromaMinus8)
-                : new SpsSccExtension(chromaFormatIdc);
+                : new SpsSccExtension();
 
         if ((spsExtension4bits & 0xFF) > 0) {
             while (stream.hasMoreRbspData(getEndPosition())) spsExtensionDataFlag = stream.readFlag(); // u(1)
@@ -204,21 +219,14 @@ public class SeqParameterSetRbsp extends NalUnit {
 
     @Override
     public String toString() {
-        return "NAL Unit SPS " + String.format("\nSize: %dx%d ", picWidthInLumaSamples, picHeightInLumaSamples)
-                + String.format(
-                        "\nBit depth: %d %d", (bitDepthLumaMinus8 & 0xFF) + 8, (bitDepthChromaMinus8 & 0xFF) + 8);
+        return "NAL Unit SPS %dx%d, bit depth %d/%d"
+                .formatted(picWidthInLumaSamples, picHeightInLumaSamples, getBitDepthY(), getBitDepthC());
     }
-
     /**
-     * <p>
-     * 0 - mono, 1 - 420, 2 - 422, 3 - 444
-     * </p>
+     * 0 for monochrome (or separately coded colour planes), 1 for 4:2:0, 2 for 4:2:2, 3 for 4:4:4.
      */
-    public final /*UInt32*/ long getChromaArrayType() {
-        if (!separateColourPlaneFlag) {
-            return chromaFormatIdc;
-        }
-        return 0;
+    public final int getChromaArrayType() {
+        return separateColourPlaneFlag ? 0 : chromaFormatIdc;
     }
 
     public final /*UInt32*/ long numNegativePics(int stRpsIdx) {
@@ -255,118 +263,104 @@ public class SeqParameterSetRbsp extends NalUnit {
                         - (((stRefPicSets.get(stRpsIdx).deltaPocS1Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL);
     }
 
-    /**
-     * <p>
-     * 2 if 420 or 422, otherwise 1
-     * </p>
-     */
-    public final byte getSubWidthC() {
-        return (byte) (((chromaFormatIdc & 0xFFFFFFFFL) == 1 || (chromaFormatIdc & 0xFFFFFFFFL) == 2) ? 2 : 1);
+    public final int getSubWidthC() {
+        return chromaFormatIdc == 1 || chromaFormatIdc == 2 ? 2 : 1;
     }
 
-    /**
-     * <p>
-     * 2 if 420, otherwise 1
-     * </p>
-     */
-    public final byte getSubHeightC() {
-        return (byte) (((chromaFormatIdc & 0xFFFFFFFFL) == 1) ? 2 : 1);
+    public final int getSubHeightC() {
+        return chromaFormatIdc == 1 ? 2 : 1;
     }
 
-    public final byte getMinCbLog2SizeY() {
-        return (byte) ((log2MinLumaCodingBlockSizeMinus3 & 0xFF) + 3);
+    public final int getMinCbLog2SizeY() {
+        return log2MinLumaCodingBlockSizeMinus3 + 3;
     }
 
-    public final byte getCtbLog2SizeY() {
-        return (byte) ((getMinCbLog2SizeY() & 0xFF) + (log2DiffMaxMinLumaCodingBlockSize & 0xFF));
+    public final int getCtbLog2SizeY() {
+        return getMinCbLog2SizeY() + log2DiffMaxMinLumaCodingBlockSize;
     }
 
-    public final /*UInt32*/ long getMinCbSizeY() {
-        return ((1L << (getMinCbLog2SizeY() & 0xFF)) & 0xFFFFFFFFL);
+    public final int getMinCbSizeY() {
+        return 1 << getMinCbLog2SizeY();
     }
 
-    public final /*UInt32*/ long getCtbSizeY() {
-        return ((1L << (getCtbLog2SizeY() & 0xFF)) & 0xFFFFFFFFL);
+    public final int getCtbSizeY() {
+        return 1 << getCtbLog2SizeY();
     }
 
-    public final /*UInt32*/ long getCtbWidthC() {
-        return ((chromaFormatIdc & 0xFFFFFFFFL) == 0 || separateColourPlaneFlag)
-                ? 0
-                : (((getCtbSizeY() & 0xFFFFFFFFL) / (getSubWidthC() & 0xFF)) & 0xFFFFFFFFL);
+    public final int getCtbWidthC() {
+        return getChromaArrayType() == 0 ? 0 : getCtbSizeY() / getSubWidthC();
     }
 
-    public final /*UInt32*/ long getCtbHeightC() {
-        return ((chromaFormatIdc & 0xFFFFFFFFL) == 0 || separateColourPlaneFlag)
-                ? 0
-                : (((getCtbSizeY() & 0xFFFFFFFFL) / (getSubHeightC() & 0xFF)) & 0xFFFFFFFFL);
+    public final int getCtbHeightC() {
+        return getChromaArrayType() == 0 ? 0 : getCtbSizeY() / getSubHeightC();
     }
 
-    public final /*UInt32*/ long getPicWidthInMinCbsY() {
-        return (((picWidthInLumaSamples & 0xFFFFFFFFL) / (getMinCbSizeY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    public final int getPicWidthInMinCbsY() {
+        return picWidthInLumaSamples / getMinCbSizeY();
     }
 
-    public final /*UInt32*/ long getPicWidthInCtbsY() {
-        return MathExtra.ceilDiv(picWidthInLumaSamples, getCtbSizeY());
+    public final int getPicWidthInCtbsY() {
+        return (picWidthInLumaSamples + getCtbSizeY() - 1) / getCtbSizeY();
     }
 
-    public final /*UInt32*/ long getPicHeightInMinCbsY() {
-        return (((picHeightInLumaSamples & 0xFFFFFFFFL) / (getMinCbSizeY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    public final int getPicHeightInMinCbsY() {
+        return picHeightInLumaSamples / getMinCbSizeY();
     }
 
-    public final /*UInt32*/ long getPicHeightInCtbsY() {
-        return MathExtra.ceilDiv(picHeightInLumaSamples, getCtbSizeY());
+    public final int getPicHeightInCtbsY() {
+        return (picHeightInLumaSamples + getCtbSizeY() - 1) / getCtbSizeY();
     }
 
-    public final /*UInt32*/ long getPicSizeInMinCbsY() {
-        return (((getPicWidthInMinCbsY() & 0xFFFFFFFFL) * (getPicHeightInMinCbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    public final int getPicSizeInMinCbsY() {
+        return getPicWidthInMinCbsY() * getPicHeightInMinCbsY();
     }
 
-    public final /*UInt32*/ long getPicSizeInCtbsY() {
-        return (((getPicWidthInCtbsY() & 0xFFFFFFFFL) * (getPicHeightInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    public final int getPicSizeInCtbsY() {
+        return getPicWidthInCtbsY() * getPicHeightInCtbsY();
     }
 
-    public final /*UInt32*/ long getPicSizeInSamplesY() {
-        return (((picWidthInLumaSamples & 0xFFFFFFFFL) * (picHeightInLumaSamples & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    public final long getPicSizeInSamplesY() {
+        return (long) picWidthInLumaSamples * picHeightInLumaSamples;
     }
 
-    public final /*UInt32*/ long getPicWidthInSamplesC() {
-        return (((picWidthInLumaSamples & 0xFFFFFFFFL) / (getSubWidthC() & 0xFF)) & 0xFFFFFFFFL);
+    public final int getPicWidthInSamplesC() {
+        return picWidthInLumaSamples / getSubWidthC();
     }
 
-    public final /*UInt32*/ long getPicHeightInSamplesC() {
-        return (((picHeightInLumaSamples & 0xFFFFFFFFL) / (getSubHeightC() & 0xFF)) & 0xFFFFFFFFL);
+    public final int getPicHeightInSamplesC() {
+        return picHeightInLumaSamples / getSubHeightC();
     }
 
-    public final byte getBitDepthY() {
-        return (byte) (8 + (bitDepthLumaMinus8 & 0xFF));
+    public final int getBitDepthY() {
+        return 8 + bitDepthLumaMinus8;
     }
 
-    public final byte getQpBdOffsetY() {
-        return (byte) (6 * (bitDepthLumaMinus8 & 0xFF));
+    public final int getQpBdOffsetY() {
+        return 6 * bitDepthLumaMinus8;
     }
 
-    public final byte getBitDepthC() {
-        return (byte) (8 + (bitDepthChromaMinus8 & 0xFF));
+    public final int getBitDepthC() {
+        return 8 + bitDepthChromaMinus8;
     }
 
-    public final byte getQpBdOffsetC() {
-        return (byte) (6 * (bitDepthChromaMinus8 & 0xFF));
+    public final int getQpBdOffsetC() {
+        return 6 * bitDepthChromaMinus8;
     }
 
-    public final byte getMinTbLog2SizeY() {
-        return (byte) ((log2MinLumaTransformBlockSizeMinus2 & 0xFF) + 2);
+    public final int getMinTbLog2SizeY() {
+        return log2MinLumaTransformBlockSizeMinus2 + 2;
     }
 
-    public final byte getMaxTbLog2SizeY() {
-        return (byte) ((getMinTbLog2SizeY() & 0xFF) + (log2DiffMaxMinLumaTransformBlockSize & 0xFF));
+    public final int getMaxTbLog2SizeY() {
+        return getMinTbLog2SizeY() + log2DiffMaxMinLumaTransformBlockSize;
     }
 
-    public final /*UInt32*/ long getMinTbSizeY() {
-        return ((1L << (getMinTbLog2SizeY() & 0xFF)) & 0xFFFFFFFFL);
+    public final int getMinTbSizeY() {
+        return 1 << getMinTbLog2SizeY();
     }
 
-    public final /*UInt32*/ long getMaxPicOrderCntLsb() {
-        return ((1L << ((log2MaxPicOrderCntLsbMinus4 & 0xFF) + 4)) & 0xFFFFFFFFL);
+    public final int getMaxPicOrderCntLsb() {
+        return 1 << (log2MaxPicOrderCntLsbMinus4 + 4);
     }
 
     public final int getLog2MinIpcmCbSizeY() {

@@ -30,6 +30,10 @@ class PpsRangeExtension {
         if (chromaQpOffsetListEnabledFlag) {
             diffCuChromaQpOffsetDepth = stream.readUev(); // ue(v)
             chromaQpOffsetListLenMinus1 = (int) stream.readUev(); // ue(v)
+            if (chromaQpOffsetListLenMinus1 > 5) {
+                throw new HeicFormatException("A chroma QP offset list of %d entries, more than 6"
+                        .formatted(chromaQpOffsetListLenMinus1 + 1));
+            }
             cbQpOffsetList = new int[chromaQpOffsetListLenMinus1 + 1];
             crQpOffsetList = new int[chromaQpOffsetListLenMinus1 + 1];
             for (int i = 0; i <= chromaQpOffsetListLenMinus1; i++) {

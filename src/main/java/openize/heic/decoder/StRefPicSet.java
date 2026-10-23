@@ -65,6 +65,11 @@ class StRefPicSet {
         } else {
             numNegativePics = stream.readUev(); // ue(v)
             numPositivePics = stream.readUev(); // ue(v)
+            // at most sps_max_dec_pic_buffering_minus1 (15) of each
+            if (numNegativePics > 16 || numPositivePics > 16) {
+                throw new HeicFormatException("A reference picture set of %d + %d pictures, more than 16"
+                        .formatted(numNegativePics, numPositivePics));
+            }
             deltaPocS0Minus1 = new /*UInt32*/ long[(int) (numNegativePics & 0xFFFFFFFFL)];
             usedByCurrPicS0Flag = new boolean[(int) (numNegativePics & 0xFFFFFFFFL)];
             deltaPocS1Minus1 = new /*UInt32*/ long[(int) (numPositivePics & 0xFFFFFFFFL)];

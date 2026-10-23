@@ -91,6 +91,9 @@ public class VideoParameterSetRbsp extends NalUnit {
             }
 
             vpsNumHrdParameters = (stream.readUev()); // ue(v)
+            if (vpsNumHrdParameters > 1024) {
+                throw new HeicFormatException("%d HRD parameter sets, more than 1024".formatted(vpsNumHrdParameters));
+            }
             // hrd_layer_set_idx = new /*UInt32*/long[(int) (vps_num_hrd_parameters & 0xFFFFFFFFL)];
             cprmsPresentFlag = new boolean[(int) (vpsNumHrdParameters & 0xFFFFFFFFL)];
             for (int i = 0; i < (vpsNumHrdParameters & 0xFFFFFFFFL); i++) {

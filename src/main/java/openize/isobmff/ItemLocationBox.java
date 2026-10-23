@@ -90,6 +90,8 @@ public class ItemLocationBox extends FullBox {
             itemCount = stream.read(32) & 0xFFFFFFFFL;
         }
 
+        // an item takes at least 6 bytes (id, data reference index, extent count): bounds the count before allocating
+        requireEntriesFit(itemCount, 6);
         items = new IlocItem[(int) (itemCount & 0xFFFFFFFFL)];
 
         for (int i = 0; i < (itemCount & 0xFFFFFFFFL); i++) {
@@ -106,19 +108,21 @@ public class ItemLocationBox extends FullBox {
             }
 
             items[i].dataReferenceIndex = stream.read(16) & 0xFFFFFFFFL;
-            items[i].baseOffset = stream.read((baseOffsetSize & 0xFF) * 8) & 0xFFFFFFFFL;
+            items[i].baseOffset = stream.readLong((baseOffsetSize & 0xFF) * 8);
             items[i].extentCount = stream.read(16) & 0xFFFFFFFFL;
+            int extentBytes = (offsetSize & 0xFF) + (lengthSize & 0xFF) + (indexSize & 0xFF);
+            requireEntriesFit(items[i].extentCount, Math.max(1, extentBytes));
             items[i].extents = new IlocItemExtent[(int) (items[i].extentCount)];
 
             for (int j = 0; j < (items[i].extentCount & 0xFFFFFFFFL); j++) {
                 items[i].extents[j] = new IlocItemExtent();
 
                 if ((((version & 0xFF) == 1) || ((version & 0xFF) == 2)) && ((indexSize & 0xFF) > 0)) {
-                    items[i].extents[j].index = stream.read((indexSize & 0xFF) * 8) & 0xFFFFFFFFL;
+                    items[i].extents[j].index = stream.readLong((indexSize & 0xFF) * 8);
                 }
 
-                items[i].extents[j].offset = stream.read((offsetSize & 0xFF) * 8) & 0xFFFFFFFFL;
-                items[i].extents[j].length = stream.read((lengthSize & 0xFF) * 8) & 0xFFFFFFFFL;
+                items[i].extents[j].offset = stream.readLong((offsetSize & 0xFF) * 8);
+                items[i].extents[j].length = stream.readLong((lengthSize & 0xFF) * 8);
             }
         }
 

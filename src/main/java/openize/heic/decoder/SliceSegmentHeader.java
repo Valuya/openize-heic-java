@@ -85,6 +85,11 @@ public class SliceSegmentHeader {
             throw new HeicFormatException("A slice refers to picture parameter set %d, which is not defined"
                     .formatted(slicePicParameterSetId & 0xFF));
         }
+        if (pps.sps == null) {
+            throw new HeicFormatException(
+                    "Picture parameter set %d refers to a sequence parameter set that is not defined"
+                            .formatted(slicePicParameterSetId & 0xFF));
+        }
         // the picture and the scan tables are allocated at the coded size, before any crop: bound it first
         stream.getContext()
                 .getDecodingOptions()
@@ -100,6 +105,10 @@ public class SliceSegmentHeader {
                             MathUtils.ceiling(MathUtils.log(sps.getPicSizeInCtbsY() & 0xFFFFFFFFL, 2))))
                     & 0xFFFFFFFFL);
 
+            if (sliceSegmentAddress >= sps.getPicSizeInCtbsY()) {
+                throw new HeicFormatException("Slice segment address %d past the %d CTBs of the picture"
+                        .formatted(sliceSegmentAddress, sps.getPicSizeInCtbsY()));
+            }
             setCtbAddrInRs(sliceSegmentAddress);
             setCtbAddrInTs(pps.getCtbAddrRsToTs()[(int) (getCtbAddrInRs())]);
         }
@@ -149,6 +158,10 @@ public class SliceSegmentHeader {
 
                     /*UInt32*/
                     int numLongTermSum = numLongTermSps + numLongTermPics;
+                    if (numLongTermSps < 0 || numLongTermPics < 0 || numLongTermSum > 32) {
+                        throw new HeicFormatException(
+                                "%d long-term reference pictures, more than 32".formatted(numLongTermSum));
+                    }
                     usedByCurrPicLtFlag = new boolean[(int) (numLongTermSum & 0xFFFFFFFFL)];
                     ltIdxSps = new /*UInt32*/ int[(int) (numLongTermSum & 0xFFFFFFFFL)];
                     pocLsbLt = new int[(int) (numLongTermSum & 0xFFFFFFFFL)];

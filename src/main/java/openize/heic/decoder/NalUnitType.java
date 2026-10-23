@@ -158,7 +158,7 @@ public enum NalUnitType {
             }
         }
 
-        throw new IllegalArgumentException("UnitCode is incorrect " + unitCode);
+        throw new HeicFormatException("Unknown NAL unit type " + unitCode);
     }
 
     public int getUnitCode() {

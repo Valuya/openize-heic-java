@@ -202,20 +202,17 @@ public class DecoderContext {
         prevPicOrderCntMsb = 0;
     }
 
-    public final void addNalContext(NalUnitType type, NalUnit nalUnit) {
-        switch (type) {
-            case VPS_NUT:
-                getVPS().put(((VideoParameterSetRbsp) nalUnit).vpsVideoParameterSetId & 0xFF, (VideoParameterSetRbsp)
-                        nalUnit);
-                break;
-            case SPS_NUT:
-                getSPS().put(((SeqParameterSetRbsp) nalUnit).spsSeqParameterSetId & 0xFF, (SeqParameterSetRbsp)
-                        nalUnit);
-                break;
-            case PPS_NUT:
-                getPPS().put(((PicParameterSetRbsp) nalUnit).ppsPicParameterSetId & 0xFF, (PicParameterSetRbsp)
-                        nalUnit);
-                break;
+    /**
+     * Registers a parameter set; other NAL units, including those of layers that are not decoded, are ignored.
+     */
+    public final void addNalContext(NalUnit nalUnit) {
+        switch (nalUnit) {
+            case VideoParameterSetRbsp vps -> getVPS().put(vps.vpsVideoParameterSetId & 0xFF, vps);
+            case SeqParameterSetRbsp sps -> getSPS().put(sps.spsSeqParameterSetId & 0xFF, sps);
+            case PicParameterSetRbsp pps -> getPPS().put(pps.ppsPicParameterSetId & 0xFF, pps);
+            default -> {
+                // not a parameter set
+            }
         }
     }
 

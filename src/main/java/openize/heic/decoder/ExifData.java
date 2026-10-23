@@ -87,8 +87,8 @@ import com.drew.metadata.webp.WebpDirectory;
 import com.drew.metadata.xmp.XmpDirectory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
@@ -126,9 +126,8 @@ public class ExifData {
      * @throws RuntimeException Unexpected Exif header
      */
     ExifData(BitStreamWithNalSupport stream, HeicImage image, HeicImageFrame exifFrame) {
-        IlocItem locationBox = Arrays.stream(image.getHeader().getMeta().getiloc().items)
-                .filter((item) -> item.itemID == exifFrame.getID())
-                .findFirst()
+        IlocItem locationBox = Optional.ofNullable(image.getHeader().getLocationBoxById(exifFrame.getID()))
+                .filter(location -> location.extents.length > 0)
                 .orElseThrow(() -> new HeicFormatException("Exif item %d has no data".formatted(exifFrame.getID())));
 
         stream.setBytePosition(locationBox.baseOffset + locationBox.extents[0].offset);
@@ -141,7 +140,7 @@ public class ExifData {
             throw new HeicFormatException(
                     "Exif TIFF header offset %d past the end of the %d-byte item".formatted(tiffHeaderOffset, length));
         }
-        stream.skipBits(Math.toIntExact(tiffHeaderOffset * 8));
+        stream.setBytePosition(stream.getBitPosition() / 8 + tiffHeaderOffset);
 
         this.rawBytes = new /*Byte*/ byte[(int) (length - 4 - tiffHeaderOffset)];
 

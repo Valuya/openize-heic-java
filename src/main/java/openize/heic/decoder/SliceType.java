@@ -24,7 +24,7 @@ enum SliceType /*: byte*/ {
             case 2:
                 return I;
             default:
-                throw new IllegalArgumentException(String.valueOf(code));
+                throw new HeicFormatException("Unknown slice type " + code);
         }
     }
 }

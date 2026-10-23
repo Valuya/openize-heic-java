@@ -39,6 +39,10 @@ class PpsSccExtension {
         ppsPalettePredictorInitializersPresentFlag = stream.readFlag(); // u(1)
         if (ppsPalettePredictorInitializersPresentFlag) {
             ppsNumPalettePredictorInitializers = stream.readUev(); // ue(v)
+            if (ppsNumPalettePredictorInitializers > 0) {
+                // they would seed the palette predictor, which this decoder starts empty
+                throw new HeicFormatException("PPS palette predictor initializers are not supported");
+            }
             if ((ppsNumPalettePredictorInitializers & 0xFFFFFFFFL) > 0) {
                 monochromePaletteFlag = stream.readFlag(); // u(1)
                 lumaBitDepthEntryMinus8 = (byte) stream.readUev(); // ue(v)

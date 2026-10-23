@@ -44,7 +44,7 @@ public class SliceSegmentLayerRbsp extends NalUnit {
         }
 
         if (stream.getContext().getPictures().isEmpty()) {
-            throw new IndexOutOfBoundsException();
+            throw new HeicFormatException("A slice segment that does not start a picture comes first");
         }
 
         HeicPicture currentPicture = stream.getContext().getPictures().get(stream.getCurrentImageId());

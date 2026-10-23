@@ -97,10 +97,10 @@ public class HEVCDecoderConfigurationRecord {
                     continue;
                 }
                 NalUnit unit = NalUnit.parseKnownUnit(stream, nalUnitLength, nalUnitType);
-                stream.getContext().addNalContext(nalUnitType, unit);
+                stream.getContext().addNalContext(unit);
                 nalUnits.add(unit);
-                if (spsUnit == null && unit.nalHeader.type == NalUnitType.SPS_NUT) {
-                    spsUnit = (SeqParameterSetRbsp) unit;
+                if (spsUnit == null && unit instanceof SeqParameterSetRbsp sequenceParameterSet) {
+                    spsUnit = sequenceParameterSet;
                 }
             }
         }

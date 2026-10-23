@@ -48,6 +48,10 @@ public class AuxiliaryTypeProperty extends FullBox {
 
         /*UInt64*/
         long count = size - (long) auxType.length() - 12;
+        if (count < 0) {
+            throw new IsoBmffFormatException(
+                    "An auxC box of %d bytes cannot hold its type %s".formatted(size, auxType));
+        }
         auxSubtype = new byte[(int) (count)];
         for (
         /*UInt64*/ long i = 0; i < count; i++) auxSubtype[(int) (i)] = (byte) stream.read(8);

@@ -10,11 +10,13 @@
 
 package openize.isobmff.io;
 
+import openize.isobmff.IsoBmffFormatException;
+
 /**
  * Reads bits, most significant first, from a file held in memory.
  *
  * <p>A reader is cheap: several of them can read the same array independently, which lets the images of a file be
- * decoded concurrently. Bits past the end of the data read as zero.
+ * decoded concurrently. Reading past the end of the data throws {@link IsoBmffFormatException}.
  */
 public class BitStreamReader {
     private static final int BITS_PER_BYTE = 8;
@@ -34,7 +36,11 @@ public class BitStreamReader {
     }
 
     public final void setBytePosition(long bytePosition) {
-        this.bytePosition = Math.toIntExact(bytePosition);
+        if (bytePosition < 0 || bytePosition > data.length) {
+            throw new IsoBmffFormatException(
+                    "Position %d is outside the %d-byte data".formatted(bytePosition, data.length));
+        }
+        this.bytePosition = (int) bytePosition;
         bitIndex = 0;
     }
 
@@ -55,7 +61,7 @@ public class BitStreamReader {
      */
     public int read(int bitCount) {
         if (bitCount < 0 || bitCount > 32) {
-            throw new IndexOutOfBoundsException("bitCount " + bitCount);
+            throw new IsoBmffFormatException("Cannot read %d bits as one value".formatted(bitCount));
         }
 
         // bits from the middle of a byte already being read: no byte boundary to handle
@@ -83,6 +89,19 @@ public class BitStreamReader {
             remainingBits -= bitsToRead;
         }
         return value;
+    }
+
+    /**
+     * Reads up to 64 bits as an unsigned value (a 64-bit value can come out negative).
+     */
+    public final long readLong(int bitCount) {
+        if (bitCount < 0 || bitCount > 64) {
+            throw new IsoBmffFormatException("Cannot read %d bits as one value".formatted(bitCount));
+        }
+        int highBitCount = Math.max(0, bitCount - 32);
+        long highBits = Integer.toUnsignedLong(read(highBitCount));
+        long lowBits = Integer.toUnsignedLong(read(bitCount - highBitCount));
+        return (highBits << (bitCount - highBitCount)) | lowBits;
     }
 
     public final boolean readFlag() {
@@ -115,7 +134,11 @@ public class BitStreamReader {
 
     public void skipBits(int bitCount) {
         long targetBitPosition = getBitPosition() + bitCount;
-        bytePosition = Math.toIntExact(targetBitPosition / BITS_PER_BYTE);
+        if (bitCount < 0 || targetBitPosition > (long) data.length * BITS_PER_BYTE) {
+            throw new IsoBmffFormatException(
+                    "Skipping %d bits leaves the %d-byte data".formatted(bitCount, data.length));
+        }
+        bytePosition = (int) (targetBitPosition / BITS_PER_BYTE);
         bitIndex = (int) (targetBitPosition % BITS_PER_BYTE);
     }
 
@@ -133,7 +156,11 @@ public class BitStreamReader {
     protected void beforeReadingCurrentByte() {}
 
     protected final int currentByte() {
-        return bytePosition < data.length ? data[bytePosition] & 0xFF : 0;
+        if (bytePosition < 0 || bytePosition >= data.length) {
+            throw new IsoBmffFormatException(
+                    "Read at byte %d, outside the %d-byte data".formatted(bytePosition, data.length));
+        }
+        return data[bytePosition] & 0xFF;
     }
 
     /**

@@ -25,6 +25,7 @@ import openize.isobmff.IlocItem;
 import openize.isobmff.ImageMirror;
 import openize.isobmff.ImageRotation;
 import openize.isobmff.ImageSpatialExtentsProperty;
+import openize.isobmff.IsoBmffFormatException;
 import openize.isobmff.ItemInfoEntry;
 import openize.isobmff.PixelAspectRatioBox;
 import openize.isobmff.PixelInformationProperty;
@@ -512,13 +513,7 @@ public class HeicImageFrame {
             return "";
         }
 
-        IlocItem location = null;
-        for (IlocItem item : parent.getHeader().getMeta().getiloc().items) {
-            if (item.itemID == id) {
-                location = item;
-                break;
-            }
-        }
+        IlocItem location = parent.getHeader().getLocationBoxById(id);
 
         if (location == null) {
             return "";
@@ -544,7 +539,11 @@ public class HeicImageFrame {
      */
     public final synchronized Optional<ExifData> getExifOptional() {
         if (exifData == null && exifItem != null) {
-            exifData = new ExifData(new BitStreamWithNalSupport(parent.getHeicData()), parent, exifItem);
+            try {
+                exifData = new ExifData(new BitStreamWithNalSupport(parent.getHeicData()), parent, exifItem);
+            } catch (IsoBmffFormatException exception) {
+                throw new HeicFormatException("Malformed Exif data: " + exception.getMessage(), exception);
+            }
         }
         return Optional.ofNullable(exifData);
     }
@@ -689,7 +688,12 @@ public class HeicImageFrame {
         parent.getDecodingOptions().checkPixelCount("Image %d".formatted(id), region.getWidth(), region.getHeight());
         PixelBox regionBox = new PixelBox(region.getLeft(), region.getTop(), region.getRight(), region.getBottom());
         int[] argbPixels = new int[regionBox.width() * regionBox.height()];
-        decodeInto(PixelTarget.forRegion(regionBox, argbPixels), false);
+        try {
+            decodeInto(PixelTarget.forRegion(regionBox, argbPixels), false);
+        } catch (IsoBmffFormatException exception) {
+            throw new HeicFormatException(
+                    "Malformed data in image %d: %s".formatted(id, exception.getMessage()), exception);
+        }
         return argbPixels;
     }
 
@@ -704,11 +708,14 @@ public class HeicImageFrame {
         }
 
         switch (getImageType()) {
-            case hvc1 -> new YuvConverter(hvcConfig.getSPS()).convert(decodePicture(), frameTarget, alphaOnly);
+            case hvc1 ->
+                new YuvConverter(requireHevcConfiguration().getSPS()).convert(decodePicture(), frameTarget, alphaOnly);
             case iden -> getDerivedFrame(0).decodeInto(frameTarget, alphaOnly);
             case grid -> decodeGridInto(frameTarget, alphaOnly);
             case iovl -> decodeOverlayInto(frameTarget, alphaOnly);
-            default -> throw new IllegalStateException("Unknown image type.");
+            default ->
+                throw new HeicFormatException("Item %d is coded as '%s', which this decoder does not decode"
+                        .formatted(id, fourCharacterCodeText(itemTypeCode)));
         }
 
         if (!alphaOnly && alphaReference != null) {
@@ -744,6 +751,7 @@ public class HeicImageFrame {
     // A fresh reader per decode: frames decode independently of each other and of earlier decodes
     private HeicPicture decodePicture() {
         requireItemData();
+        requireHevcConfiguration();
         BitStreamWithNalSupport pictureStream = new BitStreamWithNalSupport(parent.getHeicData());
         pictureStream.createNewImageContext(id);
         pictureStream.getContext().setDecodingOptions(parent.getDecodingOptions());
@@ -767,7 +775,9 @@ public class HeicImageFrame {
 
     private void decodeGridInto(PixelTarget gridTarget, boolean alphaOnly) {
         byte[] gridDescriptor = readItemData();
+        requireDescriptorLength("grid", gridDescriptor, 4);
         int fieldLength = ((gridDescriptor[1] & 1) + 1) * 2;
+        requireDescriptorLength("grid", gridDescriptor, 4 + 2 * fieldLength);
         int rowCount = (gridDescriptor[2] & 0xFF) + 1;
         int columnCount = (gridDescriptor[3] & 0xFF) + 1;
         int gridWidth = getByteFromIdatField(gridDescriptor, 4, fieldLength);
@@ -800,7 +810,9 @@ public class HeicImageFrame {
     private void decodeOverlayInto(PixelTarget overlayTarget, boolean alphaOnly) {
         byte[] overlayDescriptor = readItemData();
         long[] derivedIds = parent.getHeader().getDerivedList(id);
+        requireDescriptorLength("overlay", overlayDescriptor, 2);
         int fieldLength = ((overlayDescriptor[1] & 1) + 1) * 2;
+        requireDescriptorLength("overlay", overlayDescriptor, 2 + 4 * 2 + (2 + 2 * derivedIds.length) * fieldLength);
         // skips canvas_fill_value: the canvas is opaque black
         int index = 2 + 4 * 2;
         int overlayWidth = getByteFromIdatField(overlayDescriptor, index, fieldLength);
@@ -828,9 +840,23 @@ public class HeicImageFrame {
         }
     }
 
+    private HEVCDecoderConfigurationRecord requireHevcConfiguration() {
+        if (hvcConfig == null) {
+            throw new HeicFormatException("Image %d has no HEVC decoder configuration (hvcC)".formatted(id));
+        }
+        return hvcConfig;
+    }
+
     private void requireItemData() {
         if (locationBox == null || locationBox.extents.length == 0) {
             throw new HeicFormatException("Item %d has no data".formatted(id));
+        }
+    }
+
+    private void requireDescriptorLength(String imageKind, byte[] descriptor, int requiredLength) {
+        if (descriptor.length < requiredLength) {
+            throw new HeicFormatException("The %s descriptor of image %d has %d bytes, %d needed"
+                    .formatted(imageKind, id, descriptor.length, requiredLength));
         }
     }
 

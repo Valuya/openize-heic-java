@@ -1195,42 +1195,9 @@ public class Cabac {
     // LPS = Least Probable Symbol
     // MPS = Most Probable Symbol
 
+    // 9.3.2.3: palette predictor initializers are refused when parameter sets are read, so the predictor starts empty
     private void initializationOfPalettePredictorEntries(SliceSegmentHeader sliceHeader) {
-        // Outputs of this process are the initialized palette predictor variables
-        // PredictorPaletteSize and PredictorPaletteEntries
-
-        PicParameterSetRbsp pps = sliceHeader.pps;
-        SeqParameterSetRbsp sps = pps.sps;
-
-        byte numComps = ((int) sps.getChromaArrayType() == 0) ? (byte) 1 : (byte) 3;
-
-        boolean tmp0 = (pps.ppsSccExt != null && pps.ppsSccExt.ppsPalettePredictorInitializersPresentFlag);
-
-        if (tmp0) {
-            predictorPaletteSize = pps.ppsSccExt.ppsNumPalettePredictorInitializers;
-
-            //            PredictorPaletteEntries = new /*UInt16*/int[numComps & 0xFF][(int) (PredictorPaletteSize &
-            // 0xFFFFFFFFL)];
-            //
-            //            for (int comp = 0; comp < (numComps & 0xFF); comp++)
-            //                for (int i = 0; i < (PredictorPaletteSize & 0xFFFFFFFFL); i++)
-            //                    PredictorPaletteEntries[comp][i] =
-            // pps.pps_scc_ext.pps_palette_predictor_initializer[comp][i];
-        } else if ((sps.spsSccExt != null && sps.spsSccExt.spsPalettePredictorInitializersPresentFlag)) {
-            predictorPaletteSize =
-                    ((sps.spsSccExt.spsNumPalettePredictorInitializersMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL;
-
-            //            PredictorPaletteEntries = new /*UInt16*/int[numComps & 0xFF][(int) (PredictorPaletteSize &
-            // 0xFFFFFFFFL)];
-            //
-            //            for (int comp = 0; comp < (numComps & 0xFF); comp++)
-            //                for (int i = 0; i < (PredictorPaletteSize & 0xFFFFFFFFL); i++)
-            //                    PredictorPaletteEntries[comp][i] =
-            // sps.sps_scc_ext.sps_palette_predictor_initializer[comp][i];
-        } else {
-            predictorPaletteSize = 0;
-            //            PredictorPaletteEntries = new /*UInt16*/int[numComps & 0xFF][0];
-        }
+        predictorPaletteSize = 0;
     }
 
     private void initializationOfContextVariables(int sliceQpY, int initType) {

@@ -104,12 +104,23 @@ public class Box {
      * Skips to the end of a box read with {@link #Box(BitStreamReader, BoxType)}, past any field it does not parse.
      */
     protected final void skipToEnd(BitStreamReader stream) {
-        long endBitPosition = startBitPosition + size * 8;
         long consumedBits = stream.getBitPosition() - startBitPosition;
         if (consumedBits > size * 8) {
             throw new IsoBmffFormatException("The %s box overruns its %d bytes".formatted(type, size));
         }
-        stream.skipBits(Math.toIntExact(endBitPosition - stream.getBitPosition()));
+        // boxes end on a byte boundary
+        stream.setBytePosition(startBitPosition / 8 + size);
+    }
+
+    /**
+     * Fails unless {@code count} entries of at least {@code bytesPerEntry} bytes fit in this box: a count read from the
+     * file is checked this way before anything is allocated for it.
+     */
+    protected final void requireEntriesFit(long count, int bytesPerEntry) {
+        if (count < 0 || count * bytesPerEntry > size) {
+            throw new IsoBmffFormatException(
+                    "A %s box of %d bytes cannot hold %d entries".formatted(type, size, count));
+        }
     }
 
     /**
@@ -136,6 +147,15 @@ public class Box {
 
         if (size == 1) {
             size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
+        } else if (size == 0) {
+            // the last box of the file, extending to its end
+            size = stream.getLength() - startPosition / 8;
+        }
+
+        long headerSize = (stream.getBitPosition() - startPosition) / 8;
+        if (size < headerSize || startPosition / 8 + size > stream.getLength()) {
+            throw new IsoBmffFormatException("A %s box of %d bytes at byte %d does not fit the %d-byte file"
+                    .formatted(type, size, startPosition / 8, stream.getLength()));
         }
 
         Box box;
