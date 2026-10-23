@@ -156,8 +156,7 @@ class NeighbouringSamplesGenerator {
                 availableN = (nBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
 
                 if (picture.pps.constrainedIntraPredFlag) {
-                    if (picture.cuPredModeByPosition[(x0 - 1) * subWidth][(y0 + y) * subHeight]
-                            != PredMode.MODE_INTRA) {
+                    if (picture.cuPredMode.get((x0 - 1) * subWidth, (y0 + y) * subHeight) != PredMode.MODE_INTRA) {
                         availableN = false;
                     }
                 }
@@ -194,7 +193,7 @@ class NeighbouringSamplesGenerator {
             availableN = (nBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
 
             if (picture.pps.constrainedIntraPredFlag) {
-                if (picture.cuPredModeByPosition[(x0 - 1) * subWidth][(y0 - 1) * subHeight] != PredMode.MODE_INTRA) {
+                if (picture.cuPredMode.get((x0 - 1) * subWidth, (y0 - 1) * subHeight) != PredMode.MODE_INTRA) {
                     availableN = false;
                 }
             }
@@ -227,8 +226,7 @@ class NeighbouringSamplesGenerator {
                 availableN = (nBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
 
                 if (picture.pps.constrainedIntraPredFlag) {
-                    if (picture.cuPredModeByPosition[(x0 + x) * subWidth][(y0 - 1) * subHeight]
-                            != PredMode.MODE_INTRA) {
+                    if (picture.cuPredMode.get((x0 + x) * subWidth, (y0 - 1) * subHeight) != PredMode.MODE_INTRA) {
                         availableN = false;
                     }
                 }

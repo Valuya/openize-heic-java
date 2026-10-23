@@ -37,8 +37,8 @@ class CodingUnit {
         }
 
         if (header.sliceType != SliceType.I) {
-            picture.cuSkipFlag[x0][y0] =
-                    stream.getCabac().readCuSkipFlag(x0, y0, picture, picture.ctDepthByPosition[x0][y0]);
+            picture.cuSkipFlag.set(
+                    x0, y0, stream.getCabac().readCuSkipFlag(x0, y0, picture, picture.ctDepth.get(x0, y0)));
         }
 
         int nCbS = (1 << log2CbSize);
@@ -46,7 +46,7 @@ class CodingUnit {
         picture.markTransformBlock(x0, y0, nCbS);
         if (stream.getContext().cuTransquantBypassFlag) picture.markNoFilter(x0, y0, nCbS);
 
-        if (picture.cuSkipFlag[x0][y0]) {
+        if (picture.cuSkipFlag.get(x0, y0)) {
             picture.setCuPredMode(x0, y0, nCbS, PredMode.MODE_SKIP);
             throw new UnsupportedOperationException();
             // new prediction_unit(stream, header, x0, y0, nCbS, nCbS);
@@ -61,23 +61,22 @@ class CodingUnit {
             }
 
             if (header.pps.sps.spsSccExt.paletteModeEnabledFlag
-                    && picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA
+                    && picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTRA
                     && log2CbSize <= (sps.getMaxTbLog2SizeY() & 0xFF)) {
-                picture.paletteModeFlag[x0][y0] = stream.getCabac().readPaletteModeFlag();
+                picture.paletteModeFlag.set(x0, y0, stream.getCabac().readPaletteModeFlag());
             }
 
-            if (picture.paletteModeFlag[x0][y0]) {
+            if (picture.paletteModeFlag.get(x0, y0)) {
                 new PaletteCoding(stream, header, x0, y0, nCbS);
             } else {
-                if (picture.cuPredModeByPosition[x0][y0] != PredMode.MODE_INTRA
+                if (picture.cuPredMode.get(x0, y0) != PredMode.MODE_INTRA
                         || log2CbSize == (sps.getMinCbLog2SizeY() & 0xFF)) {
-                    partMode =
-                            stream.getCabac().readPartMode(picture, picture.cuPredModeByPosition[x0][y0], log2CbSize);
+                    partMode = stream.getCabac().readPartMode(picture, picture.cuPredMode.get(x0, y0), log2CbSize);
                     intraSplitFlag =
-                            picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA && partMode == PartMode.partNxN;
+                            picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTRA && partMode == PartMode.partNxN;
                 }
 
-                if (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA) {
+                if (picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTRA) {
                     if (partMode == PartMode.part2Nx2N
                             && header.pps.sps.pcmEnabledFlag
                             && log2CbSize >= sps.getLog2MinIpcmCbSizeY()
@@ -85,7 +84,7 @@ class CodingUnit {
                         picture.setPcmFlag(x0, y0, nCbS, stream.getCabac().readPcmFlag());
                     }
 
-                    if (picture.pcmFlag[x0][y0]) {
+                    if (picture.pcmFlag.get(x0, y0)) {
                         while (stream.notByteAligned()) stream.skipBits(1); /* pcm_alignment_zero_bit */
 
                         new PcmSample(stream, header, log2CbSize);
@@ -94,8 +93,8 @@ class CodingUnit {
 
                         for (int j = 0; j < nCbS; j += pbOffset)
                             for (int i = 0; i < nCbS; i += pbOffset)
-                                picture.prevIntraLumaPredFlag[x0 + i][y0 + j] =
-                                        stream.getCabac().readPrevIntraLumaPredFlag();
+                                picture.prevIntraLumaPredFlag.set(
+                                        x0 + i, y0 + j, stream.getCabac().readPrevIntraLumaPredFlag());
 
                         boolean availableL0 = picture.checkZScanAvailability(x0, y0, x0 - 1, y0);
                         boolean availableA0 = picture.checkZScanAvailability(x0, y0, x0, y0 - 1);
@@ -106,12 +105,12 @@ class CodingUnit {
 
                         for (int j = 0; j < nCbS; j += pbOffset) {
                             for (int i = 0; i < nCbS; i += pbOffset) {
-                                if (picture.prevIntraLumaPredFlag[x0 + i][y0 + j]) {
-                                    picture.mpmIdx[x0 + i][y0 + j] =
-                                            stream.getCabac().readMpmIdx();
+                                if (picture.prevIntraLumaPredFlag.get(x0 + i, y0 + j)) {
+                                    picture.mpmIdx.set(
+                                            x0 + i, y0 + j, stream.getCabac().readMpmIdx());
                                 } else {
-                                    picture.remIntraLumaPredMode[x0 + i][y0 + j] =
-                                            stream.getCabac().readRemIntraLumaPredMode();
+                                    picture.remIntraLumaPredMode.set(
+                                            x0 + i, y0 + j, stream.getCabac().readRemIntraLumaPredMode());
                                 }
 
                                 IntraPredMode[] intraPredModeCandidated = picture.generateIntraPredModeCandidates(
@@ -131,12 +130,12 @@ class CodingUnit {
 
                             for (int j = 0; j < nCbS; j += pbOffset) {
                                 for (int i = 0; i < nCbS; i += pbOffset) {
-                                    picture.intraChromaPredMode[x0 + i][y0 + j] =
-                                            stream.getCabac().readIntraChromaPredMode();
+                                    picture.intraChromaPredMode.set(
+                                            x0 + i, y0 + j, stream.getCabac().readIntraChromaPredMode());
 
                                     IntraPredMode intraPredModeC = picture.deriveIntraPredModeIndex(
-                                            picture.intraPredModeY[x0 + i][y0 + j],
-                                            picture.intraChromaPredMode[x0 + i][y0 + j]);
+                                            picture.intraPredModeY.get(x0 + i, y0 + j),
+                                            picture.intraChromaPredMode.get(x0 + i, y0 + j));
 
                                     picture.setIntraPredModeC(x0 + i, y0 + j, pbSize, intraPredModeC);
                                 }
@@ -145,11 +144,11 @@ class CodingUnit {
                         } else if ((sps.getChromaArrayType() & 0xFFFFFFFFL) != 0) {
                             // chroma 4:2:0 and 4:2:2
 
-                            picture.intraChromaPredMode[x0][y0] =
-                                    stream.getCabac().readIntraChromaPredMode();
+                            picture.intraChromaPredMode.set(
+                                    x0, y0, stream.getCabac().readIntraChromaPredMode());
 
                             IntraPredMode intraPredModeC = picture.deriveIntraPredModeIndex(
-                                    picture.intraPredModeY[x0][y0], picture.intraChromaPredMode[x0][y0]);
+                                    picture.intraPredModeY.get(x0, y0), picture.intraChromaPredMode.get(x0, y0));
 
                             if ((sps.getChromaArrayType() & 0xFFFFFFFFL) == 2) {
                                 intraPredModeC =
@@ -199,18 +198,18 @@ class CodingUnit {
                     }
                 }
 
-                if (!picture.pcmFlag[x0][y0]) {
+                if (!picture.pcmFlag.get(x0, y0)) {
                     rqtRootCbf = true;
 
-                    boolean mergeFlag = picture.mergeFlag[x0][y0];
+                    boolean mergeFlag = picture.mergeFlag.get(x0, y0);
 
-                    if (picture.cuPredModeByPosition[x0][y0] != PredMode.MODE_INTRA
+                    if (picture.cuPredMode.get(x0, y0) != PredMode.MODE_INTRA
                             && !(partMode == PartMode.part2Nx2N && mergeFlag)) {
                         rqtRootCbf = stream.getCabac().readRqtRootCbf();
                     }
 
                     if (rqtRootCbf) {
-                        maxTrafoDepth = (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA
+                        maxTrafoDepth = (picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTRA
                                         ? (((header.pps.sps.maxTransformHierarchyDepthIntra & 0xFFFFFFFFL)
                                                         + (intraSplitFlag ? 1 : 0))
                                                 & 0xFFFFFFFFL)

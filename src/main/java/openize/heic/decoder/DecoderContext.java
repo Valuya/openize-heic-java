@@ -246,7 +246,7 @@ public class DecoderContext {
         // In this process, the variable QpY, the luma quantization parameter Qp′Y and
         // the chroma quantization parameters Qp′Cb and Qp′Cr are derived.
 
-        SliceSegmentHeader sliceHeader = picture.getSliceHeaders().get(picture.sliceHeaderIndex[xCb][yCb]);
+        SliceSegmentHeader sliceHeader = picture.getSliceHeaders().get(picture.sliceHeaderIndex.get(xCb, yCb));
 
         int xQg = xCb - (xCb & ((1 << (int) picture.pps.getLog2MinCuQpDeltaSize()) - 1));
         int yQg = yCb - (yCb & ((1 << (int) picture.pps.getLog2MinCuQpDeltaSize()) - 1));
@@ -309,7 +309,7 @@ public class DecoderContext {
 
         int qPiCb, qPiCr, qPCb, qPCr;
         if ((picture.sps.getChromaArrayType() & 0xFFFFFFFFL) != 0) {
-            if (!picture.tuResidualActFlag[xCb][yCb]) {
+            if (!picture.tuResidualActFlag.get(xCb, yCb)) {
                 qPiCb = MathExtra.clip3(
                         -(picture.sps.getQpBdOffsetC() & 0xFF),
                         57,
@@ -353,7 +353,7 @@ public class DecoderContext {
             stream.getContext().setQpCr(qPCr + (picture.sps.getQpBdOffsetC() & 0xFF));
         }
 
-        int log2CbSize = picture.log2CbSizeByPosition[xCUBase][yCUBase];
+        int log2CbSize = picture.log2CbSize.get(xCUBase, yCUBase);
 
         if (log2CbSize < 3) log2CbSize = 3;
 
@@ -374,7 +374,7 @@ public class DecoderContext {
             if (ctbAddrA != (sliceHeader.getCtbAddrInTs() & 0xFFFFFFFFL)) {
                 return qPYPREV;
             } else {
-                return picture.qpYByPosition[xQgN][yQgN];
+                return picture.qpY.get(xQgN, yQgN);
             }
         }
     }

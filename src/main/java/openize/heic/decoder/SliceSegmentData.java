@@ -25,14 +25,6 @@ public class SliceSegmentData {
                     new /*UInt32*/ int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
         }
 
-        if (picture.sliceHeaderIndex == null) {
-            picture.sliceHeaderIndex = new int
-                    [(int) (((sps.getPicWidthInCtbsY() & 0xFFFFFFFFL) << ((sps.getCtbLog2SizeY() & 0xFF) & 0x1F))
-                            & 0xFFFFFFFFL)]
-                    [(int) (((sps.getPicHeightInCtbsY() & 0xFFFFFFFFL) << ((sps.getCtbLog2SizeY() & 0xFF) & 0x1F))
-                            & 0xFFFFFFFFL)];
-        }
-
         do {
             int xCtu = (int) ((header.getCtbAddrInRs() & 0xFFFFFFFFL) % (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL));
             int yCtu = (int) ((header.getCtbAddrInRs() & 0xFFFFFFFFL) / (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL));

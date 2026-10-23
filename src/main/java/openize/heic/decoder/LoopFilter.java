@@ -107,10 +107,7 @@ final class LoopFilter {
                 SliceSegmentHeader header = sliceHeaderAt(x, y);
                 if (!filterEdge(header, x, y, xp, yp)) continue;
 
-                int qpL = ((picture.qpYByPosition[x][y] - qpBdOffsetY)
-                                + (picture.qpYByPosition[xp][yp] - qpBdOffsetY)
-                                + 1)
-                        >> 1;
+                int qpL = ((picture.qpY.get(x, y) - qpBdOffsetY) + (picture.qpY.get(xp, yp) - qpBdOffsetY) + 1) >> 1;
                 filterLumaEdge(x, y, nx, ny, qpL, header, noFilter(xp, yp), noFilter(x, y));
             }
         }
@@ -136,11 +133,9 @@ final class LoopFilter {
                     SliceSegmentHeader header = sliceHeaderAt(x, y);
                     if (!filterEdge(header, x, y, xp, yp)) continue;
 
-                    int qpi = (((picture.qpYByPosition[x][y] - qpBdOffsetY)
-                                            + (picture.qpYByPosition[xp][yp] - qpBdOffsetY)
-                                            + 1)
-                                    >> 1)
-                            + cQpPicOffset;
+                    int qpi =
+                            (((picture.qpY.get(x, y) - qpBdOffsetY) + (picture.qpY.get(xp, yp) - qpBdOffsetY) + 1) >> 1)
+                                    + cQpPicOffset;
                     int qpC = sps.getChromaArrayType() == 1 ? chromaQp(qpi) : Math.min(qpi, 51);
                     int q = MathExtra.clip3(0, 53, qpC + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2 << 1));
                     int tc = TC_TABLE[q] * (1 << (bitDepthC - 8));
@@ -421,13 +416,13 @@ final class LoopFilter {
 
     private boolean noFilter(int x, int y) {
         return (picture.blockFlags[x >> 2][y >> 2] & NO_FILTER) != 0
-                || (sps.pcmLoopFilterDisabledFlag && picture.pcmFlag[x][y]);
+                || (sps.pcmLoopFilterDisabledFlag && picture.pcmFlag.get(x, y));
     }
 
     private SliceSegmentHeader sliceHeaderAt(int x, int y) {
         int xCtb = (x >> ctbLog2Size) << ctbLog2Size;
         int yCtb = (y >> ctbLog2Size) << ctbLog2Size;
-        return picture.getSliceHeaders().get(picture.sliceHeaderIndex[xCtb][yCtb]);
+        return picture.getSliceHeaders().get(picture.sliceHeaderIndex.get(xCtb, yCtb));
     }
 
     private int ctbAddrRs(int x, int y) {

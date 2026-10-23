@@ -31,12 +31,6 @@ class ResidualCoding {
         ResidualBuffers residualBuffers = streamContext.getResidualBuffers();
         residualBuffers.startBlock(1 << log2TrafoSize);
 
-        boolean[] explicitRdpcmFlagX0Y0 = picture.explicitRdpcmFlag[x0][y0];
-        if (explicitRdpcmFlagX0Y0 == null) {
-            explicitRdpcmFlagX0Y0 = new boolean[3];
-            picture.explicitRdpcmFlag[x0][y0] = explicitRdpcmFlagX0Y0;
-        }
-
         Cabac streamCabac = stream.getCabac();
         if (header.pps.transformSkipEnabledFlag
                 && !streamContext.cuTransquantBypassFlag
@@ -44,13 +38,13 @@ class ResidualCoding {
             streamContext.transformSkipFlag[cIdx] = streamCabac.readTransformSkipFlag(cIdx);
         }
 
-        if (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTER
+        if (picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTER
                 && header.pps.sps.spsRangeExt.explicitRdpcmEnabledFlag
                 && (streamContext.transformSkipFlag[cIdx] || streamContext.cuTransquantBypassFlag)) {
-            explicitRdpcmFlagX0Y0[cIdx] = streamCabac.readExplicitRdpcmFlag(cIdx);
+            picture.explicitRdpcmFlag.setBit(x0, y0, cIdx, streamCabac.readExplicitRdpcmFlag(cIdx));
 
-            if (explicitRdpcmFlagX0Y0[cIdx]) {
-                picture.explicitRdpcmDirFlag[x0][y0][cIdx] = streamCabac.readExplicitRdpcmDirFlag(cIdx);
+            if (picture.explicitRdpcmFlag.getBit(x0, y0, cIdx)) {
+                picture.explicitRdpcmDirFlag.setBit(x0, y0, cIdx, streamCabac.readExplicitRdpcmDirFlag(cIdx));
             }
         }
 
@@ -75,12 +69,12 @@ class ResidualCoding {
 
         // define scanIdx
         int scanIdx = 0;
-        if (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA) {
+        if (picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTRA) {
             if ((log2TrafoSize == 2)
                     || (log2TrafoSize == 3 && cIdx == 0)
                     || (log2TrafoSize == 3 && (header.pps.sps.getChromaArrayType() & 0xFFFFFFFFL) == 3)) {
                 IntraPredMode predModeIntra =
-                        cIdx == 0 ? picture.intraPredModeY[x0][y0] : picture.intraPredModeC[x0][y0];
+                        cIdx == 0 ? picture.intraPredModeY.get(x0, y0) : picture.intraPredModeC.get(x0, y0);
 
                 if (predModeIntra.ordinal() >= 6 && predModeIntra.ordinal() <= 14) {
                     scanIdx = 2;
@@ -242,14 +236,15 @@ class ResidualCoding {
             lastSubblockGreater1Ctx = lastInvocationGreater1Ctx;
 
             boolean signHidden;
-            IntraPredMode predModeIntra = cIdx == 0 ? picture.intraPredModeY[x0][y0] : picture.intraPredModeC[x0][y0];
+            IntraPredMode predModeIntra =
+                    cIdx == 0 ? picture.intraPredModeY.get(x0, y0) : picture.intraPredModeC.get(x0, y0);
 
             if (streamContext.cuTransquantBypassFlag
-                    || (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTRA
+                    || (picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTRA
                             && sps.spsRangeExt.implicitRdpcmEnabledFlag
                             && streamContext.transformSkipFlag[cIdx]
                             && (predModeIntra.ordinal() == 10 || predModeIntra.ordinal() == 26))
-                    || explicitRdpcmFlagX0Y0[cIdx]) {
+                    || picture.explicitRdpcmFlag.getBit(x0, y0, cIdx)) {
                 signHidden = false;
             } else {
                 signHidden = (lastSigScanPos - firstSigScanPos) > 3;

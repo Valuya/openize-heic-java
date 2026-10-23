@@ -24,7 +24,7 @@ class CodingTreeUnit {
 
         picture.sliceAddrRs[xCtb >> (sps.getCtbLog2SizeY() & 0xFF)][yCtb >> (sps.getCtbLog2SizeY() & 0xFF)] =
                 (int) header.getSliceAddrRs();
-        picture.sliceHeaderIndex[xCtb][yCtb] = header.sliceIndex;
+        picture.sliceHeaderIndex.fill(xCtb, yCtb, (int) sps.getCtbSizeY(), header.sliceIndex);
 
         if (header.sliceSaoLumaFlag || header.sliceSaoChromaFlag)
             new Sao(stream, xCtb >> (sps.getCtbLog2SizeY() & 0xFF), yCtb >> (sps.getCtbLog2SizeY() & 0xFF), header);

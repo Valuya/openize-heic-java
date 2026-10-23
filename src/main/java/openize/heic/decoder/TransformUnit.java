@@ -188,12 +188,12 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
         int offset = 1 << log2TrafoSizeC;
 
-        boolean cbfLuma = picture.cbfLuma[x0][y0][trafoDepth];
-        boolean cbfChroma = picture.cbfCb[xC][yC][cbfDepthC]
-                || picture.cbfCr[xC][yC][cbfDepthC]
+        boolean cbfLuma = picture.cbfLuma.getBit(x0, y0, trafoDepth);
+        boolean cbfChroma = picture.cbfCb.getBit(xC, yC, cbfDepthC)
+                || picture.cbfCr.getBit(xC, yC, cbfDepthC)
                 || (chromaArrayType == 2
-                        && (picture.cbfCb[xC][yC + (offset)][cbfDepthC]
-                                || picture.cbfCr[xC][yC + (offset)][cbfDepthC]));
+                        && (picture.cbfCb.getBit(xC, yC + (offset), cbfDepthC)
+                                || picture.cbfCr.getBit(xC, yC + (offset), cbfDepthC)));
 
         if (cbfLuma || cbfChroma) {
             int minCbLog2SizeY = sps.getMinCbLog2SizeY() & 0xFF;
@@ -203,13 +203,13 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
             Cabac streamCabac = stream.getCabac();
             if (pps.ppsSccExt.residualAdaptiveColourTransformEnabledFlag
-                    && (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTER
-                            || (partMode == PartMode.part2Nx2N && (picture.intraChromaPredMode[x0][y0] & 0xFF) == 4)
-                            || ((picture.intraChromaPredMode[xP][yP] & 0xFF) == 4
-                                    && (picture.intraChromaPredMode[xP + nCbS / 2][yP] & 0xFF) == 4
-                                    && (picture.intraChromaPredMode[xP][yP + nCbS / 2] & 0xFF) == 4
-                                    && (picture.intraChromaPredMode[xP + nCbS / 2][yP + nCbS / 2] & 0xFF) == 4))) {
-                picture.tuResidualActFlag[x0][y0] = streamCabac.readTuResidualActFlag();
+                    && (picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTER
+                            || (partMode == PartMode.part2Nx2N && (picture.intraChromaPredMode.get(x0, y0) & 0xFF) == 4)
+                            || ((picture.intraChromaPredMode.get(xP, yP) & 0xFF) == 4
+                                    && (picture.intraChromaPredMode.get(xP + nCbS / 2, yP) & 0xFF) == 4
+                                    && (picture.intraChromaPredMode.get(xP, yP + nCbS / 2) & 0xFF) == 4
+                                    && (picture.intraChromaPredMode.get(xP + nCbS / 2, yP + nCbS / 2) & 0xFF) == 4))) {
+                picture.tuResidualActFlag.set(x0, y0, streamCabac.readTuResidualActFlag());
             }
 
             boolean decodeQp = false;
@@ -265,15 +265,15 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
             if (log2TrafoSize > 2 || (chromaArrayType & 0xFFFFFFFFL) == 3) {
                 boolean resScaleNeeded = cbfLuma
                         && header.pps.ppsRangeExt.crossComponentPredictionEnabledFlag
-                        && (picture.cuPredModeByPosition[x0][y0] == PredMode.MODE_INTER
-                                || (picture.intraChromaPredMode[x0][y0] & 0xFF) == 4);
+                        && (picture.cuPredMode.get(x0, y0) == PredMode.MODE_INTER
+                                || (picture.intraChromaPredMode.get(x0, y0) & 0xFF) == 4);
 
                 // Cb
                 if (resScaleNeeded) {
-                    picture.resScaleVal[1][x0][y0] = getResScaleVal(stream, 0);
+                    requireNoCrossComponentPrediction(getResScaleVal(stream, 0));
                 }
 
-                if (picture.cbfCb[x0][y0][trafoDepth]) {
+                if (picture.cbfCb.getBit(x0, y0, trafoDepth)) {
                     new ResidualCoding(stream, header, x0, y0, log2TrafoSizeC, 1);
                 }
 
@@ -287,7 +287,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                         1);
 
                 if ((chromaArrayType & 0xFFFFFFFFL) == 2) {
-                    if (picture.cbfCb[x0][y0 + offset][trafoDepth]) {
+                    if (picture.cbfCb.getBit(x0, y0 + offset, trafoDepth)) {
                         new ResidualCoding(stream, header, x0, y0 + offset, log2TrafoSizeC, 1);
                     }
 
@@ -303,10 +303,10 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
                 // Cr
                 if (resScaleNeeded) {
-                    picture.resScaleVal[2][x0][y0] = getResScaleVal(stream, 1);
+                    requireNoCrossComponentPrediction(getResScaleVal(stream, 1));
                 }
 
-                if (picture.cbfCr[x0][y0][trafoDepth]) {
+                if (picture.cbfCr.getBit(x0, y0, trafoDepth)) {
                     new ResidualCoding(stream, header, x0, y0, log2TrafoSizeC, 2);
                 }
 
@@ -320,7 +320,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                         2);
 
                 if ((chromaArrayType & 0xFFFFFFFFL) == 2) {
-                    if (picture.cbfCr[x0][y0 + offset][trafoDepth]) {
+                    if (picture.cbfCr.getBit(x0, y0 + offset, trafoDepth)) {
                         new ResidualCoding(stream, header, x0, y0 + offset, log2TrafoSizeC, 2);
                     }
 
@@ -335,7 +335,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                 }
             } else if (blkIdx == 3) {
                 // Cb
-                if (picture.cbfCb[xBase][yBase][trafoDepth - 1]) {
+                if (picture.cbfCb.getBit(xBase, yBase, trafoDepth - 1)) {
                     new ResidualCoding(stream, header, xBase, yBase, log2TrafoSize, 1);
                 }
 
@@ -349,7 +349,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                         1);
 
                 if (chromaArrayType == 2) {
-                    if (picture.cbfCb[xBase][yBase + offset][trafoDepth - 1]) {
+                    if (picture.cbfCb.getBit(xBase, yBase + offset, trafoDepth - 1)) {
                         new ResidualCoding(stream, header, xBase, yBase + offset, log2TrafoSize, 1);
                     }
 
@@ -364,7 +364,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                 }
 
                 // Cr
-                if (picture.cbfCr[xBase][yBase][trafoDepth - 1]) {
+                if (picture.cbfCr.getBit(xBase, yBase, trafoDepth - 1)) {
                     new ResidualCoding(stream, header, xBase, yBase, log2TrafoSize, 2);
                 }
 
@@ -378,7 +378,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                         2);
 
                 if (chromaArrayType == 2) {
-                    if (picture.cbfCr[xBase][yBase + offset][trafoDepth - 1]) {
+                    if (picture.cbfCr.getBit(xBase, yBase + offset, trafoDepth - 1)) {
                         new ResidualCoding(stream, header, xBase, yBase + offset, log2TrafoSize, 2);
                     }
 
@@ -403,7 +403,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
             int trafoDepth,
             int log2TrafoSize,
             int cIdx) {
-        PredMode cuPredMode = picture.cuPredModeByPosition[x0][y0];
+        PredMode cuPredMode = picture.cuPredMode.get(x0, y0);
         IntraPredMode intraPredMode;
 
         //        int residualDpcm = 0;
@@ -412,9 +412,9 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
         if (cuPredMode == PredMode.MODE_INTRA) {
             intraPredMode = cIdx == 0
-                    ? picture.intraPredModeY[x0][y0]
-                    : picture.intraPredModeC[x0 * (picture.sps.getSubWidthC() & 0xFF)][
-                            y0 * (picture.sps.getSubHeightC() & 0xFF)];
+                    ? picture.intraPredModeY.get(x0, y0)
+                    : picture.intraPredModeC.get(
+                            x0 * (picture.sps.getSubWidthC() & 0xFF), y0 * (picture.sps.getSubHeightC() & 0xFF));
 
             samples = decodeIntraPrediction(stream, picture, x0, y0, intraPredMode, nTbS, cIdx);
 
@@ -801,7 +801,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
             int cIdx,
             int nTbS,
             ResidualBuffers residualBuffers) {
-        SliceSegmentHeader sliceHeader = picture.getSliceHeaders().get(picture.sliceHeaderIndex[xTbY][yTbY]);
+        SliceSegmentHeader sliceHeader = picture.getSliceHeaders().get(picture.sliceHeaderIndex.get(xTbY, yTbY));
 
         int bitDepth = ((cIdx == 0) ? picture.sps.getBitDepthY() : picture.sps.getBitDepthC()) & 0xFF;
         int bdShift = Math.max(20 - bitDepth, picture.sps.spsRangeExt.extendedPrecisionProcessingFlag ? 11 : 0);
@@ -832,7 +832,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                         0,
                         51 + (picture.sps.getQpBdOffsetY() & 0xFF),
                         streamContext.getQpY()
-                                + (picture.tuResidualActFlag[xTbY][yTbY]
+                                + (picture.tuResidualActFlag.get(xTbY, yTbY)
                                         ? picture.pps.getPpsActQpOffsetY() + sliceHeader.sliceActYQpOffset
                                         : 0));
         };
@@ -956,6 +956,13 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         }
 
         return y;
+    }
+
+    // Cross-component prediction (7.3.8.12) is parsed but not applied: a stream that uses it cannot be decoded right
+    private static void requireNoCrossComponentPrediction(int resScaleVal) {
+        if (resScaleVal != 0) {
+            throw new HeicFormatException("Cross-component prediction is not supported");
+        }
     }
 
     private int getResScaleVal(BitStreamWithNalSupport stream, int c) {

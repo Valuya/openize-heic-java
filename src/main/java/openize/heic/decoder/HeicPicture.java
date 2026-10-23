@@ -37,41 +37,35 @@ public class HeicPicture {
     public int[][][][] saoOffsetVal;
     public int[][][] saoEoClass;
 
-    public int[][][] resScaleVal;
-
     public int[][][][] saoOffsetAbs;
     public int[][][][] saoOffsetSign;
     public int[][][] saoBandPosition;
 
     public /*UInt32*/ int[][] sliceAddrRs;
-    public int[][] sliceHeaderIndex;
-    public IntraPredMode[][] intraPredModeY;
-    public IntraPredMode[][] intraPredModeC;
-
-    public int[][] ctDepthByPosition;
-    public PredMode[][] cuPredModeByPosition;
-    public int[][] qpYByPosition;
-    public int[][] log2CbSizeByPosition;
-    public boolean[][] mergeFlag;
-
-    public boolean[][] cuSkipFlag;
-    public boolean[][] paletteModeFlag;
-    public boolean[][] pcmFlag;
-    public boolean[][] prevIntraLumaPredFlag;
-    public int[][] mpmIdx;
-    public IntraPredMode[][] remIntraLumaPredMode;
-    public byte[][] intraChromaPredMode;
-
-    public boolean[][] tuResidualActFlag;
-
-    // public bool[,][] split_transform_flag;
-    public boolean[][][] cbfCb;
-    public boolean[][][] cbfCr;
-    public boolean[][][] cbfLuma;
-
-    // public bool[,][] transform_skip_flag;
-    public boolean[][][] explicitRdpcmFlag;
-    public boolean[][][] explicitRdpcmDirFlag;
+    // per 4x4 luma block, or per CTB for the slice header index
+    public final BlockIntMap sliceHeaderIndex;
+    public final BlockEnumMap<IntraPredMode> intraPredModeY;
+    public final BlockEnumMap<IntraPredMode> intraPredModeC;
+    public final BlockIntMap ctDepth;
+    public final BlockEnumMap<PredMode> cuPredMode;
+    public final BlockIntMap qpY;
+    public final BlockIntMap log2CbSize;
+    public final BlockFlagMap mergeFlag;
+    public final BlockFlagMap cuSkipFlag;
+    public final BlockFlagMap paletteModeFlag;
+    public final BlockFlagMap pcmFlag;
+    public final BlockFlagMap prevIntraLumaPredFlag;
+    public final BlockIntMap mpmIdx;
+    public final BlockEnumMap<IntraPredMode> remIntraLumaPredMode;
+    public final BlockIntMap intraChromaPredMode;
+    public final BlockFlagMap tuResidualActFlag;
+    // one bit per transform tree depth
+    public final BlockIntMap cbfCb;
+    public final BlockIntMap cbfCr;
+    public final BlockIntMap cbfLuma;
+    // one bit per colour component
+    public final BlockIntMap explicitRdpcmFlag;
+    public final BlockIntMap explicitRdpcmDirFlag;
 
     public int[] pcmSampleLuma;
     public int[] pcmSampleChroma;
@@ -110,7 +104,6 @@ public class HeicPicture {
 
         saoTypeIdx = new int[chromaCount][][];
         saoEoClass = new int[chromaCount][][];
-        resScaleVal = new int[chromaCount][][];
         saoOffsetVal = new int[chromaCount][][][];
         saoOffsetAbs = new int[chromaCount][][][];
         saoOffsetSign = new int[chromaCount][][][];
@@ -123,7 +116,6 @@ public class HeicPicture {
         for (int i = 0; i < chromaCount; i++) {
             saoTypeIdx[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
             saoEoClass[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
-            resScaleVal[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
             saoOffsetVal[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
             saoOffsetAbs[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
             saoOffsetSign[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
@@ -136,67 +128,40 @@ public class HeicPicture {
         }
 
         blockFlags = new byte[(int) (widthMax >> 2)][(int) (heightMax >> 2)];
-        ctDepthByPosition = new int[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        cuPredModeByPosition = PredMode.createArray2D((int) (widthMax & 0xFFFFFFFFL), (int) (heightMax & 0xFFFFFFFFL));
-        qpYByPosition = new int[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        log2CbSizeByPosition = new int[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        intraPredModeY = IntraPredMode.createArray2D((int) (widthMax & 0xFFFFFFFFL), (int) (heightMax & 0xFFFFFFFFL));
-        intraPredModeC = IntraPredMode.createArray2D((int) (widthMax & 0xFFFFFFFFL), (int) (heightMax & 0xFFFFFFFFL));
-
-        mergeFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        cuSkipFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        paletteModeFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        pcmFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        prevIntraLumaPredFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-
-        mpmIdx = new int[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        remIntraLumaPredMode =
-                IntraPredMode.createArray2D((int) (widthMax & 0xFFFFFFFFL), (int) (heightMax & 0xFFFFFFFFL));
-        intraChromaPredMode = new byte[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-
-        tuResidualActFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-
-        // split_transform_flag = new bool[xMax, yMax][];
-        cbfCb = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)][];
-        cbfCr = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)][];
-        cbfLuma = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)][];
-
-        // transform_skip_flag = new bool[xMax, yMax][];
-        explicitRdpcmFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)][];
-        explicitRdpcmDirFlag = new boolean[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)][];
+        int width = (int) widthMax;
+        int height = (int) heightMax;
+        sliceHeaderIndex = new BlockIntMap(width, height);
+        ctDepth = new BlockIntMap(width, height);
+        cuPredMode = new BlockEnumMap<>(PredMode.class, width, height);
+        qpY = new BlockIntMap(width, height);
+        log2CbSize = new BlockIntMap(width, height);
+        intraPredModeY = new BlockEnumMap<>(IntraPredMode.class, width, height);
+        intraPredModeC = new BlockEnumMap<>(IntraPredMode.class, width, height);
+        mergeFlag = new BlockFlagMap(width, height);
+        cuSkipFlag = new BlockFlagMap(width, height);
+        paletteModeFlag = new BlockFlagMap(width, height);
+        pcmFlag = new BlockFlagMap(width, height);
+        prevIntraLumaPredFlag = new BlockFlagMap(width, height);
+        mpmIdx = new BlockIntMap(width, height);
+        remIntraLumaPredMode = new BlockEnumMap<>(IntraPredMode.class, width, height);
+        intraChromaPredMode = new BlockIntMap(width, height);
+        tuResidualActFlag = new BlockFlagMap(width, height);
+        cbfCb = new BlockIntMap(width, height);
+        cbfCr = new BlockIntMap(width, height);
+        cbfLuma = new BlockIntMap(width, height);
+        explicitRdpcmFlag = new BlockIntMap(width, height);
+        explicitRdpcmDirFlag = new BlockIntMap(width, height);
     }
 
     public final void cleanMemory() {
         saoTypeIdx = null;
         saoOffsetVal = null;
         saoEoClass = null;
-        resScaleVal = null;
         saoOffsetAbs = null;
         saoOffsetSign = null;
         saoBandPosition = null;
         sliceAddrRs = null;
-        sliceHeaderIndex = null;
         blockFlags = null;
-        intraPredModeY = null;
-        intraPredModeC = null;
-        ctDepthByPosition = null;
-        cuPredModeByPosition = null;
-        qpYByPosition = null;
-        log2CbSizeByPosition = null;
-        mergeFlag = null;
-        cuSkipFlag = null;
-        paletteModeFlag = null;
-        pcmFlag = null;
-        prevIntraLumaPredFlag = null;
-        mpmIdx = null;
-        remIntraLumaPredMode = null;
-        intraChromaPredMode = null;
-        tuResidualActFlag = null;
-        cbfCb = null;
-        cbfCr = null;
-        cbfLuma = null;
-        explicitRdpcmFlag = null;
-        explicitRdpcmDirFlag = null;
         pcmSampleLuma = null;
         pcmSampleChroma = null;
     }
@@ -277,33 +242,28 @@ public class HeicPicture {
                     nPbW << 1 != nCbS || nPbH << 1 != nCbS || partIdx != 1 || yCb + nPbH > yNbY || xCb + nPbW <= xNbY;
         }
 
-        if (availableN && cuPredModeByPosition[xNbY][yNbY] == PredMode.MODE_INTRA) availableN = false;
+        if (availableN && cuPredMode.get(xNbY, yNbY) == PredMode.MODE_INTRA) availableN = false;
 
         return availableN;
     }
 
     final void setCtDepth(int x0, int y0, int log2CbSize, int cqtDepth) {
-        int nCbS = 1 << log2CbSize;
-        for (int i = x0; i < x0 + nCbS; i++) for (int j = y0; j < y0 + nCbS; j++) ctDepthByPosition[i][j] = cqtDepth;
+        ctDepth.fill(x0, y0, 1 << log2CbSize, cqtDepth);
     }
 
     final void setCuPredMode(int x0, int y0, int nCbS, PredMode mode) {
-        for (int i = x0; i < x0 + nCbS; i++) {
-            for (int j = y0; j < y0 + nCbS; j++) {
-                cuPredModeByPosition[i][j] = mode;
-
-                if (mode == PredMode.MODE_SKIP) mergeFlag[i][j] = true;
-            }
+        cuPredMode.fill(x0, y0, nCbS, mode);
+        if (mode == PredMode.MODE_SKIP) {
+            mergeFlag.fill(x0, y0, nCbS, true);
         }
     }
 
     final void setPcmFlag(int x0, int y0, int nCbS, boolean value) {
-        for (int i = x0; i < x0 + nCbS; i++) for (int j = y0; j < y0 + nCbS; j++) pcmFlag[i][j] = value;
+        pcmFlag.fill(x0, y0, nCbS, value);
     }
 
-    final void setQpY(int x0, int y0, int log2CbSize, int qpY) {
-        int nCbS = 1 << log2CbSize;
-        for (int i = x0; i < x0 + nCbS; i++) for (int j = y0; j < y0 + nCbS; j++) qpYByPosition[i][j] = qpY;
+    final void setQpY(int x0, int y0, int log2CbSize, int qpYValue) {
+        qpY.fill(x0, y0, 1 << log2CbSize, qpYValue);
     }
     // Marks the left and top edges of a transform (or coding) block for the deblocking filter
     final void markTransformBlock(int x0, int y0, int size) {
@@ -325,10 +285,8 @@ public class HeicPicture {
         LoopFilter.apply(this);
     }
 
-    final void setLog2CbSize(int x0, int y0, int log2CbSize) {
-        int nCbS = 1 << log2CbSize;
-        for (int i = x0; i < x0 + nCbS; i++)
-            for (int j = y0; j < y0 + nCbS; j++) log2CbSizeByPosition[i][j] = log2CbSize;
+    final void setLog2CbSize(int x0, int y0, int log2CbSizeValue) {
+        log2CbSize.fill(x0, y0, 1 << log2CbSizeValue, log2CbSizeValue);
     }
 
     // 8.4.2 Derivation process for luma intra prediction mode
@@ -338,20 +296,20 @@ public class HeicPicture {
 
         if (!availableA) {
             candIntraPredModeA = IntraPredMode.INTRA_DC;
-        } else if (cuPredModeByPosition[xPb - 1][yPb] != PredMode.MODE_INTRA || pcmFlag[xPb - 1][yPb]) {
+        } else if (cuPredMode.get(xPb - 1, yPb) != PredMode.MODE_INTRA || pcmFlag.get(xPb - 1, yPb)) {
             candIntraPredModeA = IntraPredMode.INTRA_DC;
         } else {
-            candIntraPredModeA = intraPredModeY[xPb - 1][yPb];
+            candIntraPredModeA = intraPredModeY.get(xPb - 1, yPb);
         }
 
         if (!availableB) {
             candIntraPredModeB = IntraPredMode.INTRA_DC;
-        } else if (cuPredModeByPosition[xPb][yPb - 1] != PredMode.MODE_INTRA || pcmFlag[xPb][yPb - 1]) {
+        } else if (cuPredMode.get(xPb, yPb - 1) != PredMode.MODE_INTRA || pcmFlag.get(xPb, yPb - 1)) {
             candIntraPredModeB = IntraPredMode.INTRA_DC;
         } else if (yPb - 1 < ((yPb >> (sps.getCtbLog2SizeY() & 0xFF)) << (sps.getCtbLog2SizeY() & 0xFF))) {
             candIntraPredModeB = IntraPredMode.INTRA_DC;
         } else {
-            candIntraPredModeB = intraPredModeY[xPb][yPb - 1];
+            candIntraPredModeB = intraPredModeY.get(xPb, yPb - 1);
         }
 
         IntraPredMode[] candModeList = IntraPredMode.createArray(3);
@@ -385,8 +343,8 @@ public class HeicPicture {
     final IntraPredMode setIntraPredModeY(int xPb, int yPb, int pbSize, IntraPredMode[] candModeList) {
         IntraPredMode mode;
 
-        if (prevIntraLumaPredFlag[xPb][yPb]) {
-            mode = candModeList[mpmIdx[xPb][yPb]];
+        if (prevIntraLumaPredFlag.get(xPb, yPb)) {
+            mode = candModeList[mpmIdx.get(xPb, yPb)];
         } else {
             if (candModeList[0].ordinal() > candModeList[1].ordinal()) {
                 final IntraPredMode tmp = candModeList[0];
@@ -406,7 +364,7 @@ public class HeicPicture {
                 candModeList[2] = tmp;
             }
 
-            mode = remIntraLumaPredMode[xPb][yPb];
+            mode = remIntraLumaPredMode.get(xPb, yPb);
 
             int intMode = mode.ordinal();
             for (int i = 0; i < 3; i++) {
@@ -415,20 +373,16 @@ public class HeicPicture {
             mode = IntraPredMode.get(intMode);
         }
 
-        for (int i = xPb; i < xPb + pbSize; i++) {
-            for (int j = yPb; j < yPb + pbSize; j++) {
-                intraPredModeY[i][j] = mode;
-            }
-        }
+        intraPredModeY.fill(xPb, yPb, pbSize, mode);
 
         return mode;
     }
 
     final void setIntraPredModeC(int xPb, int yPb, int pbSize, IntraPredMode mode) {
-        for (int i = xPb; i < xPb + pbSize; i++) for (int j = yPb; j < yPb + pbSize; j++) intraPredModeC[i][j] = mode;
+        intraPredModeC.fill(xPb, yPb, pbSize, mode);
     }
 
-    final IntraPredMode deriveIntraPredModeIndex(IntraPredMode intraLumaPredMode, byte intraChromaPredMode) {
+    final IntraPredMode deriveIntraPredModeIndex(IntraPredMode intraLumaPredMode, int intraChromaPredMode) {
         if ((intraChromaPredMode & 0xFF) == 4) return intraLumaPredMode;
 
         IntraPredMode candidate;

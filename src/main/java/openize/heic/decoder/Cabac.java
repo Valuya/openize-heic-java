@@ -1125,8 +1125,8 @@ public class Cabac {
         boolean availableL = picture.checkZScanAvailability(x0, y0, x0 - 1, y0);
         boolean availableA = picture.checkZScanAvailability(x0, y0, x0, y0 - 1);
 
-        boolean condL = x0 > 0 && picture.ctDepthByPosition[x0 - 1][y0] > cqtDepth;
-        boolean condA = y0 > 0 && picture.ctDepthByPosition[x0][y0 - 1] > cqtDepth;
+        boolean condL = x0 > 0 && picture.ctDepth.get(x0 - 1, y0) > cqtDepth;
+        boolean condA = y0 > 0 && picture.ctDepth.get(x0, y0 - 1) > cqtDepth;
 
         return (condL && availableL ? 1 : 0) + (condA && availableA ? 1 : 0);
     }

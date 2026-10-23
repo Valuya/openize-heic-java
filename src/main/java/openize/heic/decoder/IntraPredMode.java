@@ -58,14 +58,6 @@ public enum IntraPredMode {
         return array;
     }
 
-    static IntraPredMode[][] createArray2D(int count1, int count2) {
-        IntraPredMode[][] array = new IntraPredMode[count1][count2];
-        for (IntraPredMode[] modes : array) {
-            Arrays.fill(modes, INTRA_PLANAR);
-        }
-        return array;
-    }
-
     public static IntraPredMode get(int id) {
         return values[id];
     }
