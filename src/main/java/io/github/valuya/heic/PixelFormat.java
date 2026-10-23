@@ -29,6 +29,22 @@ public enum PixelFormat {
         return bytesPerPixel;
     }
 
+    // the position of the alpha byte in a pixel, -1 for a format without alpha
+    int alphaOffset() {
+        return switch (this) {
+            case RGB24 -> -1;
+            case RGBA32, BGRA32 -> 3;
+            case ARGB32 -> 0;
+        };
+    }
+
+    // writes count 0xAARRGGBB pixels, the first at output[index] and each step bytes after the one before
+    void write(int[] argb, int count, byte[] output, int index, int step) {
+        for (int i = 0; i < count; i++) {
+            write(argb[i], output, index + i * step);
+        }
+    }
+
     // writes the 0xAARRGGBB pixel at output[index] in this format
     void write(int argb, byte[] output, int index) {
         byte alpha = (byte) (argb >>> 24);

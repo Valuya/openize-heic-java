@@ -42,7 +42,8 @@ final class DecoderWorkspace {
     static final int DEBLOCKED_BAND = 17;
     static final int DEBLOCKED_LINE_ABOVE = 20;
     static final int SLICE_DATA = 23;
-    private static final int SLOT_COUNT = 24;
+    static final int CONVERTED_ROW = 24;
+    private static final int SLOT_COUNT = 25;
 
     final ResidualBuffers residualBuffers = new ResidualBuffers();
     final IntraPredictionBuffers intraPredictionBuffers = new IntraPredictionBuffers();
@@ -93,6 +94,16 @@ final class DecoderWorkspace {
             return kept;
         }
         byte[] allocated = new byte[length];
+        arrays[slot] = allocated;
+        return allocated;
+    }
+
+    /** An array of at least {@code length} ints, not cleared: the one of the slot when it is long enough. */
+    int[] intBuffer(int slot, int length) {
+        if (arrays[slot] instanceof int[] kept && kept.length >= length) {
+            return kept;
+        }
+        int[] allocated = new int[length];
         arrays[slot] = allocated;
         return allocated;
     }

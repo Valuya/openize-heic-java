@@ -18,7 +18,10 @@ import io.github.valuya.heic.PixelFormat;
 import io.github.valuya.heic.PixelRegion;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class PixelApiTest {
     // 430x430 with an alpha plane, so that every byte of a pixel is meaningful
@@ -64,6 +67,40 @@ class PixelApiTest {
         assertThat(rgbPixel).containsExactly((byte) (argb >> 16), (byte) (argb >> 8), (byte) argb);
         assertThat(bgraPixel)
                 .containsExactly((byte) argb, (byte) (argb >> 8), (byte) (argb >> 16), (byte) (argb >>> 24));
+    }
+
+    // decodeBytes writes the bytes itself, the alpha plane's too: they are the ARGB pixels in the format, with the
+    // alpha of the alpha sample and the strided rows of a rotated one
+    @ParameterizedTest
+    @EnumSource(PixelFormat.class)
+    void decodesBytesAsTheArgbPixelsInTheFormat(PixelFormat pixelFormat) throws IOException {
+        for (String sampleName : List.of(ALPHA_SAMPLE, "iphone_rotated_and_mirrored.heic")) {
+            HeicImage heicImage = HeicImage.load(TestSamples.samplePath(sampleName));
+            PixelRegion region = new PixelRegion(30, 20, 300, 200);
+            int[] argbPixels = heicImage.decodeArgb(region);
+
+            byte[] bytes = heicImage.decodeBytes(pixelFormat, region);
+
+            assertThat(bytes).as(sampleName).isEqualTo(inFormat(argbPixels, pixelFormat));
+        }
+    }
+
+    private static byte[] inFormat(int[] argbPixels, PixelFormat pixelFormat) {
+        int bytesPerPixel = pixelFormat.bytesPerPixel();
+        byte[] bytes = new byte[argbPixels.length * bytesPerPixel];
+        for (int i = 0; i < argbPixels.length; i++) {
+            int argb = argbPixels[i];
+            int[] shifts = switch (pixelFormat) {
+                case RGB24 -> new int[] {16, 8, 0};
+                case RGBA32 -> new int[] {16, 8, 0, 24};
+                case ARGB32 -> new int[] {24, 16, 8, 0};
+                case BGRA32 -> new int[] {0, 8, 16, 24};
+            };
+            for (int b = 0; b < bytesPerPixel; b++) {
+                bytes[i * bytesPerPixel + b] = (byte) (argb >>> shifts[b]);
+            }
+        }
+        return bytes;
     }
 
     @Test

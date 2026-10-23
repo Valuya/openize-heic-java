@@ -211,10 +211,16 @@ public final class HeicImageFrame {
      * @throws HeicImageTooLargeException if the region has more pixels than the decoding options allow
      */
     public byte[] decodeBytes(PixelFormat pixelFormat, PixelRegion region) {
-        int[] argbPixels = decodeArgb(region);
-        byte[] output = new byte[argbPixels.length * pixelFormat.bytesPerPixel()];
-        for (int pixelIndex = 0; pixelIndex < argbPixels.length; pixelIndex++) {
-            pixelFormat.write(argbPixels[pixelIndex], output, pixelIndex * pixelFormat.bytesPerPixel());
+        requireInside(region);
+        parent.getDecodingOptions().checkPixelCount("Image %d".formatted(id), region.width(), region.height());
+        requireDecodableImage();
+        byte[] output = new byte[region.pixelCount() * pixelFormat.bytesPerPixel()];
+        PixelBox regionBox = new PixelBox(region.left(), region.top(), region.right(), region.bottom());
+        try {
+            decodeInto(PixelTarget.forRegion(regionBox, output, pixelFormat), false, new DecoderWorkspace.Pool());
+        } catch (IsoBmffFormatException exception) {
+            throw new HeicFormatException(
+                    "Malformed data in image %d: %s".formatted(id, exception.getMessage()), exception);
         }
         return output;
     }
@@ -441,7 +447,8 @@ public final class HeicImageFrame {
                         .formatted(id, fourCharacterCodeText(itemTypeCode)));
         }
 
-        if (!alphaOnly && alphaFrame != null) {
+        // a destination without alpha needs no alpha plane
+        if (!alphaOnly && alphaFrame != null && target.keepsAlpha()) {
             alphaFrame.decodeInto(target, true, workspaces);
         }
     }

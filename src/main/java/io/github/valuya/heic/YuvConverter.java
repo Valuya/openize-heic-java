@@ -61,17 +61,14 @@ final class YuvConverter {
         int log2SubHeightC = sps.getSubHeightC() - 1;
         ChannelTables tables = channelTables(picture.workspace);
 
-        int[] destination = target.destination();
-        int stepX = target.stepX();
-        int stepY = target.stepY();
-        int base = target.base();
-
-        if (!picture.highColorRange && !monochrome && !alphaOnly) {
+        if (target.holdsInts() && !picture.highColorRange && !monochrome && !alphaOnly) {
             convert8BitColour(picture, convertedBox, tables, target, log2SubWidthC, log2SubHeightC);
             return;
         }
+
+        // a row at a time, through a buffer of its ARGB pixels, or of its alpha
+        int[] rowPixels = picture.workspace.intBuffer(DecoderWorkspace.CONVERTED_ROW, convertedBox.width());
         for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
-            int rowIndex = base + row * stepY;
             int lumaRow = row * picture.planeWidths[0];
             int chromaRow = monochrome ? 0 : (row >> log2SubHeightC) * picture.planeWidths[1];
             for (int col = convertedBox.left(); col < convertedBox.right(); col++) {
@@ -92,13 +89,14 @@ final class YuvConverter {
                     blue = scaledLuma + tables.cbToBlue[cb];
                 }
 
-                int index = rowIndex + col * stepX;
                 int red8 = to8Bits(red);
-                if (alphaOnly) {
-                    destination[index] = (destination[index] & 0x00FFFFFF) | (red8 << 24);
-                } else {
-                    destination[index] = 0xFF000000 | (red8 << 16) | (to8Bits(green) << 8) | to8Bits(blue);
-                }
+                rowPixels[col - convertedBox.left()] =
+                        alphaOnly ? red8 : 0xFF000000 | (red8 << 16) | (to8Bits(green) << 8) | to8Bits(blue);
+            }
+            if (alphaOnly) {
+                target.writeAlphaRow(row, convertedBox.left(), rowPixels, convertedBox.width());
+            } else {
+                target.writeRow(row, convertedBox.left(), rowPixels, convertedBox.width());
             }
         }
     }
