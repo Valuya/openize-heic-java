@@ -20,11 +20,36 @@ rejects malformed files cleanly, and is written as plain modern Java. It require
 * Exif metadata (read with [metadata-extractor](https://github.com/drewnoakes/metadata-extractor)), XMP and other
   MIME items.
 
-Decoded images match libheif within YCbCr to RGB rounding: at most 2 levels per channel.
+Decoded images match libheif within YCbCr to RGB rounding: at most 2 levels per channel. Of the 344 files of the
+HEIF conformance suite and of libheif's and pillow_heif's test data, every HEVC file libheif decodes decodes the same.
 
 Not supported: image sequences coded with P and B slices, codecs other than HEVC (AVIF, uncompressed `unci` images),
 applying ICC profiles or HDR gain maps, and the screen content coding tools (palette mode, adaptive colour
 transform) and cross-component prediction. Files that need them fail with `HeicFormatException`.
+
+## Performance
+
+The 10 photos and collections of `TestsData/samples` (0.6 to 16 MP; all but the HDR tone map and alpha test files),
+median of 5 to 7 decodes, Java 21 on an Intel Core Ultra 9 285H:
+
+| | one P-core | 8 E-cores | allocated for a 12 MP photo | smallest heap for it |
+|---|---|---|---|---|
+| this fork | 3.4 s | 0.87 s | 116 MB | 64 MB |
+| upstream Openize.HEIC 26.5.1 | 19.0 s | 20.3 s | 2.8 GB | 768 MB |
+| libheif 1.17 (native, `heif-convert`) | 2.7 s | 1.5 s | | |
+
+The photo is `iphone_photo.heic`, a grid of 512x512 tiles: 48 MB of its 116 MB is the decoded image itself. The
+16 MP `samsung_a71.heic` allocates 177 MB, 64 MB of it the image, and decodes in a 96 MB heap. The Java times leave
+out JIT warm-up; libheif's are per process, writing raw YCbCr. Java 21 and 26 decode equally fast.
+
+`DecodeBenchmark`, in the test sources, makes the measurement:
+
+```bash
+mvn -q test-compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
+taskset -c 4 java -cp target/classes:target/test-classes:$(cat target/classpath.txt) \
+        openize.heic.tests.DecodeBenchmark 4 7 false \
+        $(ls TestsData/samples/*.heic TestsData/samples/nokia/*.heic | grep -v -e tmap -e gimp_rgb)
+```
 
 ## Usage
 
