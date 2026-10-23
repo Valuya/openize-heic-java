@@ -13,96 +13,70 @@ package openize.isobmff;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * Contains colour information about the image.
- * If colour information is supplied in both this box, and also in the video bitstream,
- * this box takes precedence, and over‐rides the information in the bitstream.
- * </p>
+ * The colour space of an image (ISO/IEC 14496-12, 12.1.5). It takes precedence over the colour information of the
+ * coded image. Only the coded colour parameters of an {@code nclx} box are read, not ICC profiles.
  */
 public class ColourInformationBox extends Box {
-    /**
-     * <p>
-     * An indication of the type of colour information supplied.
-     * </p>
-     */
-    public final /*UInt32*/ long colourType;
+    private static final long NCLX = 0x6e636c78L;
 
-    /**
-     * <p>
-     * Indicates the chromaticity coordinates of the source primaries.
-     * </p>
-     */
-    public /*UInt16*/ int colourPrimaries;
+    private final long colourType;
+    private final int colourPrimaries;
+    private final int transferCharacteristics;
+    private final int matrixCoefficients;
+    private final boolean fullRange;
 
-    /**
-     * <p>
-     * Indicates the reference opto-electronic transfer characteristic.
-     * </p>
-     */
-    public /*UInt16*/ int transferCharacteristics;
-
-    /**
-     * <p>
-     * Describes the matrix coefficients used in deriving luma and chroma signals from the green, blue, and red.
-     * </p>
-     */
-    public /*UInt16*/ int matrixCoefficients;
-
-    /**
-     * <p>
-     * Indicates the black level and range of the luma and chroma signals as derived from E′Y, E′PB, and E′PR or E′R, E′G, and E′B real-valued component signals.
-     * </p>
-     */
-    public boolean fullRangeFlag;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param header Box header.
-     */
     ColourInformationBox(BitStreamReader stream, BoxHeader header) {
         super(header);
 
-        colourType = stream.read(32) & 0xFFFFFFFFL;
-
-        if ((colourType & 0xFFFFFFFFL) == 0x6e636c78) /* nclx; on-screen colours */ {
-            colourPrimaries = stream.read(16) & 0xFFFF;
-            transferCharacteristics = stream.read(16) & 0xFFFF;
-            matrixCoefficients = stream.read(16) & 0xFFFF;
-            fullRangeFlag = stream.readFlag();
-            stream.skipBits(7);
+        colourType = stream.readLong(32);
+        if (colourType == NCLX) {
+            colourPrimaries = stream.read(16);
+            transferCharacteristics = stream.read(16);
+            matrixCoefficients = stream.read(16);
+            fullRange = stream.readFlag();
+            stream.skipBits(7); // reserved
+        } else {
+            colourPrimaries = 0;
+            transferCharacteristics = 0;
+            matrixCoefficients = 0;
+            fullRange = false;
         }
-        /*  else if ((colour_type & 0xFFFFFFFFL) == 0x72494343) // rICC
-        {
-            //restricted ICC profile
-            //ICC_profile;
-        }
-        else if ((colour_type & 0xFFFFFFFFL) == 0x70726f66) // prof
-        {
-            //unrestricted ICC profile
-            //ICC_profile;
-        }*/
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString() {
-        return String.format("%s Color type: %s", this.type, fourCharacterCodeText(colourType));
-    }
-
-    /**
-     * <p>
-     * Color type code as a string.
-     * </p>
+     * The type of colour information, a four-character code: {@code nclx} for coded colour parameters, {@code rICC}
+     * or {@code prof} for an ICC profile.
      */
     public final String getColourType() {
         return fourCharacterCodeText(colourType);
+    }
+
+    /**
+     * The colour primaries, coded as in ISO/IEC 23091-2; 0 unless the type is {@code nclx}.
+     */
+    public final int getColourPrimaries() {
+        return colourPrimaries;
+    }
+
+    /**
+     * The transfer characteristics, coded as in ISO/IEC 23091-2; 0 unless the type is {@code nclx}.
+     */
+    public final int getTransferCharacteristics() {
+        return transferCharacteristics;
+    }
+
+    /**
+     * The matrix coefficients, coded as in ISO/IEC 23091-2; 0 unless the type is {@code nclx}.
+     */
+    public final int getMatrixCoefficients() {
+        return matrixCoefficients;
+    }
+
+    /**
+     * Whether the samples use the full range of their bit depth rather than a video range; false unless the type is
+     * {@code nclx}.
+     */
+    public final boolean isFullRange() {
+        return fullRange;
     }
 }

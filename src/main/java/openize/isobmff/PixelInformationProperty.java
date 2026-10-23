@@ -13,54 +13,26 @@ package openize.isobmff;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * The PixelInformationProperty descriptive item property indicates the number and bit depth of
- * colour components in the reconstructed image of the associated image item.
- * </p>
+ * The number of channels of an image and the bit depth of each (ISO/IEC 23008-12, 6.5.6).
  */
 public class PixelInformationProperty extends FullBox {
-    /**
-     * <p>
-     * This field signals the number of channels by each pixel of the reconstructed image ofthe associated image item.
-     * </p>
-     */
-    public final byte numChannels;
+    private final byte[] bitsPerChannel;
 
-    /**
-     * <p>
-     * This field indicates the bits per channel for the pixels of the reconstructed image of the associated image item.
-     * </p>
-     */
-    public final byte[] bitsPerChannel;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param header Box header.
-     */
     PixelInformationProperty(BitStreamReader stream, BoxHeader header) {
         super(stream, header);
+        int channelCount = stream.read(8);
+        requireEntriesFit(channelCount, 1);
+        bitsPerChannel = stream.readBytes(channelCount);
+    }
 
-        numChannels = (byte) stream.read(8);
-        bitsPerChannel = new byte[numChannels & 0xFF];
-        for (int i = 0; i < (numChannels & 0xFF); i++) bitsPerChannel[i] = (byte) stream.read(8);
+    public final int getChannelCount() {
+        return bitsPerChannel.length;
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The bit depth of each channel, an unsigned byte; a copy.
      */
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%s ch: %d bits:", type, numChannels));
-        for (byte b : bitsPerChannel) {
-            sb.append(' ').append(String.format("%x", b));
-        }
-        return sb.toString();
+    public final byte[] getBitsPerChannel() {
+        return bitsPerChannel.clone();
     }
 }

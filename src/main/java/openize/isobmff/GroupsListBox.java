@@ -15,71 +15,22 @@ import java.util.List;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * An entity group is a grouping of items, which may also group tracks. The entities in an entity group
- * share a particular characteristic or have a particular relationship, as indicated by the grouping type.
- * </p>
+ * Groups of entities, here items, that share a characteristic or a relationship (ISO/IEC 14496-12, 8.18).
  */
 public class GroupsListBox extends Box {
-    /**
-     * <p>
-     * List of nested boxes.
-     * </p>
-     */
-    public final List<EntityToGroupBox> boxes;
+    private final List<EntityToGroupBox> entityGroups;
 
-    /**
-     * <p>
-     *     Observable collection of the nested boxes.
-     * </p>
-     */
-    private ObservableCollection<EntityToGroupBox> children;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream, box size and start position.
-     * </p>
-     *
-     * @param stream   File stream.
-     * @param header   Box header.
-     */
     GroupsListBox(BitStreamReader stream, BoxHeader header) {
         super(header);
 
-        boxes = new ArrayList<>();
-
+        List<EntityToGroupBox> readEntityGroups = new ArrayList<>();
         while (hasMoreData(stream)) {
-            boxes.add(Box.parseBox(stream, EntityToGroupBox::new));
+            readEntityGroups.add(parseBox(stream, EntityToGroupBox::new));
         }
-
-        setChildren(new ObservableCollection<>(boxes));
+        entityGroups = List.copyOf(readEntityGroups);
     }
 
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString() {
-        return this.type.name();
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final ObservableCollection<EntityToGroupBox> getChildren() {
-        return children;
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<EntityToGroupBox> value) {
-        children = value;
+    public final List<EntityToGroupBox> getEntityGroups() {
+        return entityGroups;
     }
 }

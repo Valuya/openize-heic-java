@@ -10,36 +10,32 @@
 
 package openize.isobmff;
 
-import java.util.BitSet;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * Structure for storing data in IsoBmff files with specified box version and flags.
- * </p>
+ * A box whose header is followed by a version and flags (ISO/IEC 14496-12, 4.2).
  */
 public class FullBox extends Box {
-    /**
-     * <p>
-     * An integer that specifies the version of this format of the box.
-     * </p>
-     */
-    protected final byte version;
-
-    /**
-     * <p>
-     * A map of flags.
-     * </p>
-     */
-    protected final BitSet flags = new BitSet(24);
+    private final int version;
+    private final int flags;
 
     FullBox(BitStreamReader stream, BoxHeader header) {
         super(header);
+        version = stream.read(8);
+        flags = stream.read(24);
+    }
 
-        version = (byte) stream.read(8);
+    /**
+     * The version of the format of the box.
+     */
+    final int getVersion() {
+        return version;
+    }
 
-        for (int i = 0; i < 24; i++) {
-            flags.set(i, stream.readFlag());
-        }
+    /**
+     * The 24 flag bits, whose meaning depends on the box type.
+     */
+    final int getFlags() {
+        return flags;
     }
 }

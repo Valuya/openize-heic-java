@@ -18,173 +18,127 @@ import openize.isobmff.BoxType;
 import openize.isobmff.EntityToGroupBox;
 import openize.isobmff.GroupsListBox;
 import openize.isobmff.IlocItem;
+import openize.isobmff.ItemDataBox;
+import openize.isobmff.ItemInfoBox;
 import openize.isobmff.ItemInfoEntry;
-import openize.isobmff.ItemReferenceBox;
+import openize.isobmff.ItemPropertiesBox;
+import openize.isobmff.ItemProtectionBox;
 import openize.isobmff.MetaBox;
+import openize.isobmff.PrimaryItemBox;
 import openize.isobmff.SingleItemTypeReferenceBox;
 
 /**
- * <p>
- * Heic image header class. Grants convenient access to IsoBmff metadata container.
- * </p>
+ * The description of the items of a HEIC file, read from its meta box: their types, locations, properties and
+ * references.
  */
 public class HeicHeader {
-    /**
-     * <p>
-     * Meta data IsoBmff box.
-     * </p>
-     * @return The meta data IsoBmff box.
-     */
+    private final MetaBox meta;
+    private final List<ItemInfoEntry> itemInfoEntries;
+
+    HeicHeader(MetaBox meta) {
+        this.meta = meta;
+        itemInfoEntries = meta.getItemInfoBoxOptional()
+                .map(ItemInfoBox::getEntries)
+                .orElseThrow(() -> new HeicFormatException("No item information box (iinf)"));
+        int protectionSchemeCount = meta.getItemProtectionBoxOptional()
+                .map(ItemProtectionBox::getProtectionSchemeCount)
+                .orElse(0);
+        if (protectionSchemeCount > 0) {
+            throw new HeicFormatException("Protected items are not supported");
+        }
+    }
+
     public final MetaBox getMeta() {
         return meta;
     }
-    /**
-     * <p>
-     * Meta data IsoBmff box.
-     * </p>
-     */
-    private final MetaBox meta;
 
     /**
-     * <p>
-     * The identifier of the default frame.
-     * </p>
-     * @return The identifier of the default frame.
+     * The id of the primary item, the image shown by default; 0 when the file names none.
      */
-    public final /*UInt32*/ long getDefaultFrameId() {
-        return (meta.getpitm() != null ? meta.getpitm().itemID : 0);
+    public final long getDefaultFrameId() {
+        return meta.getPrimaryItemBoxOptional().map(PrimaryItemBox::getItemId).orElse(0L);
     }
 
     /**
-     * <p>
-     * Initializes a new instance of the heic image header.
-     * </p>
-     * @param meta {@link MetaBox} data.
+     * Every item, including derived images that have no data of their own.
      */
-    HeicHeader(MetaBox meta) {
-        if (meta.getiinf() == null) {
-            throw new HeicFormatException("No item information box (iinf)");
-        }
-        if (meta.getipro() != null && meta.getipro().getProtectionSchemeCount() > 0) {
-            throw new HeicFormatException("Protected items are not supported");
-        }
-        this.meta = meta;
+    final List<ItemInfoEntry> getItemInfoEntries() {
+        return itemInfoEntries;
     }
 
     /**
-     * <p>
-     * Returns properties grouped by frames.
-     * </p>
-     * @return Dictionary filled with lists of properties that can be accessed by frame id.
+     * The properties of each item, by item id.
      */
     final Map<Long, List<Box>> getProperties() {
-        return meta.getiprp() == null ? Map.of() : meta.getiprp().getProperties();
+        return meta.getItemPropertiesBoxOptional()
+                .map(ItemPropertiesBox::getProperties)
+                .orElse(Map.of());
+    }
+
+    final ItemInfoEntry getInfoBoxById(long id) {
+        return itemInfoEntries.stream()
+                .filter(entry -> entry.getItemId() == id)
+                .findFirst()
+                .orElseThrow(() -> new HeicFormatException("No item information for item %d".formatted(id)));
     }
 
     /**
-     * <p>
-     * Returns frame type and name.
-     * </p>
-     * @return {@link ItemInfoEntry} that contains type information.
-     * @param id Identifier of the frame.
+     * Where the data of an item is; empty for an item without data of its own, such as a derived image.
      */
-    final ItemInfoEntry getInfoBoxById(/*UInt32*/ long id) {
-        for (ItemInfoEntry info : meta.getiinf().itemInfos) {
-            if (info.itemID == id) return info;
-        }
-        throw new HeicFormatException("No item information for item %d".formatted(id));
+    final Optional<IlocItem> getLocationBoxByIdOptional(long id) {
+        return meta.getItemLocationBoxOptional().stream()
+                .flatMap(locationBox -> locationBox.getItems().stream())
+                .filter(item -> item.itemId() == id)
+                .findFirst();
     }
 
     /**
-     * <p>
-     * Returns frame location.
-     * </p>
-     * @return {@link IlocItem} that contains location information.
-     * @param id Identifier of the frame.
+     * A copy of {@code length} bytes of the item data box from {@code offset}; empty when the file has no item data
+     * box.
      */
-    final IlocItem getLocationBoxById(/*UInt32*/ long id) {
-        if (meta.getiloc() == null) {
-            return null;
-        }
-        for (IlocItem item : meta.getiloc().items) {
-            if (item.itemID == id) {
-                return item;
-            }
-        }
-        return null;
+    final byte[] getItemDataBoxContent(long offset, long length) {
+        return meta.getItemDataBoxOptional()
+                .map(itemDataBox -> copyItemData(itemDataBox, offset, length))
+                .orElseGet(() -> new byte[0]);
     }
 
     /**
-     * <p>
-     * Returns content from idat (item data) box by offset and length.
-     * </p>
-     * @return Byte array.
-     * @param offset The offset from the start on the idat box.
-     * @param length The length of the data.
+     * The items the first reference of this item refers to, whatever the reference type: the input images of a
+     * derived image, the image a thumbnail or an auxiliary image belongs to, or the image Exif data describes.
      */
-    final byte[] getItemDataBoxContent(/*UInt32*/ long offset, /*UInt32*/ long length) {
-        if (meta.getidat() == null) return new byte[0];
+    final long[] getDerivedList(long id) {
+        return findFirstReferenceOptional(id)
+                .map(SingleItemTypeReferenceBox::getToItemIds)
+                .orElse(new long[0]);
+    }
 
-        byte[] itemDataBox = meta.getidat().data;
-        if (offset < 0 || length < 0 || offset + length > itemDataBox.length) {
+    /**
+     * The type of the first reference of this item, such as {@link BoxType#dimg} or {@link BoxType#thmb}.
+     */
+    final Optional<BoxType> getDerivedTypeOptional(long id) {
+        return findFirstReferenceOptional(id).map(Box::getType);
+    }
+
+    final List<EntityToGroupBox> getEntityGroups() {
+        return meta.getGroupsListBoxOptional()
+                .map(GroupsListBox::getEntityGroups)
+                .orElse(List.of());
+    }
+
+    private static byte[] copyItemData(ItemDataBox itemDataBox, long offset, long length) {
+        int dataLength = itemDataBox.getDataLength();
+        // offset and length come from 64-bit fields: compared without adding them, which could overflow
+        if (offset < 0 || length < 0 || offset > dataLength || length > dataLength - offset) {
             throw new HeicFormatException("Item data at %d, %d bytes long, is outside the %d-byte idat box"
-                    .formatted(offset, length, itemDataBox.length));
+                    .formatted(offset, length, dataLength));
         }
-        byte[] data = new byte[(int) length];
-        System.arraycopy(itemDataBox, (int) offset, data, 0, (int) length);
-        return data;
+        return itemDataBox.copyData((int) offset, (int) length);
     }
 
-    /**
-     * <p>
-     * Returns the list of the frames that are used in calculation of the current frame if exists.
-     * </p>
-     * @return Unsigned integer array.
-     * @param id Identifier of the parent frame.
-     */
-    final /*UInt32*/ long[] getDerivedList(/*UInt32*/ long id) {
-        final ItemReferenceBox getiref = meta.getiref();
-        if (getiref == null) {
-            return new /*UInt32*/ long[0];
-        }
-        final Optional<SingleItemTypeReferenceBox> firstItem =
-                getiref.references.stream().filter((i) -> i.fromItemID == id).findFirst();
-        if (!firstItem.isPresent()) {
-            return new /*UInt32*/ long[0];
-        }
-
-        return firstItem.get().toItemID;
-    }
-
-    /**
-     * <p>
-     * Returns the derivative type of the frame if exists.
-     * </p>
-     * @return BoxType enum value.
-     * @param id Identifier of the frame.
-     */
-    final BoxType getDerivedType(/*UInt32*/ long id) {
-        final ItemReferenceBox getiref = meta.getiref();
-        if (getiref == null) {
-            return null;
-        }
-        final Optional<SingleItemTypeReferenceBox> firstItem =
-                getiref.references.stream().filter((i) -> i.fromItemID == id).findFirst();
-        return firstItem
-                .map(singleItemTypeReferenceBox -> singleItemTypeReferenceBox.type)
-                .orElse(null);
-    }
-
-    /**
-     * <p>
-     * Returns the list of EntityToGroupBox's if they exist.
-     * </p>
-     * @return List of {@link EntityToGroupBox}. Can be `null`.
-     */
-    final List<EntityToGroupBox> getGroupsIfPresent() {
-        final GroupsListBox grplBox = this.meta.getgrpl();
-        if (grplBox == null) return null;
-
-        return grplBox.boxes;
+    private Optional<SingleItemTypeReferenceBox> findFirstReferenceOptional(long id) {
+        return meta.getItemReferenceBoxOptional().stream()
+                .flatMap(referenceBox -> referenceBox.getReferences().stream())
+                .filter(reference -> reference.getFromItemId() == id)
+                .findFirst();
     }
 }

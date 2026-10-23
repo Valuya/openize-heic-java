@@ -10,163 +10,54 @@
 
 package openize.isobmff;
 
+import java.util.ArrayList;
+import java.util.List;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * Associates items with item properties.
- * </p>
+ * Associates items with properties, by their index in the property container (ISO/IEC 23008-12, 9.3).
  */
-public class ItemPropertyAssociation extends FullBox {
-    /**
-     * <p>
-     * Count of entries.
-     * </p>
-     */
-    public final /*UInt32*/ long entryCount;
+final class ItemPropertyAssociation extends FullBox {
+    private final List<Entry> entries;
 
-    /**
-     * <p>
-     * Property entrie array.
-     * </p>
-     */
-    public final ItemPropertyEntry[] entries;
-
-    private ObservableCollection<ItemPropertyEntry> children;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream.
-     * </p>
-     *
-     * @param stream File stream.
-     */
     ItemPropertyAssociation(BitStreamReader stream, BoxHeader header) {
         super(stream, header);
 
-        entryCount = stream.read(32) & 0xFFFFFFFFL;
+        int itemIdBitCount = getVersion() < 1 ? 16 : 32;
+        // (flags & 1) selects 15-bit property indices
+        int propertyIndexBitCount = (getFlags() & 1) != 0 ? 15 : 7;
+
+        long entryCount = stream.readLong(32);
         // an entry takes at least 3 bytes (item id, association count)
         requireEntriesFit(entryCount, 3);
-        entries = new ItemPropertyEntry[(int) (entryCount & 0xFFFFFFFFL)];
-
-        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++) {
-            entries[i] = new ItemPropertyEntry();
-
-            entries[i].itemID = stream.read((version & 0xFF) < 1 ? 16 : 32) & 0xFFFFFFFFL;
-            entries[i].associationCount = stream.read(8);
-
-            entries[i].associations = new ItemPropertyEntryAssociation[entries[i].associationCount];
-            for (int j = 0; j < entries[i].associationCount; j++) {
-                entries[i].associations[j] = new ItemPropertyEntryAssociation();
-                entries[i].associations[j].essential = stream.readFlag();
-                // (flags & 1) selects 15-bit indices, ISO/IEC 23008-12, 9.3: flags.get(23) is that bit
-                entries[i].associations[j].propertyIndex = stream.read(flags.get(23) ? 15 : 7) & 0xFFFF;
+        List<Entry> readEntries = new ArrayList<>((int) entryCount);
+        for (long i = 0; i < entryCount; i++) {
+            long itemId = stream.readLong(itemIdBitCount);
+            int associationCount = stream.read(8);
+            requireEntriesFit(associationCount, (1 + propertyIndexBitCount) / 8);
+            List<Integer> propertyIndices = new ArrayList<>(associationCount);
+            for (int j = 0; j < associationCount; j++) {
+                stream.skipBits(1); // essential
+                propertyIndices.add(stream.read(propertyIndexBitCount));
             }
+            readEntries.add(new Entry(itemId, propertyIndices));
         }
+        entries = List.copyOf(readEntries);
+    }
 
-        setChildren(new ObservableCollection<>(entries));
+    List<Entry> getEntries() {
+        return entries;
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The properties of an item, by index in the property container, in the order they apply.
+     *
+     * @param itemId the item
+     * @param propertyIndices the indices of its properties, counted from 1; 0 associates no property
      */
-    @Override
-    public String toString() {
-        return String.format("%s count: %d", this.type, entryCount);
-    }
-
-    /**
-     * <p>
-     * Observable collection of the property entries.
-     * </p>
-     */
-    public final ObservableCollection<ItemPropertyEntry> getChildren() {
-        return children;
-    }
-
-    /**
-     * <p>
-     * Observable collection of the property entries.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<ItemPropertyEntry> value) {
-        children = value;
-    }
-
-    /**
-     * <p>
-     * Item property entry data.
-     * </p>
-     */
-    public static class ItemPropertyEntry {
-        /**
-         * <p>
-         * Identifies the item with which property is associated.
-         * </p>
-         */
-        public /*UInt32*/ long itemID;
-
-        /**
-         * <p>
-         * Count of associations.
-         * </p>
-         */
-        public int associationCount;
-
-        /**
-         * <p>
-         * Array of associations.
-         * </p>
-         */
-        public ItemPropertyEntryAssociation[] associations;
-
-        /**
-         * <p>
-         * Text summary of the box.
-         * </p>
-         */
-        @Override
-        public String toString() {
-            StringBuilder str = new StringBuilder(500);
-            str.append(String.format("entry:: id: %d count: %d data: ", itemID, associationCount));
-            for (ItemPropertyAssociation.ItemPropertyEntryAssociation item : associations)
-                str.append(item.toString()).append(", ");
-            return str.toString();
-        }
-    }
-
-    /**
-     * <p>
-     * Item property association entry data.
-     * </p>
-     */
-    public static class ItemPropertyEntryAssociation {
-        /**
-         * <p>
-         * Set to 1 indicates that the associated property is essential to the item, otherwise it is non-essential.
-         * </p>
-         */
-        public boolean essential;
-
-        /**
-         * <p>
-         * Is either 0 indicating that no property is associated (the essential indicator shall also be 0),
-         * or is the 1-based index of the associated property box in the ItemPropertyContainerBox
-         * contained in the same ItemPropertiesBox.
-         * </p>
-         */
-        public /*UInt16*/ int propertyIndex;
-
-        /**
-         * <p>
-         * Text summary of the box.
-         * </p>
-         */
-        @Override
-        public String toString() {
-            return String.format("%d %d", (essential ? 1 : 0), propertyIndex);
+    record Entry(long itemId, List<Integer> propertyIndices) {
+        Entry {
+            propertyIndices = List.copyOf(propertyIndices);
         }
     }
 }

@@ -143,7 +143,7 @@ public class HeicImage {
         while (bitstream.moreData()) {
             Box box = Box.parseBox(bitstream);
 
-            if (box.type == BoxType.meta) {
+            if (box.getType() == BoxType.meta) {
                 HeicImage heicImage =
                         new HeicImage(new HeicHeader((MetaBox) box), bitstream, heicData, decodingOptions);
                 if (heicImage.getDefaultFrame() == null) {
@@ -313,12 +313,11 @@ public class HeicImage {
                         && f.getValue().getImageType() != ImageFrameType.tmap)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        List<EntityToGroupBox> groups = this.getHeader().getGroupsIfPresent();
-        if (groups == null) return publicFramesById;
+        List<EntityToGroupBox> groups = this.getHeader().getEntityGroups();
 
         for (EntityToGroupBox grp : groups) {
-            if (grp.type == BoxType.altr) {
-                /*UInt32*/ long[] entities = grp.entities;
+            if (grp.getType() == BoxType.altr) {
+                /*UInt32*/ long[] entities = grp.getEntityIds();
                 boolean selected = false;
 
                 for (long entity : entities) {
@@ -398,8 +397,8 @@ public class HeicImage {
         Map<Long, List<Box>> rawProperties = getHeader().getProperties();
 
         // every item, including derived images that have no data of their own and so no location
-        for (ItemInfoEntry itemInfo : getHeader().getMeta().getiinf().itemInfos) {
-            long id = itemInfo.itemID;
+        for (ItemInfoEntry itemInfo : getHeader().getItemInfoEntries()) {
+            long id = itemInfo.getItemId();
             framesById.put(id, new HeicImageFrame(stream, this, id));
         }
 

@@ -13,39 +13,17 @@ package openize.isobmff;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * This box contains the identifier of the primary item.
- * </p>
+ * The primary item of a file (ISO/IEC 14496-12, 8.11.4): the image shown by default.
  */
 public class PrimaryItemBox extends FullBox {
-    /**
-     * <p>
-     * The identifier of the primary item.
-     * </p>
-     */
-    public final /*UInt32*/ long itemID;
+    private final long itemId;
 
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param header Box header.
-     */
     PrimaryItemBox(BitStreamReader stream, BoxHeader header) {
         super(stream, header);
-
-        itemID = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
+        itemId = stream.readLong(getVersion() == 0 ? 16 : 32);
     }
 
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString() {
-        return String.format("%s \nitem_ID: %d", this.type, itemID);
+    public final long getItemId() {
+        return itemId;
     }
 }

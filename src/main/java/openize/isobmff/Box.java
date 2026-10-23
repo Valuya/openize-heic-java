@@ -17,15 +17,11 @@ import openize.isobmff.io.BitStreamReader;
  * parse are read as a plain {@code Box}, whose content starts at {@link #getContentOffset()}.
  */
 public class Box {
-    /**
-     * The size of the box in bytes, header included.
-     */
-    public final long size;
-
-    public final BoxType type;
-
+    private final BoxType type;
     // where the box starts, in bytes from the start of the file
     private final long offset;
+    // header included
+    private final long size;
     private final int headerSize;
 
     Box(BoxHeader header) {
@@ -82,6 +78,17 @@ public class Box {
         T box = reader.read(stream, BoxHeader.read(stream));
         box.skipToEnd(stream);
         return box;
+    }
+
+    public final BoxType getType() {
+        return type;
+    }
+
+    /**
+     * The size of the box in bytes, header included.
+     */
+    public final long getSize() {
+        return size;
     }
 
     /**

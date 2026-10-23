@@ -17,131 +17,50 @@ import java.util.Map;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * The ItemPropertiesBox enables the association of any item with an ordered set of item properties.
- * Item properties are small data records.
- * </p>
+ * The properties of items (ISO/IEC 23008-12, 9.3): an indexed list of properties, and the properties each item is
+ * associated with.
  */
 public class ItemPropertiesBox extends Box {
-    /**
-     * <p>
-     * Contains an implicitly indexed list of item properties.
-     * </p>
-     */
     private final ItemPropertyContainerBox propertyContainer;
+    private final List<ItemPropertyAssociation> associations;
 
-    /**
-     * <p>
-     * Associates items with item properties.
-     * </p>
-     */
-    private final List<ItemPropertyAssociation> association;
-
-    private ObservableCollection<Box> children;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream, box size and start position.
-     * </p>
-     *
-     * @param stream   File stream.
-     * @param header   Box header.
-     */
     ItemPropertiesBox(BitStreamReader stream, BoxHeader header) {
         super(header);
 
-        propertyContainer = Box.parseBox(stream, BoxType.ipco, ItemPropertyContainerBox::new);
-        ObservableCollection<Box> tmp0 = new ObservableCollection<>();
-        tmp0.add(propertyContainer);
-
-        setChildren(tmp0);
-
-        association = new ArrayList<>();
+        propertyContainer = parseBox(stream, BoxType.ipco, ItemPropertyContainerBox::new);
+        List<ItemPropertyAssociation> readAssociations = new ArrayList<>();
         while (hasMoreData(stream)) {
-            ItemPropertyAssociation impa = Box.parseBox(stream, BoxType.ipma, ItemPropertyAssociation::new);
-            association.add(impa);
-            getChildren().add(impa);
+            readAssociations.add(parseBox(stream, BoxType.ipma, ItemPropertyAssociation::new));
         }
+        associations = List.copyOf(readAssociations);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString() {
-        return this.type.name();
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final ObservableCollection<Box> getChildren() {
-        return children;
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<Box> value) {
-        children = value;
-    }
-
-    /**
-     * <p>
-     * Returns properties in a convinient form factor.
-     * </p>
-     *
-     * @return Dictionary with Lists of boxes that can be accessed by item id.
+     * The properties of each item, by item id, in the order they apply.
      */
     public final Map<Long, List<Box>> getProperties() {
-        HashMap<Long, List<Box>> properties = new HashMap<>();
-        //        HashMap<Long, List<Box>> essentialProperties = new HashMap<>();
-        //        HashMap<Long, List<Box>> nonEssentialProperties = new HashMap<>();
-
-        // foreach to while statements conversion
-        for (ItemPropertyAssociation item : association) {
-
-            for (ItemPropertyAssociation.ItemPropertyEntry itemProperty : item.entries) {
-                List<Box> all = new ArrayList<>();
-                //                List<Box> essential = new ArrayList<>();
-                //                List<Box> nonEssential = new ArrayList<>();
-
-                for (ItemPropertyAssociation.ItemPropertyEntryAssociation prop : itemProperty.associations) {
-                    int propertyIndex = prop.propertyIndex & 0xFFFF;
-                    // index 0 associates no property
-                    if (propertyIndex == 0) {
-                        continue;
-                    }
-                    Box property = propertyContainer.getPropertyByIndex(propertyIndex);
-                    if (property == null) {
-                        throw new IsoBmffFormatException("Item %d is associated with property %d, which does not exist"
-                                .formatted(itemProperty.itemID, propertyIndex));
-                    }
-                    all.add(property);
-                    //                    if (prop.essential)
-                    //                    {
-                    //                        essential.add(property_container.getPropertyByIndex(prop.property_index &
-                    // 0xFFFF));
-                    //                    }
-                    //                    else
-                    //                    {
-                    //                        nonEssential.add(property_container.getPropertyByIndex(prop.property_index
-                    // & 0xFFFF));
-                    //                    }
-                }
-
-                properties.put(itemProperty.itemID, all);
-                //    essentialProperties.put(itemProperty.item_ID, essential);
-                // nonEssentialProperties.put(itemProperty.item_ID, nonEssential);
+        Map<Long, List<Box>> propertiesByItemId = new HashMap<>();
+        for (ItemPropertyAssociation association : associations) {
+            for (ItemPropertyAssociation.Entry entry : association.getEntries()) {
+                // a later association of the item replaces an earlier one
+                propertiesByItemId.put(entry.itemId(), getProperties(entry));
             }
         }
+        return Map.copyOf(propertiesByItemId);
+    }
 
-        return properties;
+    private List<Box> getProperties(ItemPropertyAssociation.Entry entry) {
+        List<Box> properties = new ArrayList<>();
+        for (int propertyIndex : entry.propertyIndices()) {
+            // index 0 associates no property
+            if (propertyIndex != 0) {
+                properties.add(propertyContainer
+                        .findPropertyOptional(propertyIndex)
+                        .orElseThrow(() -> new IsoBmffFormatException(
+                                "Item %d is associated with property %d, which does not exist"
+                                        .formatted(entry.itemId(), propertyIndex))));
+            }
+        }
+        return List.copyOf(properties);
     }
 }

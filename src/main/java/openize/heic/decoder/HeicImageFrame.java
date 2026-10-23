@@ -148,14 +148,14 @@ public class HeicImageFrame {
      * @param id         Frame identifier.
      */
     HeicImageFrame(BitStreamWithNalSupport stream, HeicImage parent, /*UInt32*/ long id) {
-        derivativeType = (parent.getHeader().getDerivedType(id));
+        derivativeType = parent.getHeader().getDerivedTypeOptional(id).orElse(null);
         ItemInfoEntry informationBox = parent.getHeader().getInfoBoxById(id);
-        locationBox = parent.getHeader().getLocationBoxById(id);
+        locationBox = parent.getHeader().getLocationBoxByIdOptional(id).orElse(null);
 
         this.auxiliaryReferenceType = AuxiliaryReferenceType.Undefined;
-        itemTypeCode = informationBox.itemType & 0xFFFFFFFFL;
+        itemTypeCode = informationBox.getItemType() & 0xFFFFFFFFL;
         imageType = ImageFrameType.codeToType(itemTypeCode);
-        isHidden = informationBox.itemHidden;
+        isHidden = informationBox.isHidden();
 
         this.id = id;
         this.stream = stream;
@@ -196,28 +196,29 @@ public class HeicImageFrame {
     private long getCroppedWidth() {
         return cleanAperture == null
                 ? ispeWidth
-                : roundFraction(cleanAperture.cleanApertureWidthN, cleanAperture.cleanApertureWidthD);
+                : roundFraction(cleanAperture.getWidthNumerator(), cleanAperture.getWidthDenominator());
     }
 
     private long getCroppedHeight() {
         return cleanAperture == null
                 ? ispeHeight
-                : roundFraction(cleanAperture.cleanApertureHeightN, cleanAperture.cleanApertureHeightD);
+                : roundFraction(cleanAperture.getHeightNumerator(), cleanAperture.getHeightDenominator());
     }
 
     // Left edge of the clean aperture: horizOff + (width - 1) / 2 - (cleanApertureWidth - 1) / 2, rounded down
     private long getCropLeft() {
-        double left = (double) cleanAperture.horizOffN / cleanAperture.horizOffD
-                + (ispeWidth - 1) / 2.0
-                - ((double) cleanAperture.cleanApertureWidthN / cleanAperture.cleanApertureWidthD - 1) / 2.0;
+        double left =
+                (double) cleanAperture.getHorizontalOffsetNumerator() / cleanAperture.getHorizontalOffsetDenominator()
+                        + (ispeWidth - 1) / 2.0
+                        - ((double) cleanAperture.getWidthNumerator() / cleanAperture.getWidthDenominator() - 1) / 2.0;
         return clampCropOrigin((long) Math.floor(left), ispeWidth, getCroppedWidth());
     }
 
     // Top edge of the clean aperture, rounded to the nearest row
     private long getCropTop() {
-        double top = (double) cleanAperture.vertOffN / cleanAperture.vertOffD
+        double top = (double) cleanAperture.getVerticalOffsetNumerator() / cleanAperture.getVerticalOffsetDenominator()
                 + (ispeHeight - 1) / 2.0
-                - ((double) cleanAperture.cleanApertureHeightN / cleanAperture.cleanApertureHeightD - 1) / 2.0;
+                - ((double) cleanAperture.getHeightNumerator() / cleanAperture.getHeightDenominator() - 1) / 2.0;
         return clampCropOrigin((long) Math.floor(top + 0.5), ispeHeight, getCroppedHeight());
     }
 
@@ -513,13 +514,13 @@ public class HeicImageFrame {
             return "";
         }
 
-        IlocItem location = parent.getHeader().getLocationBoxById(id);
+        IlocItem location = parent.getHeader().getLocationBoxByIdOptional(id).orElse(null);
 
         if (location == null) {
             return "";
         }
 
-        stream.setBytePosition(location.baseOffset + location.extents[0].offset);
+        stream.setBytePosition(location.baseOffset() + location.extents().get(0).offset());
         return stream.readString();
     }
 
@@ -567,7 +568,7 @@ public class HeicImageFrame {
      */
     final void loadProperties(BitStreamWithNalSupport stream, List<Box> properties) {
         for (Box item : properties) {
-            switch (item.type) {
+            switch (item.getType()) {
                 case hvcC: // hvcC
                     stream.createNewImageContext(id);
                     stream.getContext().setDecodingOptions(parent.getDecodingOptions());
@@ -577,8 +578,8 @@ public class HeicImageFrame {
                     break;
                 case ispe:
                     ImageSpatialExtentsProperty ispe = (ImageSpatialExtentsProperty) item;
-                    ispeWidth = ispe.imageWidth;
-                    ispeHeight = ispe.imageHeight;
+                    ispeWidth = ispe.getWidth();
+                    ispeHeight = ispe.getHeight();
                     break;
                 case pasp:
                     pasp = (PixelAspectRatioBox) item;
@@ -588,8 +589,8 @@ public class HeicImageFrame {
                     break;
                 case pixi:
                     PixelInformationProperty pixi = (PixelInformationProperty) item;
-                    this.numberOfChannels = pixi.numChannels;
-                    this.bitsPerChannel = pixi.bitsPerChannel;
+                    this.numberOfChannels = (byte) pixi.getChannelCount();
+                    this.bitsPerChannel = pixi.getBitsPerChannel();
                     break;
                 //                case rloc:
                 //                    RelativeLocationProperty rloc = (RelativeLocationProperty) item;
@@ -599,7 +600,7 @@ public class HeicImageFrame {
 
                     this.auxiliaryReferenceType = AuxiliaryReferenceType.Undefined;
 
-                    switch (gStringSwitchMap.indexOf(auxC.auxType)) {
+                    switch (gStringSwitchMap.indexOf(auxC.getAuxType())) {
                         case /*"urn:mpeg:hevc:2015:auxid:1\u0000"*/ 0:
                             this.auxiliaryReferenceType = AuxiliaryReferenceType.Alpha;
                             break;
@@ -607,9 +608,10 @@ public class HeicImageFrame {
                             this.auxiliaryReferenceType = AuxiliaryReferenceType.DepthMap;
                             break;
                         default:
-                            if (auxC.auxType.contains("apple") && auxC.auxType.contains(":aux:")) {
-                                switch (gStringSwitchMap.indexOf(
-                                        auxC.auxType.substring(auxC.auxType.indexOf(":aux:") + 5))) {
+                            if (auxC.getAuxType().contains("apple")
+                                    && auxC.getAuxType().contains(":aux:")) {
+                                switch (gStringSwitchMap.indexOf(auxC.getAuxType()
+                                        .substring(auxC.getAuxType().indexOf(":aux:") + 5))) {
                                     case /*"portraiteffectsmatte\u0000"*/ 2:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.PortraitEffectsMatte;
                                         break;
@@ -657,21 +659,21 @@ public class HeicImageFrame {
                     break;
                 case clap:
                     CleanApertureBox clap = (CleanApertureBox) item;
-                    if (clap.cleanApertureWidthD != 0
-                            && clap.cleanApertureHeightD != 0
-                            && clap.horizOffD != 0
-                            && clap.vertOffD != 0) this.cleanAperture = clap;
+                    if (clap.getWidthDenominator() != 0
+                            && clap.getHeightDenominator() != 0
+                            && clap.getHorizontalOffsetDenominator() != 0
+                            && clap.getVerticalOffsetDenominator() != 0) this.cleanAperture = clap;
                     break;
                 case irot:
                     ImageRotation irot = (ImageRotation) item;
-                    this.imageRotationAngle = irot.angle;
+                    this.imageRotationAngle = (byte) irot.getAngle();
                     break;
                 //                case lsel:
                 //                    LayerSelectorProperty lsel = (LayerSelectorProperty) item;
                 //                    break;
                 case imir:
                     ImageMirror imir = (ImageMirror) item;
-                    this.imageMirrorAxis = (/*Byte*/ byte) ((imir.axis & 0xFF) + 1);
+                    this.imageMirrorAxis = (/*Byte*/ byte) (imir.getAxis() + 1);
                     break;
                 default:
                     break;
@@ -756,8 +758,8 @@ public class HeicImageFrame {
         pictureStream.setBytePosition(hvcConfigOffset);
         new HEVCDecoderConfigurationRecord(pictureStream);
 
-        long start = locationBox.baseOffset + locationBox.extents[0].offset;
-        long end = start + locationBox.extents[0].length;
+        long start = locationBox.baseOffset() + locationBox.extents().get(0).offset();
+        long end = start + locationBox.extents().get(0).length();
         pictureStream.setBytePosition(start);
         while (pictureStream.getBitPosition() / 8 < end) {
             NalUnit.parseUnit(pictureStream);
@@ -846,7 +848,7 @@ public class HeicImageFrame {
     }
 
     private void requireItemData() {
-        if (locationBox == null || locationBox.extents.length == 0) {
+        if (locationBox == null || locationBox.extents().isEmpty()) {
             throw new HeicFormatException("Item %d has no data".formatted(id));
         }
     }
@@ -860,10 +862,12 @@ public class HeicImageFrame {
 
     private byte[] readItemData() {
         requireItemData();
-        return (locationBox.constructionMethod & 0xFF) == 1
+        return locationBox.constructionMethod() == 1
                 ? parent.getHeader()
                         .getItemDataBoxContent(
-                                locationBox.baseOffset + locationBox.extents[0].offset, locationBox.extents[0].length)
+                                locationBox.baseOffset()
+                                        + locationBox.extents().get(0).offset(),
+                                locationBox.extents().get(0).length())
                 : new byte[0];
     }
 

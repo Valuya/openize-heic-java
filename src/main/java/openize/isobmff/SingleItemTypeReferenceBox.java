@@ -13,66 +13,33 @@ package openize.isobmff;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * Collects all references for one item of a specific type.
- * </p>
+ * The references of one type from one item to others (ISO/IEC 14496-12, 8.11.12). The box type is the reference
+ * type, such as {@link BoxType#dimg} or {@link BoxType#thmb}.
  */
 public class SingleItemTypeReferenceBox extends Box {
-    /**
-     * <p>
-     * The ID of the item that refers to other items.
-     * </p>
-     */
-    public final /*UInt32*/ long fromItemID;
+    private final long fromItemId;
+    private final long[] toItemIds;
 
-    /**
-     * <p>
-     * The number of references.
-     * </p>
-     */
-    public final /*UInt32*/ long referenceCount;
-
-    /**
-     * <p>
-     * The array of the IDs of the item referred to.
-     * </p>
-     */
-    public final /*UInt32*/ long[] toItemID;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and item id size.
-     * </p>
-     *
-     * @param stream  File stream.
-     * @param id_size Item id size in bytes.
-     */
-    SingleItemTypeReferenceBox(BitStreamReader stream, BoxHeader header, int idSize) {
+    SingleItemTypeReferenceBox(BitStreamReader stream, BoxHeader header, int itemIdBitCount) {
         super(header);
 
-        fromItemID = stream.read(idSize) & 0xFFFFFFFFL;
-        referenceCount = stream.read(16) & 0xFFFFFFFFL;
-
-        toItemID = new /*UInt32*/ long[(int) (referenceCount & 0xFFFFFFFFL)];
-
-        for (int j = 0; j < (referenceCount & 0xFFFFFFFFL); j++) {
-            toItemID[j] = stream.read(idSize) & 0xFFFFFFFFL;
+        fromItemId = stream.readLong(itemIdBitCount);
+        int referenceCount = stream.read(16);
+        requireEntriesFit(referenceCount, itemIdBitCount / 8);
+        toItemIds = new long[referenceCount];
+        for (int i = 0; i < referenceCount; i++) {
+            toItemIds[i] = stream.readLong(itemIdBitCount);
         }
     }
 
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString() {
-        StringBuilder str = new StringBuilder(50);
-        str.append(String.format("%1$s from_item_ID: %2$d refs: ", type, fromItemID));
-        for (/*UInt32*/ long id : toItemID) {
-            str.append(id).append(' ');
-        }
+    public final long getFromItemId() {
+        return fromItemId;
+    }
 
-        return str.toString();
+    /**
+     * The referenced items, in order; a copy.
+     */
+    public final long[] getToItemIds() {
+        return toItemIds.clone();
     }
 }

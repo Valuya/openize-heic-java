@@ -109,6 +109,21 @@ public class BitStreamReader {
     }
 
     /**
+     * Reads {@code byteCount} bytes, which must be within the data.
+     */
+    public final byte[] readBytes(int byteCount) {
+        if (byteCount < 0 || getBitPosition() + (long) byteCount * BITS_PER_BYTE > (long) data.length * BITS_PER_BYTE) {
+            throw new IsoBmffFormatException("Cannot read %d bytes at bit %d of the %d-byte data"
+                    .formatted(byteCount, getBitPosition(), data.length));
+        }
+        byte[] bytes = new byte[byteCount];
+        for (int i = 0; i < byteCount; i++) {
+            bytes[i] = (byte) read(8);
+        }
+        return bytes;
+    }
+
+    /**
      * Reads a zero-terminated string; the terminating {@code '\0'} is part of the returned string.
      */
     public final String readString() {

@@ -10,52 +10,32 @@
 
 package openize.isobmff;
 
+import java.util.Arrays;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * This box contains the data of metadata items that use the construction method indicating that an item’s
- * data extents are stored within this box.
- * </p>
+ * The data of the items stored in the meta box itself, with construction method 1 (ISO/IEC 14496-12, 8.11.11).
  */
 public class ItemDataBox extends Box {
-    /**
-     * <p>
-     * The contained meta data in raw format.
-     * </p>
-     */
-    public final byte[] data;
+    private final byte[] data;
 
-    /**
-     * <p>
-     * Create the box object from the bitstream, box size and start position.
-     * </p>
-     *
-     * @param stream   File stream.
-     * @param header   Box header.
-     */
     ItemDataBox(BitStreamReader stream, BoxHeader header) {
         super(header);
-
-        /*UInt64*/
-        long count = getEndOffset() - stream.getBitPosition() / 8;
-        data = new byte[(int) (count)];
-        for (
-        /*UInt64*/ long i = 0; i < count; i++) data[(int) (i)] = (byte) stream.read(8);
+        // the box fits in the file, which bounds its size
+        data = stream.readBytes((int) (getEndOffset() - stream.getBitPosition() / 8));
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The length of the data, in bytes.
      */
-    @Override
-    public String toString() {
-        StringBuilder hexSB = new StringBuilder(50);
-        hexSB.append(this.type.name()).append(' ');
-        for (byte b : data) {
-            hexSB.append(String.format("%02x", b)).append(' ');
-        }
-        return hexSB.toString();
+    public final int getDataLength() {
+        return data.length;
+    }
+
+    /**
+     * A copy of {@code length} bytes of the data from {@code offset}, which must be within it.
+     */
+    public final byte[] copyData(int offset, int length) {
+        return Arrays.copyOfRange(data, offset, offset + length);
     }
 }

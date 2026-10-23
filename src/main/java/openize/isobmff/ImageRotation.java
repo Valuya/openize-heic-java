@@ -13,41 +13,21 @@ package openize.isobmff;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * The image rotation  transformative item property rotates the reconstructed image of the
- * associated image item in anti-clockwise direction in units of 90 degrees.
- * </p>
+ * A rotation of an image, anti-clockwise, by a multiple of 90 degrees (ISO/IEC 23008-12, 6.5.10).
  */
 public class ImageRotation extends Box {
-    /**
-     * <p>
-     * Specifies the angle (in anti-clockwise direction) in units of 90 degrees.
-     * </p>
-     */
-    public final byte angle;
+    private final int angle;
 
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param header Box header.
-     */
     ImageRotation(BitStreamReader stream, BoxHeader header) {
         super(header);
-
-        stream.skipBits(6);
-        angle = (byte) stream.read(2);
+        stream.skipBits(6); // reserved
+        angle = stream.read(2);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The rotation, anti-clockwise, in units of 90 degrees: 0 to 3.
      */
-    @Override
-    public String toString() {
-        return String.format("%s angle: %d", this.type, (angle & 0xFF) * 90);
+    public final int getAngle() {
+        return angle;
     }
 }

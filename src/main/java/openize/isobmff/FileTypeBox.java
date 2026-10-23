@@ -10,100 +10,39 @@
 
 package openize.isobmff;
 
+import java.util.Arrays;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * This box identifies the specifications to which this file complies.
- * </p>
+ * The brands of the specifications a file complies with (ISO/IEC 14496-12, 4.3). Each brand is a four-character
+ * code.
  */
 public class FileTypeBox extends Box {
-    /**
-     * <p>
-     * A brand identifier.
-     * <p>Each brand is a printable four‐character code, registered with ISO, that identifies a precise specification.</p>
-     * </p>
-     */
-    public final /*UInt32*/ long majorBrand;
+    private final long majorBrand;
+    private final long[] compatibleBrands;
 
-    /**
-     * <p>
-     * An informative integer for the minor version of the major brand.
-     * <p>Each brand is a printable four‐character code, registered with ISO, that identifies a precise specification.</p>
-     * </p>
-     */
-    public final /*UInt32*/ long minorVersion;
-
-    /**
-     * <p>
-     * A list of compatible brands.
-     * <p>Each brand is a printable four‐character code, registered with ISO, that identifies a precise specification.</p>
-     * </p>
-     */
-    public final /*UInt32*/ long[] compatibleBrands;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
     FileTypeBox(BitStreamReader stream, BoxHeader header) {
         super(header);
 
-        majorBrand = stream.read(32) & 0xFFFFFFFFL;
-        minorVersion = stream.read(32) & 0xFFFFFFFFL;
+        majorBrand = stream.readLong(32);
+        stream.skipBits(32); // minor_version
 
-        // compatible brands fill the rest of the box, whatever the size of its header
+        // the compatible brands fill the rest of the box, whatever the size of its header
         long brandCount = (getEndOffset() * 8 - stream.getBitPosition()) / 32;
         if (brandCount < 0) {
-            throw new IsoBmffFormatException("A ftyp box of %d bytes cannot hold its brands".formatted(size));
+            throw new IsoBmffFormatException("A ftyp box of %d bytes cannot hold its brands".formatted(getSize()));
         }
         compatibleBrands = new long[(int) brandCount];
-        for (int i = 0; i < brandCount; i++) {
-            compatibleBrands[i] = stream.read(32) & 0xFFFFFFFFL;
+        for (int i = 0; i < compatibleBrands.length; i++) {
+            compatibleBrands[i] = stream.readLong(32);
         }
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * Whether the file complies with {@code brand}, its major brand or one of its compatible brands.
      */
-    @Override
-    public String toString() {
-        StringBuilder str = new StringBuilder(50);
-        str.append(String.format(
-                "{%s}\nmajor: %s \nminor: %s \ncompatible:",
-                this.type, fourCharacterCodeText(majorBrand), fourCharacterCodeText(minorVersion)));
-        for (/*UInt32*/ long b : compatibleBrands) {
-            str.append(' ').append(fourCharacterCodeText(b));
-        }
-
-        return str.toString();
-    }
-
-    /**
-     * <p>
-     * Checks if specified brand is supported.
-     * </p>
-     *
-     * @param brand The specified brand.
-     * @return True if brand is supported, false otherwise.
-     */
-    public final boolean isBrandSupported(/*UInt32*/ long brand) {
-        if (majorBrand == brand) {
-            return true;
-        }
-
-        for (long compatibleBrand : compatibleBrands) {
-            if (compatibleBrand == brand) {
-                return true;
-            }
-        }
-
-        return false;
+    public final boolean isBrandSupported(long brand) {
+        return majorBrand == brand
+                || Arrays.stream(compatibleBrands).anyMatch(compatibleBrand -> compatibleBrand == brand);
     }
 }

@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
-import openize.isobmff.ObservableCollection;
 
 public class HEVCDecoderConfigurationRecord {
     public final byte configurationVersion; // 1
@@ -35,7 +34,6 @@ public class HEVCDecoderConfigurationRecord {
     public final int temporalIdNested; // takes the value 0
     private final boolean[] arrayCompleteness;
     private final List<NalUnit> nalUnits;
-    private ObservableCollection<NalUnit> children;
     private SeqParameterSetRbsp spsUnit;
 
     public HEVCDecoderConfigurationRecord(BitStreamWithNalSupport stream) {
@@ -104,20 +102,11 @@ public class HEVCDecoderConfigurationRecord {
                 }
             }
         }
-        setChildren(new ObservableCollection<>(nalUnits));
     }
 
     @Override
     public final String toString() {
         return "HEVCDecoderConfiguration; completeness: " + Arrays.toString(arrayCompleteness);
-    }
-
-    public final ObservableCollection<NalUnit> getChildren() {
-        return children;
-    }
-
-    public final void setChildren(ObservableCollection<NalUnit> value) {
-        children = value;
     }
 
     final PicParameterSetRbsp getPPS() {

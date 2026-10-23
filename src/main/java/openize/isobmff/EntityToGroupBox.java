@@ -13,71 +13,30 @@ package openize.isobmff;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * The EntityToGroupBox specifies an entity group.
- * </p>
+ * A group of entities, here items (ISO/IEC 14496-12, 8.18). The box type is the grouping type, such as
+ * {@link BoxType#altr} for alternatives of which one is shown.
  */
 public class EntityToGroupBox extends FullBox {
-    /**
-     * <p>
-     * A non-negative integer assigned to the particular grouping that shall not be equal
-     * to any group_id value of any other EntityToGroupBox, any item_ID value of the hierarchy
-     * level(file, movie. or track) that contains the GroupsListBox, or any track_ID value(when the
-     * GroupsListBox is contained in the file level).
-     * </p>
-     */
-    public final /*UInt32*/ long groupId;
+    private final long[] entityIds;
 
-    /**
-     * <p>
-     * The number of entity_id values mapped to this entity group.
-     * </p>
-     */
-    public final /*UInt32*/ long numEntitiesInGroup;
-
-    /**
-     * <p>
-     * Array of identifiers of items that are present in the hierarchy level(file, movie or track)
-     * that contains the GroupsListBox, or to a track, when a track with track_ID equal to entity_id
-     * is present and the GroupsListBox is contained in the file level.
-     * </p>
-     */
-    public final /*UInt32*/ long[] entities;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream.
-     * </p>
-     *
-     * @param stream File stream.
-     */
     EntityToGroupBox(BitStreamReader stream, BoxHeader header) {
         super(stream, header);
 
-        groupId = stream.read(32) & 0xFFFFFFFFL;
-        numEntitiesInGroup = stream.read(32) & 0xFFFFFFFFL;
-        // each entity id takes 4 bytes of the box, which bounds the count before anything is allocated
-        if (numEntitiesInGroup * 4 > size) {
-            throw new IsoBmffFormatException(
-                    "An entity group lists %d entities in %d bytes".formatted(numEntitiesInGroup, size));
+        stream.skipBits(32); // group_id
+        long entityCount = stream.readLong(32);
+        // each entity id takes 4 bytes
+        requireEntriesFit(entityCount, 4);
+        entityIds = new long[(int) entityCount];
+        for (int i = 0; i < entityIds.length; i++) {
+            entityIds[i] = stream.readLong(32);
         }
-        entities = new /*UInt32*/ long[(int) (numEntitiesInGroup & 0xFFFFFFFFL)];
-
-        for (int i = 0; i < (numEntitiesInGroup & 0xFFFFFFFFL); i++) entities[i] = stream.read(32) & 0xFFFFFFFFL;
+        // a grouping type may add fields of its own, skipped with the rest of the box
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The grouped entities, in order; a copy.
      */
-    @Override
-    public String toString() {
-        StringBuilder str = new StringBuilder(50);
-        str.append(String.format("%s group: %d count: %d", this.type, groupId, numEntitiesInGroup));
-        for (/*UInt32*/ long id : entities) {
-            str.append(" ").append(id);
-        }
-        return str.toString();
+    public final long[] getEntityIds() {
+        return entityIds.clone();
     }
 }

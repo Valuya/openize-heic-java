@@ -13,123 +13,42 @@ package openize.isobmff;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * This box provides extra information about one entry.
- * </p>
+ * Information on one item (ISO/IEC 14496-12, 8.11.6): its type, and whether it is hidden.
  */
 public class ItemInfoEntry extends FullBox {
-    /**
-     * <p>
-     * Contains either 0 for the primary resource (e.g., the XML contained in an 'xml ' box) or
-     * the ID of the item for which the following information is defined.
-     * </p>
-     */
-    public final /*UInt32*/ long itemID;
+    private final long itemId;
+    private final long itemType;
 
-    /**
-     * <p>
-     * Contains either 0 for an unprotected item, or the one‐based index
-     * into the item protection  box defining the protection applied to this item(the first box in the item
-     * protection box has the index 1).
-     * </p>
-     */
-    public final /*UInt16*/ int itemProtectionIndex;
-
-    /**
-     * <p>
-     * A 32‐bit value, typically 4 printable characters, that is a defined valid item type indicator, such as 'mime'.
-     * </p>
-     */
-    public /*UInt32*/ long itemType;
-
-    /**
-     * <p>
-     * A null‐terminated string in UTF‐8 characters containing a symbolic name of the item (source file for file delivery transmissions).
-     * </p>
-     */
-    public final String itemName;
-
-    /**
-     * <p>
-     * A null‐terminated string in UTF‐8 characters with the MIME type of the item.
-     * If the item is content encoded (see below), then the content type refers to the item after content decoding.
-     * </p>
-     */
-    public String contentType;
-
-    /**
-     * <p>
-     * A string that is an absolute URI, that is used as a type indicator.
-     * </p>
-     */
-    public String itemUriType;
-
-    /**
-     * <p>
-     * An optional null‐terminated string in UTF‐8 characters used to indicate
-     * that the binary file is encoded and needs to be decoded before interpreted.
-     * The values are as defined for Content‐Encoding for HTTP/1.1.
-     * </p>
-     */
-    public String contentEncoding;
-
-    /**
-     * <p>
-     * A bool value, that shows if item is hidden.
-     * </p>
-     */
-    public final boolean itemHidden;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream.
-     * </p>
-     *
-     * @param stream File stream.
-     */
     ItemInfoEntry(BitStreamReader stream, BoxHeader header) {
         super(stream, header);
 
-        itemHidden = flags.get(23);
-
-        if ((version & 0xFF) < 2) {
-            itemID = stream.read(16) & 0xFFFFFFFFL;
-            itemProtectionIndex = stream.read(16) & 0xFFFF;
-
-            itemName = stream.readString();
-            contentType = stream.readString();
-            if (hasMoreData(stream)) {
-                contentEncoding = stream.readString();
-            }
-            // version 1 may add an item info extension, which is not used
+        // the names and content types that follow the fields read here are skipped with the rest of the box
+        if (getVersion() < 2) {
+            itemId = stream.readLong(16);
+            itemType = 0;
         } else {
-            itemID = stream.read((version & 0xFF) == 2 ? 16 : 32) & 0xFFFFFFFFL;
-            itemProtectionIndex = stream.read(16) & 0xFFFF;
-            itemType = stream.read(32) & 0xFFFFFFFFL;
-
-            itemName = stream.readString();
-
-            if ((itemType & 0xFFFFFFFFL) == 0x6d696d65 /*mime*/) {
-                contentType = stream.readString();
-                if (hasMoreData(stream)) {
-                    contentEncoding = stream.readString();
-                }
-            } else if ((itemType & 0xFFFFFFFFL) == 0x75726920 /*uri */) {
-                itemUriType = stream.readString();
-            }
+            itemId = stream.readLong(getVersion() == 2 ? 16 : 32);
+            stream.skipBits(16); // item_protection_index
+            itemType = stream.readLong(32);
         }
     }
 
+    public final long getItemId() {
+        return itemId;
+    }
+
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The type of the item, a four-character code such as {@code hvc1}, {@code grid} or {@code Exif}; 0 in a version
+     * 0 or 1 entry, which has none.
      */
-    @Override
-    public String toString() {
-        String nn = itemName == null ? "" : itemName;
-        String n2 = contentType == null ? "" : contentType;
-        return String.format(
-                "%s id: %d type: %s name: %s%s", this.type, itemID, fourCharacterCodeText(itemType), nn, n2);
+    public final long getItemType() {
+        return itemType;
+    }
+
+    /**
+     * Whether the item is hidden, not meant to be displayed on its own: (flags &amp; 1).
+     */
+    public final boolean isHidden() {
+        return (getFlags() & 1) != 0;
     }
 }

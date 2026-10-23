@@ -88,7 +88,6 @@ import com.drew.metadata.xmp.XmpDirectory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
@@ -126,13 +125,15 @@ public class ExifData {
      * @throws RuntimeException Unexpected Exif header
      */
     ExifData(BitStreamWithNalSupport stream, HeicImage image, HeicImageFrame exifFrame) {
-        IlocItem locationBox = Optional.ofNullable(image.getHeader().getLocationBoxById(exifFrame.getID()))
-                .filter(location -> location.extents.length > 0)
+        IlocItem locationBox = image.getHeader()
+                .getLocationBoxByIdOptional(exifFrame.getID())
+                .filter(location -> !location.extents().isEmpty())
                 .orElseThrow(() -> new HeicFormatException("Exif item %d has no data".formatted(exifFrame.getID())));
 
-        stream.setBytePosition(locationBox.baseOffset + locationBox.extents[0].offset);
-        long length = locationBox.extents[0].length;
-        long end = locationBox.baseOffset + locationBox.extents[0].offset + length;
+        stream.setBytePosition(
+                locationBox.baseOffset() + locationBox.extents().get(0).offset());
+        long length = locationBox.extents().get(0).length();
+        long end = locationBox.baseOffset() + locationBox.extents().get(0).offset() + length;
         if (length < 0 || length > stream.getLength() - stream.getBitPosition() / 8) {
             throw new HeicFormatException("The %d-byte Exif item at byte %d is outside the %d-byte file"
                     .formatted(length, stream.getBitPosition() / 8, stream.getLength()));

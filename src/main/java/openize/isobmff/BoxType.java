@@ -10,413 +10,186 @@
 
 package openize.isobmff;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 /**
- * <p>
- * Type of the container box.
- * Used definitions from ISO IEC 14496 Part 12, ISO IEC 14496 Part 15 and ISO IEC 23008 Part 12.
- * </p>
+ * Box types, from ISO/IEC 14496-12, ISO/IEC 14496-15 and ISO/IEC 23008-12. Each is named after its four-character
+ * code.
  */
-@SuppressWarnings({"SpellCheckingInspection", "unused"})
 public enum BoxType {
-    /**
-     * <p>
-     * Unknown type.
-     * </p>
-     */
+    /** A type this package has no name for. */
     unknown(0),
 
-    /**
-     * <p>
-     * File type and compatibility. Located in the root.
-     * </p>
-     */
+    /** File type and compatibility, at the top level. */
     ftyp(0x66747970),
 
-    /**
-     * <p>
-     * Media data container. Located in the root.
-     * </p>
-     */
+    /** Media data, at the top level. */
     mdat(0x6d646174),
 
-    /**
-     * <p>
-     * Free space.
-     * </p>
-     */
+    /** Free space. */
     free(0x66726565),
 
-    /**
-     * <p>
-     * Free space.
-     * </p>
-     */
-    skip(0x736b6970L),
+    /** Free space. */
+    skip(0x736b6970),
 
-    /**
-     * <p>
-     * Container for all the movie metadata. Located in the root.
-     * </p>
-     */
-    moov(0x6d6f6f76L),
+    /** Movie metadata, at the top level. */
+    moov(0x6d6f6f76),
 
-    /**
-     * <p>
-     * Metadata. Located in the root.
-     * </p>
-     */
-    meta(0x6d657461L),
+    /** Metadata, at the top level. */
+    meta(0x6d657461),
 
-    /**
-     * <p>
-     * Handler, declares the metadata (handler) type. Located in the 'meta' box.
-     * </p>
-     */
-    hdlr(0x68646c72L),
+    /** Handler, declaring the type of the metadata, in 'meta'. */
+    hdlr(0x68646c72),
 
-    /**
-     * <p>
-     * Data information box, container. Located in the 'meta' box.
-     * </p>
-     */
-    dinf(0x64696e66L),
+    /** Data information, in 'meta'. */
+    dinf(0x64696e66),
 
-    /**
-     * <p>
-     * Data reference box, declares source(s) of items. Located in the 'dinf' box.
-     * </p>
-     */
-    dref(0x64726566L),
+    /** Data references, declaring the sources of items, in 'dinf'. */
+    dref(0x64726566),
 
-    /**
-     * <p>
-     * Data reference box, declares source(s) of metadata items.
-     * </p>
-     */
-    url(0x75726c20L),
+    /** A data reference by URL, in 'dref'. */
+    url(0x75726c20),
 
-    /**
-     * <p>
-     * Data reference box, declares source(s) of metadata items.
-     * </p>
-     */
-    urn(0x75726e20L),
+    /** A data reference by URN, in 'dref'. */
+    urn(0x75726e20),
 
-    /**
-     * <p>
-     * Item location. Located in the 'meta' box.
-     * </p>
-     */
-    iloc(0x696c6f63L),
+    /** Item location, in 'meta'. */
+    iloc(0x696c6f63),
 
-    /**
-     * <p>
-     * Item data. Located in the 'meta' box.
-     * </p>
-     */
-    idat(0x69646174L),
+    /** Item data, in 'meta'. */
+    idat(0x69646174),
 
-    /**
-     * <p>
-     * Item information. Located in the 'meta' box.
-     * </p>
-     */
-    iinf(0x69696e66L),
+    /** Item information, in 'meta'. */
+    iinf(0x69696e66),
 
-    /**
-     * <p>
-     * Item information entry. Located in the 'iinf' box.
-     * </p>
-     */
-    infe(0x696e6665L),
+    /** Item information entry, in 'iinf'. */
+    infe(0x696e6665),
 
-    /**
-     * <p>
-     * Item reference box. Located in the 'meta' box.
-     * </p>
-     */
-    iref(0x69726566L),
+    /** Item references, in 'meta'. */
+    iref(0x69726566),
 
-    /**
-     * <p>
-     * Derived image item. Located in the 'iref' box.
-     * </p>
-     */
-    dimg(0x64696d67L),
+    /** Derived image reference, in 'iref'. */
+    dimg(0x64696d67),
 
-    /**
-     * <p>
-     * Auxiliary media for the indicated track (e.g. depth map or alpha plane for video). Located in the 'iref' box.
-     * </p>
-     */
-    auxl(0x6175786cL),
+    /** Auxiliary image reference, such as an alpha plane or a depth map, in 'iref'. */
+    auxl(0x6175786c),
 
-    /**
-     * <p>
-     * Thumbnails for the referenced track. Located in the 'iref' box.
-     * </p>
-     */
-    thmb(0x74686d62L),
+    /** Thumbnail reference, in 'iref'. */
+    thmb(0x74686d62),
 
-    /**
-     * <p>
-     * Primary item reference. Located in the 'meta' box.
-     * </p>
-     */
-    pitm(0x7069746dL),
+    /** Primary item, in 'meta'. */
+    pitm(0x7069746d),
 
-    /**
-     * <p>
-     * Item properties. Located in the 'meta' box.
-     * </p>
-     */
-    iprp(0x69707270L),
+    /** Item properties, in 'meta'. */
+    iprp(0x69707270),
 
-    /**
-     * <p>
-     * Item property association. Located in the 'iprp' box.
-     * </p>
-     */
-    ipma(0x69706d61L),
+    /** Item property association, in 'iprp'. */
+    ipma(0x69706d61),
 
-    /**
-     * <p>
-     * List of item properties. Located in the 'iprp' box.
-     * </p>
-     */
-    ipco(0x6970636fL),
+    /** Item property container, in 'iprp'. */
+    ipco(0x6970636f),
 
-    /**
-     * <p>
-     * AV1 coded item property. Located in the 'ipco' box.
-     * </p>
-     */
-    av1C(0x61763143L),
+    /** AV1 decoder configuration property, in 'ipco'. */
+    av1C(0x61763143),
 
-    /**
-     * <p>
-     * HEVC coded item property. Located in the 'ipco' box.
-     * </p>
-     */
-    hvcC(0x68766343L),
+    /** HEVC decoder configuration property, in 'ipco'. */
+    hvcC(0x68766343),
 
-    /**
-     * <p>
-     * Width and height item property. Located in the 'ipco' box.
-     * </p>
-     */
-    ispe(0x69737065L),
+    /** Image spatial extents property, in 'ipco'. */
+    ispe(0x69737065),
 
-    /**
-     * <p>
-     * Pixel aspect ratio item property. Located in the 'ipco' box.
-     * </p>
-     */
-    pasp(0x70617370L),
+    /** Pixel aspect ratio property, in 'ipco'. */
+    pasp(0x70617370),
 
-    /**
-     * <p>
-     * Colour information item property. Located in the 'ipco' box.
-     * </p>
-     */
-    colr(0x636f6c72L),
+    /** Colour information property, in 'ipco'. */
+    colr(0x636f6c72),
 
-    /**
-     * <p>
-     * Content light level info. Located in the 'clli' box.
-     * </p>
-     */
+    /** Content light level property, in 'ipco'. */
     clli(0x636c6c69),
 
-    /**
-     * <p>
-     * Bit depth item property. Located in the 'ipco' box.
-     * </p>
-     */
-    pixi(0x70697869L),
+    /** Pixel information property, in 'ipco'. */
+    pixi(0x70697869),
 
-    /**
-     * <p>
-     * Position item property. Located in the 'ipco' box.
-     * </p>
-     */
-    rloc(0x726c6f63L),
+    /** Relative location property, in 'ipco'. */
+    rloc(0x726c6f63),
 
-    /**
-     * <p>
-     * Auxiliary images association item property. Located in the 'ipco' box.
-     * </p>
-     */
-    auxC(0x61757843L),
+    /** Auxiliary type property, in 'ipco'. */
+    auxC(0x61757843),
 
-    /**
-     * <p>
-     * Transformation item property. Located in the 'ipco' box.
-     * </p>
-     */
-    clap(0x636c6170L),
+    /** Clean aperture property, in 'ipco'. */
+    clap(0x636c6170),
 
-    /**
-     * <p>
-     * Rotation item property. Located in the 'ipco' box.
-     * </p>
-     */
-    irot(0x69726f74L),
+    /** Image rotation property, in 'ipco'. */
+    irot(0x69726f74),
 
-    /**
-     * <p>
-     * Multi-layer item property. Located in the 'ipco' box.
-     * </p>
-     */
-    lsel(0x6c73656cL),
+    /** Layer selection property, in 'ipco'. */
+    lsel(0x6c73656c),
 
-    /**
-     * <p>
-     * Mirroring item property. Located in the 'ipco' box.
-     * </p>
-     */
-    imir(0x696d6972L),
+    /** Image mirroring property, in 'ipco'. */
+    imir(0x696d6972),
 
-    /**
-     * <p>
-     * Operation points information item property. Located in the 'ipco' box.
-     * </p>
-     */
-    oinf(0x6f696e66L),
+    /** Operating points information property, in 'ipco'. */
+    oinf(0x6f696e66),
 
-    /**
-     * <p>
-     * User description item property. Located in the 'ipco' box.
-     * </p>
-     */
-    udes(0x75646573L),
+    /** User description property, in 'ipco'. */
+    udes(0x75646573),
 
-    /**
-     * <p>
-     * Content describtion item property. Located in the 'ipco' box.
-     * </p>
-     */
-    cdsc(0x63647363L),
+    /** Content description reference, in 'iref'. */
+    cdsc(0x63647363),
 
-    /**
-     * <p>
-     * Grouping property box. Located in the 'meta' box.
-     * </p>
-     */
-    grpl(0x6772706cL),
+    /** Groups list, in 'meta'. */
+    grpl(0x6772706c),
 
-    /**
-     * <p>
-     * Alternatives entity group. Located in the 'grpl' box.
-     * </p>
-     */
-    altr(0x616c7472L),
+    /** Alternatives entity group, in 'grpl'. */
+    altr(0x616c7472),
 
-    /**
-     * <p>
-     * Stereo pair entity group. Located in the 'grpl' box.
-     * </p>
-     */
-    ster(0x73746572L),
+    /** Stereo pair entity group, in 'grpl'. */
+    ster(0x73746572),
 
-    /**
-     * <p>
-     * A time-synchronized capture entity group. Located in the 'grpl' box.
-     * </p>
-     */
-    tsyn(0x7473796eL),
+    /** Time-synchronised capture entity group, in 'grpl'. */
+    tsyn(0x7473796e),
 
-    /**
-     * <p>
-     * Item protection. Located in the root.
-     * </p>
-     */
-    ipro(0x6970726fL),
+    /** Item protection, in 'meta'. */
+    ipro(0x6970726f),
 
-    /**
-     * <p>
-     * Protection scheme information box. Located in the 'ipro' box.
-     * </p>
-     */
-    sinf(0x73696e66L),
+    /** Protection scheme information, in 'ipro'. */
+    sinf(0x73696e66),
 
-    /**
-     * <p>
-     * Original format box. Located in the 'sinf' box.
-     * </p>
-     */
-    frma(0x66726d61L),
+    /** Original format, in 'sinf'. */
+    frma(0x66726d61),
 
-    /**
-     * <p>
-     * Scheme type box. Located in the 'sinf' box.
-     * </p>
-     */
-    schm(0x7363686dL),
+    /** Scheme type, in 'sinf'. */
+    schm(0x7363686d),
 
-    /**
-     * <p>
-     * Scheme information box. Located in the 'sinf' box.
-     * </p>
-     */
-    schi(0x73636869L),
+    /** Scheme information, in 'sinf'. */
+    schi(0x73636869),
 
-    /**
-     * <p>
-     * Extended type.
-     * </p>
-     */
+    /** A box with an extended type. */
     uuid(0x75756964);
 
-    /**
-     * <p>Cached values</p>
-     */
-    private static final BoxType[] values = BoxType.values();
+    private static final Map<Integer, BoxType> TYPES_BY_CODE =
+            Arrays.stream(values()).collect(Collectors.toUnmodifiableMap(BoxType::getCode, Function.identity()));
 
-    /**
-     * <p>
-     * The code of the box type.
-     * </p>
-     */
-    private final long code;
+    private final int code;
 
-    /**
-     * <p>
-     * The box type.
-     * </p>
-     *
-     * @param code The code of the box type.
-     */
-    BoxType(long code) {
+    BoxType(int code) {
         this.code = code;
     }
 
     /**
-     * <p>
-     *     Returns the BoxType with the given {@code code} or {@link BoxType#unknown}.
-     * </p>
-     * @param code The code of the box type.
-     * @return The BoxType value.
+     * The type with this four-character code, or {@link #unknown}.
      */
-    public static BoxType codeToType(long code) {
-        code &= 0xFFFFFFFFL;
-        for (BoxType type : values) {
-            if (type.getCode() == code) {
-                return type;
-            }
-        }
-
-        return unknown;
+    public static BoxType codeToType(int code) {
+        return TYPES_BY_CODE.getOrDefault(code, unknown);
     }
 
     /**
-     * <p>
-     * Returns the code of type.
-     * </p>
-     *
-     * @return The code of type.
+     * The four-character code of the type, one character per byte.
      */
-    public long getCode() {
+    public int getCode() {
         return code;
     }
 }
