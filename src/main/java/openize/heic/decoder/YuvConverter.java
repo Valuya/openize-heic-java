@@ -238,8 +238,8 @@ class YuvConverter {
                 case 22:
                     return new ColorPrimaries(0.295, 0.605, 0.155, 0.077, 0.630, 0.340, 0.3127, 0.3290);
                 case 2: // Unspecified
-                default: // Reserved
-                    throw new UnsupportedOperationException("Unsupported colourPrimaries = " + colourPrimaries);
+                default: // Reserved: the BT.709 primaries of value 1, the usual default
+                    return new ColorPrimaries(0.300, 0.600, 0.150, 0.060, 0.640, 0.330, 0.3127, 0.3290);
             }
         }
     }

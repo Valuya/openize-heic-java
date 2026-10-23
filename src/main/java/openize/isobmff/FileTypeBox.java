@@ -92,10 +92,6 @@ public class FileTypeBox extends Box {
             return true;
         }
 
-        if (minorVersion == brand) {
-            return true;
-        }
-
         for (long compatibleBrand : compatibleBrands) {
             if (compatibleBrand == brand) {
                 return true;

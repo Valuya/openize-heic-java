@@ -14,6 +14,6 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 class Sps3dExtension {
     public Sps3dExtension(BitStreamWithNalSupport stream) {
-        throw new UnsupportedOperationException();
+        throw new HeicFormatException("The SPS 3D extension is not supported");
     }
 }

@@ -79,7 +79,9 @@ public class SliceSegmentData {
                                                             & 0xFFFFFFFFL))))) {
                 int one = stream.getCabac().readEndOfSubsetOneBit(); /* equal to 1; */
 
-                if (one != 1) throw new IllegalStateException("Unexpected slice-end bit!");
+                if (one != 1) {
+                    throw new HeicFormatException("Malformed slice data: end_of_subset_one_bit is 0");
+                }
 
                 while (stream.notByteAligned()) stream.skipBits(1);
 

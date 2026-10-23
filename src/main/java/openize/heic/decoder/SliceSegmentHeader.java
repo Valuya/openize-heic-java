@@ -81,6 +81,10 @@ public class SliceSegmentHeader {
         slicePicParameterSetId = (byte) stream.readUev();
 
         pps = stream.getContext().getPPS().get(slicePicParameterSetId & 0xFF);
+        if (pps == null) {
+            throw new HeicFormatException("A slice refers to picture parameter set %d, which is not defined"
+                    .formatted(slicePicParameterSetId & 0xFF));
+        }
         SeqParameterSetRbsp sps = pps.sps;
 
         if (!firstSliceSegmentInPicFlag) {
@@ -105,7 +109,9 @@ public class SliceSegmentHeader {
             sliceType = SliceType.get(stream.readUev());
 
             if (sliceType != SliceType.I) {
-                throw new IllegalStateException("ALARM! NOT I FRAME");
+                throw new HeicFormatException(
+                        "Inter-coded %s slices are not supported: only intra-coded pictures decode"
+                                .formatted(sliceType));
             }
 
             if (pps.outputFlagPresentFlag) {

@@ -75,7 +75,8 @@ public class HEVCDecoderConfigurationRecord {
 
         byte lengthSizeMinusOne = (byte) stream.read(2);
         if ((lengthSizeMinusOne & 0xFF) != 3) {
-            throw new IllegalStateException();
+            throw new HeicFormatException(
+                    "NAL unit lengths of %d bytes are not supported".formatted((lengthSizeMinusOne & 0xFF) + 1));
         }
 
         byte numOfArrays = (byte) stream.read(8);
@@ -92,6 +93,9 @@ public class HEVCDecoderConfigurationRecord {
             for (int i = 0; i < numNalus; i++) {
                 /*UInt16*/
                 int nalUnitLength = stream.read(16) & 0xFFFF;
+                if (nalUnitLength == 0) {
+                    continue;
+                }
                 NalUnit unit = NalUnit.parseKnownUnit(stream, nalUnitLength, nalUnitType);
                 stream.getContext().addNalContext(nalUnitType, unit);
                 nalUnits.add(unit);
@@ -122,7 +126,7 @@ public class HEVCDecoderConfigurationRecord {
                 return (PicParameterSetRbsp) nalUnit;
             }
         }
-        throw new IllegalStateException();
+        throw new HeicFormatException("The HEVC decoder configuration has no PPS");
         //        return (pic_parameter_set_rbsp) nalUnits.stream().filter(i -> i.NalHeader.type ==
         // NalUnitType.PPS_NUT).findFirst()
         //                .orElse(null);
@@ -130,7 +134,7 @@ public class HEVCDecoderConfigurationRecord {
 
     final SeqParameterSetRbsp getSPS() {
         if (spsUnit == null) {
-            throw new IllegalStateException();
+            throw new HeicFormatException("The HEVC decoder configuration has no PPS");
         }
         return spsUnit;
         //        for (NalUnit nalUnit : nalUnits)
@@ -149,7 +153,7 @@ public class HEVCDecoderConfigurationRecord {
                 return (VideoParameterSetRbsp) nalUnit;
             }
         }
-        throw new IllegalStateException();
+        throw new HeicFormatException("The HEVC decoder configuration has no VPS");
         //        return (video_parameter_set_rbsp) nalUnits.stream().filter(i -> i.NalHeader.type ==
         // NalUnitType.VPS_NUT).findFirst()
         //                .orElse(null);

@@ -98,14 +98,10 @@ public class ItemInfoEntry extends FullBox {
 
             itemName = stream.readString();
             contentType = stream.readString();
-            contentEncoding = stream.readString(); // optional
-
-            if ((version & 0xFF) == 1) {
-                /*UInt32*/
-                /*long extension_type =*/ stream.read(32); // & 0xFFFFFFFFL; //optional
-                // ItemInfoExtension(extension_type); //optional
-                throw new UnsupportedOperationException();
+            if (hasMoreData(stream)) {
+                contentEncoding = stream.readString();
             }
+            // version 1 may add an item info extension, which is not used
         } else {
             itemID = stream.read((version & 0xFF) == 2 ? 16 : 32) & 0xFFFFFFFFL;
             itemProtectionIndex = stream.read(16) & 0xFFFF;
@@ -115,11 +111,14 @@ public class ItemInfoEntry extends FullBox {
 
             if ((itemType & 0xFFFFFFFFL) == 0x6d696d65 /*mime*/) {
                 contentType = stream.readString();
-                // content_encoding = stream.ReadString(); //optional
+                if (hasMoreData(stream)) {
+                    contentEncoding = stream.readString();
+                }
             } else if ((itemType & 0xFFFFFFFFL) == 0x75726920 /*uri */) {
                 itemUriType = stream.readString();
             }
         }
+        skipToEnd(stream);
     }
 
     /**

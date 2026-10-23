@@ -17,13 +17,15 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 import openize.isobmff.Box;
 import openize.isobmff.BoxType;
 import openize.isobmff.EntityToGroupBox;
 import openize.isobmff.FileTypeBox;
-import openize.isobmff.IlocItem;
+import openize.isobmff.IsoBmffFormatException;
+import openize.isobmff.ItemInfoEntry;
 import openize.isobmff.MetaBox;
 
 /**
@@ -37,6 +39,12 @@ public class HeicImage {
      * Dictionary of Heic image frames.
      * </p>
      */
+    // HEVC image brands of ISO/IEC 23008-12, and the generic image and sequence brands
+    private static final List<Long> HEVC_CAPABLE_BRANDS =
+            List.of("heic", "heix", "heim", "heis", "hevc", "hevx", "hevm", "hevs", "mif1", "mif2", "msf1").stream()
+                    .map(HeicImage::fourCharacterCode)
+                    .toList();
+
     private final HashMap<Long, HeicImageFrame> framesById;
 
     private final HeicHeader header;
@@ -88,6 +96,14 @@ public class HeicImage {
             throw new HeicFormatException("Not a HEIC image.");
         }
 
+        try {
+            return readMetadata(heicData);
+        } catch (IsoBmffFormatException exception) {
+            throw new HeicFormatException("Malformed HEIF container: " + exception.getMessage(), exception);
+        }
+    }
+
+    private static HeicImage readMetadata(byte[] heicData) {
         BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(heicData);
 
         Box.setExternalConstructor(BoxType.hvcC, (str, size) -> {
@@ -102,7 +118,11 @@ public class HeicImage {
             Box box = Box.parseBox(bitstream);
 
             if (box.type == BoxType.meta) {
-                return new HeicImage(new HeicHeader((MetaBox) box), bitstream, heicData);
+                HeicImage heicImage = new HeicImage(new HeicHeader((MetaBox) box), bitstream, heicData);
+                if (heicImage.getDefaultFrame() == null) {
+                    throw new HeicFormatException("No primary image");
+                }
+                return heicImage;
             }
         }
 
@@ -110,17 +130,27 @@ public class HeicImage {
     }
 
     /**
-     * Whether the data starts with a file type box listing the HEIC brand.
+     * Whether the data starts with a file type box listing a brand of HEIF images that may be coded in HEVC. Whether
+     * the image actually is HEVC shows when it is decoded: AVIF also uses the generic {@code mif1} brand.
      */
     public static boolean canLoad(byte[] heicData) {
         try {
             BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(heicData);
             Box box = Box.parseBox(bitstream);
 
-            return box instanceof FileTypeBox fileTypeBox && fileTypeBox.isBrandSupported(1751476579); // "heic"
-        } catch (RuntimeException exception) {
+            return box instanceof FileTypeBox fileTypeBox
+                    && HEVC_CAPABLE_BRANDS.stream().anyMatch(fileTypeBox::isBrandSupported);
+        } catch (IsoBmffFormatException exception) {
             return false;
         }
+    }
+
+    private static long fourCharacterCode(String code) {
+        long value = 0;
+        for (char character : code.toCharArray()) {
+            value = (value << 8) | character;
+        }
+        return value;
     }
 
     /**
@@ -317,8 +347,13 @@ public class HeicImage {
      * Exchangeable image metadata of the default image frame.
      * </p>
      */
-    public final ExifData getExif() {
-        return getDefaultFrame().exif;
+    /**
+     * The Exif metadata of the primary image, if the file has any.
+     *
+     * @throws HeicFormatException if the Exif item is malformed
+     */
+    public final Optional<ExifData> getExifOptional() {
+        return getDefaultFrame().getExifOptional();
     }
 
     /**
@@ -331,8 +366,9 @@ public class HeicImage {
     private void readFramesMeta(BitStreamWithNalSupport stream) {
         Map<Long, List<Box>> rawProperties = getHeader().getProperties();
 
-        for (IlocItem item : getHeader().getMeta().getiloc().items) {
-            long id = item.itemID;
+        // every item, including derived images that have no data of their own and so no location
+        for (ItemInfoEntry itemInfo : getHeader().getMeta().getiinf().itemInfos) {
+            long id = itemInfo.itemID;
             framesById.put(id, new HeicImageFrame(stream, this, id));
         }
 
@@ -343,11 +379,9 @@ public class HeicImage {
                 frameValue.loadProperties(stream, rawProperties.get(frameValueID));
 
             if (frameValue.getImageType() == ImageFrameType.exif) {
-                /*UInt32*/ long[] derived = getHeader().getDerivedList(frameValueID);
-                ExifData exif = new ExifData(stream, this, frameValue);
-
-                for (/*UInt32*/ long derivedId : derived) {
-                    framesById.get(derivedId).exif = exif;
+                for (long derivedId : getHeader().getDerivedList(frameValueID)) {
+                    Optional.ofNullable(framesById.get(derivedId))
+                            .ifPresent(describedFrame -> describedFrame.setExifItem(frameValue));
                 }
             }
         }

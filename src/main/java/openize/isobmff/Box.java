@@ -42,6 +42,9 @@ public class Box {
      */
     public BoxType type;
 
+    // where a box read with Box(BitStreamReader, BoxType) starts, so it can skip what it does not parse
+    private long startBitPosition = -1;
+
     /**
      * <p>
      * Create the box object from the bitstream.
@@ -50,7 +53,8 @@ public class Box {
      * @param stream File stream.
      */
     public Box(BitStreamReader stream) {
-        size = stream.read(32);
+        startBitPosition = stream.getBitPosition();
+        size = stream.read(32) & 0xFFFFFFFFL;
         type = BoxType.codeToType(stream.read(32));
 
         if (size == 1) {
@@ -81,11 +85,12 @@ public class Box {
      * @param boxtype Box type integer.
      */
     public Box(BitStreamReader stream, BoxType boxtype) {
+        startBitPosition = stream.getBitPosition();
         size = stream.read(32) & 0xFFFFFFFFL;
         BoxType readType = BoxType.codeToType(stream.read(32));
 
         if (readType != boxtype) {
-            throw new IllegalStateException();
+            throw new IsoBmffFormatException("Expected a %s box, found %s".formatted(boxtype, readType));
         }
 
         type = readType;
@@ -93,6 +98,25 @@ public class Box {
         if (size == 1) {
             size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
         }
+    }
+
+    /**
+     * Skips to the end of a box read with {@link #Box(BitStreamReader, BoxType)}, past any field it does not parse.
+     */
+    protected final void skipToEnd(BitStreamReader stream) {
+        long endBitPosition = startBitPosition + size * 8;
+        long consumedBits = stream.getBitPosition() - startBitPosition;
+        if (consumedBits > size * 8) {
+            throw new IsoBmffFormatException("The %s box overruns its %d bytes".formatted(type, size));
+        }
+        stream.skipBits(Math.toIntExact(endBitPosition - stream.getBitPosition()));
+    }
+
+    /**
+     * Whether a box read with {@link #Box(BitStreamReader, BoxType)} has data left after what was read.
+     */
+    protected final boolean hasMoreData(BitStreamReader stream) {
+        return stream.getBitPosition() < startBitPosition + size * 8;
     }
 
     /**
@@ -184,9 +208,6 @@ public class Box {
                 box = new ImageMirror(stream, size);
                 break;
 
-            case oinf:
-                box = new OperatingPointsInformationProperty(stream, size);
-                break;
             case udes:
                 box = new UserDescriptionBox(stream, size, startPosition);
                 break;
@@ -209,7 +230,9 @@ public class Box {
         /*UInt64*/
         long currentPosition = stream.getBitPosition();
 
-        if (currentPosition - startPosition > size * 8L) throw new IndexOutOfBoundsException();
+        if (currentPosition - startPosition > size * 8L) {
+            throw new IsoBmffFormatException("The %s box overruns its %d bytes".formatted(type, size));
+        }
 
         if (currentPosition - startPosition < size * 8) {
             stream.skipBits((int) (size * 8 - (currentPosition - startPosition)));

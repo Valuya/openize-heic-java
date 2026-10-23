@@ -26,7 +26,7 @@ class ExifDataTest {
     @Test
     void readsExifTagsOfAnIphonePhoto() throws IOException {
         HeicImage heicImage = HeicImage.load(TestSamples.samplePath("iphone_portrait_photo.heic"));
-        ExifData exifData = heicImage.getExif();
+        ExifData exifData = heicImage.getExifOptional().orElseThrow();
 
         Object xResolution =
                 exifData.getExifRawData(ExifDirectoryType.ExifIfd0Directory, ExifIFD0Directory.TAG_X_RESOLUTION);

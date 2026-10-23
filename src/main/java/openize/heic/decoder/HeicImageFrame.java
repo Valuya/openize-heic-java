@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 import openize.isobmff.AuxiliaryTypeProperty;
 import openize.isobmff.Box;
@@ -72,6 +73,8 @@ public class HeicImageFrame {
      * </p>
      */
     private long hvcConfigOffset;
+
+    private final long itemTypeCode;
 
     /**
      * <p>
@@ -149,7 +152,8 @@ public class HeicImageFrame {
         locationBox = parent.getHeader().getLocationBoxById(id);
 
         this.auxiliaryReferenceType = AuxiliaryReferenceType.Undefined;
-        imageType = ImageFrameType.codeToType(informationBox.itemType & 0xFFFFFFFFL);
+        itemTypeCode = informationBox.itemType & 0xFFFFFFFFL;
+        imageType = ImageFrameType.codeToType(itemTypeCode);
         isHidden = informationBox.itemHidden;
 
         this.id = id;
@@ -315,7 +319,10 @@ public class HeicImageFrame {
      * Exchangeable image frame metadata.
      * </p>
      */
-    public ExifData exif = null;
+    // the Exif item describing this image, parsed the first time it is asked for
+    private HeicImageFrame exifItem;
+
+    private ExifData exifData;
 
     /**
      * <p>
@@ -358,9 +365,7 @@ public class HeicImageFrame {
      * @return Byte array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
     public final byte[] getByteArray(PixelFormat pixelFormat, Rectangle boundsRectangle, byte[] dstArray) {
-        if (!isImage()) {
-            return null;
-        }
+        requireDecodableImage();
         int[] argbPixels = decodeArgb(validateBounds(boundsRectangle));
 
         int bytesPerPixel = pixelFormat == PixelFormat.Rgb24 ? 3 : 4;
@@ -443,9 +448,7 @@ public class HeicImageFrame {
      * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
      */
     public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle, int[] dstArray) {
-        if (!isImage()) {
-            return null;
-        }
+        requireDecodableImage();
         int[] argbPixels = decodeArgb(validateBounds(boundsRectangle));
         if (pixelFormat == PixelFormat.Argb32 && (dstArray == null || dstArray.length < argbPixels.length)) {
             return argbPixels;
@@ -462,6 +465,21 @@ public class HeicImageFrame {
             };
         }
         return output;
+    }
+
+    private void requireDecodableImage() {
+        if (!isImage()) {
+            throw new HeicFormatException("Item %d is coded as '%s', which this decoder does not decode"
+                    .formatted(id, fourCharacterCodeText(itemTypeCode)));
+        }
+    }
+
+    private static String fourCharacterCodeText(long code) {
+        StringBuilder text = new StringBuilder(4);
+        for (int shift = 24; shift >= 0; shift -= 8) {
+            text.append((char) ((code >> shift) & 0xFF));
+        }
+        return text.toString();
     }
 
     private Rectangle validateBounds(Rectangle boundsRectangle) {
@@ -519,6 +537,22 @@ public class HeicImageFrame {
      * @param id   A layer identifier.
      * @param type A layer type.
      */
+    /**
+     * The Exif metadata of this image, if the file has any for it.
+     *
+     * @throws HeicFormatException if the Exif item is malformed
+     */
+    public final synchronized Optional<ExifData> getExifOptional() {
+        if (exifData == null && exifItem != null) {
+            exifData = new ExifData(new BitStreamWithNalSupport(parent.getHeicData()), parent, exifItem);
+        }
+        return Optional.ofNullable(exifData);
+    }
+
+    final void setExifItem(HeicImageFrame exifItem) {
+        this.exifItem = exifItem;
+    }
+
     final void addLayerReference(/*UInt32*/ long id, AuxiliaryReferenceType type) {
         if (Objects.requireNonNull(type) == AuxiliaryReferenceType.Alpha) {
             this.alphaReference = id;
@@ -615,7 +649,12 @@ public class HeicImageFrame {
                     /*UInt32*/
                     long[] derived = parent.getHeader().getDerivedList(id);
                     for (/*UInt32*/ long derivedId : derived) {
-                        parent.getAllFrames().get(derivedId).addLayerReference(id, this.auxiliaryReferenceType);
+                        HeicImageFrame referencedFrame = parent.getAllFrames().get(derivedId);
+                        if (referencedFrame == null) {
+                            throw new HeicFormatException("Auxiliary image %d refers to item %d, which is not an image"
+                                    .formatted(id, derivedId));
+                        }
+                        referencedFrame.addLayerReference(id, this.auxiliaryReferenceType);
                     }
                     break;
                 case clap:
@@ -694,11 +733,15 @@ public class HeicImageFrame {
 
     private HeicImageFrame getDerivedFrame(int index) {
         long[] derivedIds = parent.getHeader().getDerivedList(id);
+        if (index >= derivedIds.length || parent.getAllFrames().get(derivedIds[index]) == null) {
+            throw new HeicFormatException("Image %d lacks its input image %d".formatted(id, index));
+        }
         return parent.getAllFrames().get(derivedIds[index]);
     }
 
     // A fresh reader per decode: frames decode independently of each other and of earlier decodes
     private HeicPicture decodePicture() {
+        requireItemData();
         BitStreamWithNalSupport pictureStream = new BitStreamWithNalSupport(parent.getHeicData());
         pictureStream.createNewImageContext(id);
         pictureStream.setBytePosition(hvcConfigOffset);
@@ -778,7 +821,14 @@ public class HeicImageFrame {
         }
     }
 
+    private void requireItemData() {
+        if (locationBox == null || locationBox.extents.length == 0) {
+            throw new HeicFormatException("Item %d has no data".formatted(id));
+        }
+    }
+
     private byte[] readItemData() {
+        requireItemData();
         return (locationBox.constructionMethod & 0xFF) == 1
                 ? parent.getHeader()
                         .getItemDataBoxContent(

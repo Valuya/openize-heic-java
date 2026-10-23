@@ -14,6 +14,6 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 class Pps3dExtension {
     public Pps3dExtension(BitStreamWithNalSupport stream) {
-        throw new UnsupportedOperationException();
+        throw new HeicFormatException("The PPS 3D extension is not supported");
     }
 }

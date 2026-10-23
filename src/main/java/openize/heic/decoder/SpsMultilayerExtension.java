@@ -14,6 +14,6 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 class SpsMultilayerExtension {
     public SpsMultilayerExtension(BitStreamWithNalSupport stream) {
-        throw new UnsupportedOperationException();
+        throw new HeicFormatException("The SPS multilayer extension is not supported");
     }
 }

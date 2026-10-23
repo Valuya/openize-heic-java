@@ -48,7 +48,7 @@ class LibheifComparisonTest {
     static Stream<Path> heicFiles() {
         Stream<Path> extraCorpusFiles = Optional.ofNullable(System.getProperty("openize.libheif.corpus"))
                 .map(Path::of)
-                .map(TestSamples::listHeicFiles)
+                .map(TestSamples::listHeifFiles)
                 .stream()
                 .flatMap(List::stream);
         return Stream.concat(TestSamples.listSamples().stream(), extraCorpusFiles);

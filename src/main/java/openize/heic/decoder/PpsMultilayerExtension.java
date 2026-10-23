@@ -14,6 +14,6 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 class PpsMultilayerExtension {
     public PpsMultilayerExtension(BitStreamWithNalSupport stream) {
-        throw new UnsupportedOperationException();
+        throw new HeicFormatException("The PPS multilayer extension is not supported");
     }
 }

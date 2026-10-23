@@ -30,12 +30,12 @@ public class NalUnit {
         long startPosition = stream.getBitPosition();
         stream.turnOnNalUnitMode();
 
-        // Discard all NAL units with nuh_layer_id > 0
-        // These will have to be handled by an SHVC decoder.
+        // only the base layer is decoded: NAL units of other layers (nuh_layer_id > 0, multi-layer HEVC) are skipped
+        int nuhLayerId = (stream.peek(16) >> 3) & 0x3F;
 
-        // throw away NALs from higher TIDs than currently selected
-
-        if (type.getUnitCode() < 32) {
+        if (nuhLayerId > 0) {
+            nalUnit = new NalUnit(stream, startPosition, size);
+        } else if (type.getUnitCode() < 32) {
             // VCL
             nalUnit = new SliceSegmentLayerRbsp(stream, startPosition, size);
         } else {
@@ -65,7 +65,7 @@ public class NalUnit {
         long currentPosition = stream.getBitPosition();
 
         if (currentPosition - startPosition > (size & 0xFFFFFFFFL) * 8L) {
-            throw new IndexOutOfBoundsException();
+            throw new HeicFormatException("A %s NAL unit overruns its %d bytes".formatted(type, size));
         }
 
         if (currentPosition - startPosition < (size & 0xFFFFFFFFL) * 8L) {
@@ -75,11 +75,18 @@ public class NalUnit {
         return nalUnit;
     }
 
-    public static NalUnit parseUnit(BitStreamWithNalSupport stream) {
+    /**
+     * Reads a length-prefixed NAL unit, as image items store them. Zero-length units, which some writers use as
+     * padding, are skipped.
+     */
+    public static void parseUnit(BitStreamWithNalSupport stream) {
         int size = stream.read(32);
+        if (size == 0) {
+            return;
+        }
         int peek = stream.peek(8);
         NalUnitType type = NalUnitType.codeToType((peek >> 1) & 0x3F);
-        return parseKnownUnit(stream, size, type);
+        parseKnownUnit(stream, size, type);
     }
 
     public final /*UInt64*/ long getEndPosition() {

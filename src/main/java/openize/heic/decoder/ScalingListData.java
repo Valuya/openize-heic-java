@@ -63,6 +63,10 @@ class ScalingListData {
                         setDefault(sizeId, matrixId);
                     } else {
                         int refMatrixId = matrixId - scalingListPredMatrixIdDelta * step;
+                        if (refMatrixId < 0) {
+                            throw new HeicFormatException(
+                                    "Scaling list predicted from matrix %d, before the first".formatted(refMatrixId));
+                        }
                         scalingList[sizeId][matrixId] = scalingList[sizeId][refMatrixId].clone();
                         if (sizeId > 1) dcCoef[sizeId - 2][matrixId] = dcCoef[sizeId - 2][refMatrixId];
                     }

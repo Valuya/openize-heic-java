@@ -41,18 +41,22 @@ final class TestSamples {
     }
 
     static List<Path> listSamples() {
-        return listHeicFiles(SAMPLES);
+        return listHeifFiles(SAMPLES);
     }
 
-    static List<Path> listHeicFiles(Path directory) {
+    static List<Path> listHeifFiles(Path directory) {
         try (Stream<Path> paths = Files.walk(directory)) {
-            return paths.filter(
-                            path -> path.getFileName().toString().toLowerCase().endsWith(".heic"))
+            return paths.filter(path -> isHeifFileName(path.getFileName().toString()))
                     .sorted()
                     .toList();
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
+    }
+
+    private static boolean isHeifFileName(String fileName) {
+        String lowerCaseName = fileName.toLowerCase();
+        return lowerCaseName.endsWith(".heic") || lowerCaseName.endsWith(".heif") || lowerCaseName.endsWith(".hif");
     }
 
     static void assertMatchesReference(String referenceName, byte[] decodedBytes) {

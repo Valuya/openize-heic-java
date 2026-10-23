@@ -86,7 +86,7 @@ public class HeicHeader {
         for (ItemInfoEntry info : meta.getiinf().itemInfos) {
             if (info.itemID == id) return info;
         }
-        throw new IllegalStateException();
+        throw new HeicFormatException("No item information for item %d".formatted(id));
     }
 
     /**

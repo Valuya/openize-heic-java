@@ -56,9 +56,16 @@ public class EntityToGroupBox extends FullBox {
 
         groupId = stream.read(32) & 0xFFFFFFFFL;
         numEntitiesInGroup = stream.read(32) & 0xFFFFFFFFL;
+        // each entity id takes 4 bytes of the box, which bounds the count before anything is allocated
+        if (numEntitiesInGroup * 4 > size) {
+            throw new IsoBmffFormatException(
+                    "An entity group lists %d entities in %d bytes".formatted(numEntitiesInGroup, size));
+        }
         entities = new /*UInt32*/ long[(int) (numEntitiesInGroup & 0xFFFFFFFFL)];
 
         for (int i = 0; i < (numEntitiesInGroup & 0xFFFFFFFFL); i++) entities[i] = stream.read(32) & 0xFFFFFFFFL;
+        // group types may add fields of their own
+        skipToEnd(stream);
     }
 
     /**

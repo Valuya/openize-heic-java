@@ -129,25 +129,21 @@ public class ExifData {
         IlocItem locationBox = Arrays.stream(image.getHeader().getMeta().getiloc().items)
                 .filter((item) -> item.itemID == exifFrame.getID())
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Unexpected Exif header"));
+                .orElseThrow(() -> new HeicFormatException("Exif item %d has no data".formatted(exifFrame.getID())));
 
         stream.setBytePosition(locationBox.baseOffset + locationBox.extents[0].offset);
-        long end = locationBox.baseOffset + locationBox.extents[0].offset + locationBox.extents[0].length;
+        long length = locationBox.extents[0].length;
+        long end = locationBox.baseOffset + locationBox.extents[0].offset + length;
 
-        int offset = stream.read(32); // 0x00000006
-
-        if (offset == 6) {
-            int define = stream.read(32); // 0x45786966 "Exif"
-            int zero = stream.read(16); // 0x0000 "\0\0"
-
-            if (define != 0x45786966 || zero != 0x0000) {
-                throw new RuntimeException("Unexpected Exif header");
-            }
-        } else if (offset > 0) {
-            throw new RuntimeException("Unexpected Exif header");
+        // exif_tiff_header_offset: bytes before the TIFF header, usually 6 for an "Exif\0\0" prefix
+        long tiffHeaderOffset = Integer.toUnsignedLong(stream.read(32));
+        if (tiffHeaderOffset > length - 4) {
+            throw new HeicFormatException(
+                    "Exif TIFF header offset %d past the end of the %d-byte item".formatted(tiffHeaderOffset, length));
         }
+        stream.skipBits(Math.toIntExact(tiffHeaderOffset * 8));
 
-        this.rawBytes = new /*Byte*/ byte[(int) (locationBox.extents[0].length - 4 - offset)];
+        this.rawBytes = new /*Byte*/ byte[(int) (length - 4 - tiffHeaderOffset)];
 
         for (int i = 0; stream.getBitPosition() / 8 < end; i++) {
             getRawBytes()[i] = (/*Byte*/ byte) stream.read(8);

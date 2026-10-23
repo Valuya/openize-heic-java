@@ -47,7 +47,7 @@ public class GroupsListBox extends Box {
     public GroupsListBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
         super(BoxType.grpl, size);
 
-        boxes = new ArrayList<>((int) size);
+        boxes = new ArrayList<>();
 
         while (stream.getBitPosition() < startPos + size * 8) {
             boxes.add(new EntityToGroupBox(stream));
