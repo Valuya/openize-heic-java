@@ -24,8 +24,9 @@ Openize.HEIC has support for:
 * explicit scaling lists (SPS and PPS);
 * clean aperture (clap) cropping.
 
-Decoded images match libheif within YCbCr to RGB rounding (at most 1 or 2 levels per channel):
-see [tools/compare-with-libheif](tools/compare-with-libheif).
+Decoded images match libheif within YCbCr to RGB rounding (at most 1 or 2 levels per channel).
+`LibheifComparisonTest` checks this on every sample when libheif's `heif-dec` or `heif-convert` is
+installed (Debian/Ubuntu `libheif-examples`, Homebrew `libheif`), and is skipped otherwise.
 
 Openize.HEIC doesn't support:
 * HDR images;

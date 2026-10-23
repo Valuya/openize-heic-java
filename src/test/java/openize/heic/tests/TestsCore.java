@@ -137,7 +137,7 @@ public class TestsCore
      * <p>
      * Compare color data with a reference digest. Run the tests with {@code -Dopenize.updateReferences=true}
      * to rewrite the digests after an intended change in the decoded output; check such a change against
-     * libheif first with {@code tools/compare-with-libheif}.
+     * libheif first with {@link LibheifComparisonTest}.
      * </p>
      *
      * @param filename File name.
