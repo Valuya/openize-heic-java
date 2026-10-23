@@ -150,7 +150,7 @@ public final class HeicImageFrame {
      * @throws HeicImageTooLargeException if the image has more pixels than the decoding options allow
      */
     public int[] decodeArgb() {
-        return decodeArgb(PixelRegion.ofSize(getWidth(), getHeight()));
+        return decodeArgb(wholeImage());
     }
 
     /**
@@ -197,7 +197,7 @@ public final class HeicImageFrame {
      * @throws HeicImageTooLargeException if the image has more pixels than the decoding options allow
      */
     public byte[] decodeBytes(PixelFormat pixelFormat) {
-        return decodeBytes(pixelFormat, PixelRegion.ofSize(getWidth(), getHeight()));
+        return decodeBytes(pixelFormat, wholeImage());
     }
 
     /**
@@ -367,6 +367,14 @@ public final class HeicImageFrame {
 
     private static long roundFraction(long numerator, long denominator) {
         return (2 * numerator + denominator) / (2 * denominator);
+    }
+
+    // a size of 0 comes from a missing or malformed ispe or clap property
+    private PixelRegion wholeImage() {
+        if (getWidth() < 1 || getHeight() < 1) {
+            throw new HeicFormatException("Image %d has a size of %dx%d pixels".formatted(id, getWidth(), getHeight()));
+        }
+        return PixelRegion.ofSize(getWidth(), getHeight());
     }
 
     private void requireInside(PixelRegion region) {

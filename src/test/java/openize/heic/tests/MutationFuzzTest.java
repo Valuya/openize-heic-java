@@ -11,10 +11,12 @@
 package openize.heic.tests;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -67,6 +69,23 @@ class MutationFuzzTest {
         assertThat(failures)
                 .as("decoding failures other than HeicFormatException, seed %d", sequenceSeed)
                 .isEmpty();
+    }
+
+    @Test
+    void rejectsAnImageOfNoPixels() throws IOException {
+        byte[] heicData = Files.readAllBytes(TestSamples.samplePath("gimp_rgb_420_with_alpha.heic"));
+        // each ispe box: 'ispe', version and flags, then a 32-bit width and height
+        byte[] ispeType = "ispe".getBytes(StandardCharsets.US_ASCII);
+        for (int index = 0; index + 12 <= heicData.length; index++) {
+            if (Arrays.equals(heicData, index, index + 4, ispeType, 0, 4)) {
+                Arrays.fill(heicData, index + 8, index + 16, (byte) 0);
+            }
+        }
+        HeicImage heicImage = HeicImage.load(heicData, FUZZ_OPTIONS);
+
+        assertThatThrownBy(heicImage::decodeArgb)
+                .isInstanceOf(HeicFormatException.class)
+                .hasMessageContaining("0x0");
     }
 
     private static String describe(Throwable decodingFailure) {
