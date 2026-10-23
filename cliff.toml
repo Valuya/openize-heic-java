@@ -19,16 +19,17 @@ filter_unconventional = false
 split_commits = false
 protect_breaking_commits = true
 tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
-# the HTML comments order the groups
+# The commits that do not release the library (tools/release-version.sh) are left out of the notes too, unless
+# breaking. The HTML comments order the groups.
 commit_parsers = [
   { message = "^Merge ", skip = true },
+  { message = "^(build|chore|ci|docs|style|test)(\\(.*\\))?:", skip = true },
   { message = "^feat", group = "<!-- 0 -->Features" },
   { message = "^fix", group = "<!-- 1 -->Bug fixes" },
   { message = "^perf", group = "<!-- 2 -->Performance" },
   { message = "^refactor", group = "<!-- 3 -->Refactoring" },
   { message = "^revert", group = "<!-- 4 -->Reverts" },
-  { message = "^build", group = "<!-- 5 -->Build" },
-  { message = ".*", group = "<!-- 6 -->Other" },
+  { message = ".*", group = "<!-- 5 -->Other" },
 ]
 
 [bump]

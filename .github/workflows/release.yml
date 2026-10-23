@@ -2,8 +2,8 @@ name: release
 
 # Publishes io.github.valuya:heic-decoder to Maven Central, when run by hand on main. The version is not committed:
 # tools/release-version.sh computes it from the Conventional Commits that changed the library since the last release
-# tag, and the run ends with that version's tag, vX.Y.Z, and its GitHub release. A run with no library change since
-# the last release publishes nothing.
+# tag, and the run ends with that version's tag, vX.Y.Z, and its GitHub release. A run with no such commit since the
+# last release, only build, chore, ci, docs, style or test ones for instance, publishes nothing.
 #
 # The tag is pushed last, once the version is on Central, so that a tag always means "published": the next run
 # computes its version from it.
@@ -60,7 +60,7 @@ jobs:
           echo "$release" | tee -a "$GITHUB_OUTPUT"
           eval "$release"
           if [ "$needed" = false ]; then
-            echo "::notice::nothing changed src/main or pom.xml since ${last}: nothing to release"
+            echo "::notice::no commit changed the library since ${last}: nothing to release"
             exit 0
           fi
           URL="https://repo1.maven.org/maven2/io/github/valuya/heic-decoder/${version}/heic-decoder-${version}.pom"
