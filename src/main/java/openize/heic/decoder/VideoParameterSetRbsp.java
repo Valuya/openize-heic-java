@@ -12,111 +12,77 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+/**
+ * video_parameter_set_rbsp( ) (7.3.2.1). Nothing in it matters to decoding the base layer: it is parsed to identify
+ * it, and to check that it is well formed.
+ */
 public class VideoParameterSetRbsp extends NalUnit {
-    final byte vpsVideoParameterSetId; // max - 16
-    final boolean vpsBaseLayerInternalFlag;
-    final boolean vpsBaseLayerAvailableFlag;
-    final byte vpsMaxLayersMinus1;
-    final byte vpsMaxSubLayersMinus1;
-    final boolean vpsTemporalIdNestingFlag;
-    final ProfileTierLevel ProfileTierLevel;
+    // 7.4.3.1
+    private static final int MAX_VPS_NUM_LAYER_SETS_MINUS1 = 1023;
 
-    final boolean vpsSubLayerOrderingInfoPresentFlag;
+    final int vpsVideoParameterSetId;
+    private final ProfileTierLevel profileTierLevel;
 
-    //    final /*UInt32*/ long[] vps_max_dec_pic_buffering_minus1;
-    //    final /*UInt32*/ long[] vps_max_num_reorder_pics;
-    //    final /*UInt32*/ long[] vps_max_latency_increase_plus1;
-
-    final byte vpsMaxLayerId;
-    final /*UInt32*/ long vpsNumLayerSetsMinus1;
-
-    // final boolean[][] layer_id_included_flag;
-    final boolean vpsTimingInfoPresentFlag;
-    /*UInt32*/ long vpsNumUnitsInTick;
-    /*UInt32*/ long vpsTimeScale;
-    boolean vpsPocProportionalToTimingFlag;
-    /*UInt32*/ long vpsNumTicksPocDiffOne;
-    /*UInt32*/ long vpsNumHrdParameters;
-
-    /// *UInt32*/ long[] hrd_layer_set_idx;
-    boolean[] cprmsPresentFlag;
-    final boolean vpsExtensionFlag;
-    boolean vpsExtensionDataFlag;
-    HrdParameters HrdParameters;
-
-    VideoParameterSetRbsp(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
+    VideoParameterSetRbsp(BitStreamWithNalSupport stream, long startPosition, int size) {
         super(stream, startPosition, size);
 
-        vpsVideoParameterSetId = (byte) stream.read(4); // u(4)
-        vpsBaseLayerInternalFlag = stream.readFlag(); // u(1)
-        vpsBaseLayerAvailableFlag = stream.readFlag(); // u(1)
-        vpsMaxLayersMinus1 = (byte) stream.read(6); // u(6)
-        vpsMaxSubLayersMinus1 = (byte) stream.read(3); // u(3)
-        vpsTemporalIdNestingFlag = stream.readFlag(); // u(1)
-        stream.skipBits(16); // vps_reserved_0xffff_16bits                  // u(16)
+        vpsVideoParameterSetId = stream.read(4);
+        // vps_base_layer_internal_flag, vps_base_layer_available_flag, vps_max_layers_minus1
+        stream.skipBits(1 + 1 + 6);
+        int vpsMaxSubLayersMinus1 = stream.read(3);
+        // vps_temporal_id_nesting_flag, vps_reserved_0xffff_16bits
+        stream.skipBits(1 + 16);
 
-        ProfileTierLevel = new ProfileTierLevel(stream, true, vpsMaxSubLayersMinus1 & 0xFF);
+        profileTierLevel = ProfileTierLevel.read(stream, vpsMaxSubLayersMinus1);
 
-        vpsSubLayerOrderingInfoPresentFlag = stream.readFlag(); // u(1)
-
-        byte layersCount = (byte) (vpsSubLayerOrderingInfoPresentFlag ? 0 : vpsMaxLayersMinus1);
-        //        vps_max_dec_pic_buffering_minus1 = new /*UInt32*/long[(vps_max_layers_minus1 & 0xFF) + 1];
-        //        vps_max_num_reorder_pics = new /*UInt32*/long[(vps_max_layers_minus1 & 0xFF) + 1];
-        //        vps_max_latency_increase_plus1 = new /*UInt32*/long[(vps_max_layers_minus1 & 0xFF) + 1];
-
-        for (int i = layersCount & 0xFF; i <= (vpsMaxLayersMinus1 & 0xFF); i++) {
-            /*vps_max_dec_pic_buffering_minus1[i] =*/ stream.readUev(); // ue(v)
-            /*vps_max_num_reorder_pics[i] =*/ stream.readUev(); // ue(v)
-            /*vps_max_latency_increase_plus1[i] =*/ stream.readUev(); // ue(v)
+        boolean vpsSubLayerOrderingInfoPresentFlag = stream.readFlag();
+        int firstSubLayer = vpsSubLayerOrderingInfoPresentFlag ? 0 : vpsMaxSubLayersMinus1;
+        for (int i = firstSubLayer; i <= vpsMaxSubLayersMinus1; i++) {
+            stream.readUev(); // vps_max_dec_pic_buffering_minus1
+            stream.readUev(); // vps_max_num_reorder_pics
+            stream.readUev(); // vps_max_latency_increase_plus1
         }
 
-        vpsMaxLayerId = (byte) stream.read(6); // u(6)
-        vpsNumLayerSetsMinus1 = stream.readUev(); // ue(v)
+        int vpsMaxLayerId = stream.read(6);
+        int vpsNumLayerSetsMinus1 = stream.readUevAtMost(MAX_VPS_NUM_LAYER_SETS_MINUS1);
+        // layer_id_included_flag[ i ][ j ] for each layer set but the first, and each layer id
+        stream.skipBits(vpsNumLayerSetsMinus1 * (vpsMaxLayerId + 1));
 
-        // layer_id_included_flag = new boolean[(int) (((vps_num_layer_sets_minus1 & 0xFFFFFFFFL) + 2) &
-        // 0xFFFFFFFFL)][(vps_max_layer_id & 0xFF) + 1];
-
-        //        for (int i = 1; i <= (vps_num_layer_sets_minus1 & 0xFFFFFFFFL); i++)
-        //            for (int j = 0; j <= (vps_max_layer_id & 0xFF); j++)
-        //                layer_id_included_flag[i][j] = stream.readFlag();    // u(1)
-
-        vpsTimingInfoPresentFlag = stream.readFlag(); // u(1)
-
+        boolean vpsTimingInfoPresentFlag = stream.readFlag();
         if (vpsTimingInfoPresentFlag) {
-            vpsNumUnitsInTick = stream.read(32) & 0xFFFFFFFFL; // u(32)
-            vpsTimeScale = stream.read(32) & 0xFFFFFFFFL; // u(32)
-            vpsPocProportionalToTimingFlag = stream.readFlag(); // u(1)
+            stream.skipBits(32 + 32); // vps_num_units_in_tick, vps_time_scale
+            boolean vpsPocProportionalToTimingFlag = stream.readFlag();
             if (vpsPocProportionalToTimingFlag) {
-                vpsNumTicksPocDiffOne = (((stream.readUev() & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL); // ue(v)
+                stream.readUev(); // vps_num_ticks_poc_diff_one_minus1
             }
-
-            vpsNumHrdParameters = (stream.readUev()); // ue(v)
-            if (vpsNumHrdParameters > 1024) {
-                throw new HeicFormatException("%d HRD parameter sets, more than 1024".formatted(vpsNumHrdParameters));
-            }
-            // hrd_layer_set_idx = new /*UInt32*/long[(int) (vps_num_hrd_parameters & 0xFFFFFFFFL)];
-            cprmsPresentFlag = new boolean[(int) (vpsNumHrdParameters & 0xFFFFFFFFL)];
-            for (int i = 0; i < (vpsNumHrdParameters & 0xFFFFFFFFL); i++) {
-                /*hrd_layer_set_idx[i] =*/ stream.readUev(); // ue(v)
-                if (i > 0) {
-                    cprmsPresentFlag[i] = stream.readFlag(); // u(1)
-                }
-
-                HrdParameters = new HrdParameters(stream, cprmsPresentFlag[i], vpsMaxSubLayersMinus1 & 0xFF);
-            }
+            int vpsNumHrdParameters = stream.readUevAtMost(vpsNumLayerSetsMinus1 + 1);
+            skipHrdParameters(stream, vpsNumHrdParameters, vpsMaxSubLayersMinus1);
         }
+        // vps_extension_flag and vps_extension( ) (F.7.3.2.1.1) describe the layers above the base one
+    }
 
-        vpsExtensionFlag = stream.readFlag(); // u(1)
-        if (vpsExtensionFlag) {
-            while (stream.hasMoreRbspData(getEndPosition())) vpsExtensionDataFlag = stream.readFlag(); // u(1)
+    private static void skipHrdParameters(BitStreamWithNalSupport stream, int count, int maxNumSubLayersMinus1) {
+        if (count == 0) {
+            return;
         }
-        readRbspTrailingBits(stream);
+        stream.readUev(); // hrd_layer_set_idx[ 0 ]
+        // cprms_present_flag[ 0 ] is inferred to be 1 (7.4.3.1)
+        HrdParameters hrdParameters = HrdParameters.read(stream, maxNumSubLayersMinus1);
+        for (int i = 1; i < count; i++) {
+            stream.readUev(); // hrd_layer_set_idx[ i ]
+            boolean cprmsPresentFlag = stream.readFlag();
+            hrdParameters = cprmsPresentFlag
+                    ? HrdParameters.read(stream, maxNumSubLayersMinus1)
+                    : hrdParameters.readNextWithSameCommonParameters(stream, maxNumSubLayersMinus1);
+        }
     }
 
     @Override
     public final String toString() {
-        return String.format(
-                "NAL Unit VPS \nProfile: %d\nLevel: %d",
-                ProfileTierLevel.generalProfileIdc, ProfileTierLevel.generalLevelIdc);
+        return "NAL Unit VPS %d, profile %d, level %d"
+                .formatted(
+                        vpsVideoParameterSetId,
+                        profileTierLevel.generalProfileIdc(),
+                        profileTierLevel.generalLevelIdc());
     }
 }

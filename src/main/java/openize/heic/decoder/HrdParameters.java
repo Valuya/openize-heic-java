@@ -12,105 +12,83 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-class HrdParameters {
-    private boolean nalHrdParametersPresentFlag;
-    private boolean vclHrdParametersPresentFlag;
-    private boolean subPicHrdParamsPresentFlag;
-    // private byte tick_divisor_minus2;
-    // private byte du_cpb_removal_delay_increment_length_minus1;
-    //    private byte sub_pic_cpb_params_in_pic_timing_sei_flag;
-    //    private byte dpb_output_delay_du_length_minus1;
-    //    private byte bit_rate_scale;
-    //    private byte cpb_size_scale;
-    //    private byte initial_cpb_removal_delay_length_minus1;
-    //    private byte au_cpb_removal_delay_length_minus1;
-    //    private byte dpb_output_delay_length_minus1;
-    //    private byte cpb_size_du_scale;
-    // private final boolean[] fixed_pic_rate_general_flag;
-    // private final boolean[] fixed_pic_rate_within_cvs_flag;
-    // private final /*UInt32*/long[] elemental_duration_in_tc_minus1;
-    // private final boolean[] low_delay_hrd_flag;
-    // private final /*UInt32*/long[] cpb_cnt_minus1;
-    // private final sub_layer_hrd_parameters[] sub_layer_hrd_parameters;
+/**
+ * hrd_parameters( ) (E.2.2), read to get past it: the hypothetical reference decoder does not matter to decoding a
+ * picture. Keeps the parameters common to all sub-layers, which the next set of a VPS can share.
+ */
+record HrdParameters(
+        boolean nalHrdParametersPresentFlag, boolean vclHrdParametersPresentFlag, boolean subPicHrdParamsPresentFlag) {
+    // CpbCnt is at most 32 (E.3.2)
+    private static final int MAX_CPB_CNT_MINUS1 = 31;
 
-    public HrdParameters(BitStreamWithNalSupport stream, boolean commonInfPresentFlag, int maxNumSubLayersMinus1) {
-        if (commonInfPresentFlag) {
-            nalHrdParametersPresentFlag = stream.readFlag(); // u(1)
-            vclHrdParametersPresentFlag = stream.readFlag(); // u(1)
-            if (nalHrdParametersPresentFlag || vclHrdParametersPresentFlag) {
-                subPicHrdParamsPresentFlag = stream.readFlag(); // u(1)
-                if (subPicHrdParamsPresentFlag) {
-                    /*tick_divisor_minus2 = (byte)*/
-                    stream.read(8); // u(8)
-                    /*du_cpb_removal_delay_increment_length_minus1 = (byte)*/
-                    stream.read(5); // u(5)
-                    /*sub_pic_cpb_params_in_pic_timing_sei_flag = (byte)*/
-                    stream.read(8); // u(1)
-                    /*dpb_output_delay_du_length_minus1 = (byte)*/
-                    stream.read(5); // u(5)
-                }
+    /**
+     * Reads hrd_parameters( 1, maxNumSubLayersMinus1 ).
+     */
+    static HrdParameters read(BitStreamWithNalSupport stream, int maxNumSubLayersMinus1) {
+        boolean nalHrdParametersPresentFlag = stream.readFlag();
+        boolean vclHrdParametersPresentFlag = stream.readFlag();
+        boolean subPicHrdParamsPresentFlag = false;
+        if (nalHrdParametersPresentFlag || vclHrdParametersPresentFlag) {
+            subPicHrdParamsPresentFlag = stream.readFlag();
+            if (subPicHrdParamsPresentFlag) {
+                // tick_divisor_minus2, du_cpb_removal_delay_increment_length_minus1,
+                // sub_pic_cpb_params_in_pic_timing_sei_flag, dpb_output_delay_du_length_minus1
+                stream.skipBits(8 + 5 + 1 + 5);
+            }
+            stream.skipBits(4 + 4); // bit_rate_scale, cpb_size_scale
+            if (subPicHrdParamsPresentFlag) {
+                stream.skipBits(4); // cpb_size_du_scale
+            }
+            // initial_cpb_removal_delay_length_minus1, au_cpb_removal_delay_length_minus1,
+            // dpb_output_delay_length_minus1
+            stream.skipBits(5 + 5 + 5);
+        }
+        HrdParameters hrdParameters =
+                new HrdParameters(nalHrdParametersPresentFlag, vclHrdParametersPresentFlag, subPicHrdParamsPresentFlag);
+        hrdParameters.skipSubLayers(stream, maxNumSubLayersMinus1);
+        return hrdParameters;
+    }
 
-                /*bit_rate_scale = (byte)*/
-                stream.read(4); // u(4)
-                /*cpb_size_scale = (byte)*/
-                stream.read(4); // u(4)
+    /**
+     * Reads the next hrd_parameters( 0, maxNumSubLayersMinus1 ) of a VPS, whose common parameters are this one's
+     * (cprms_present_flag, 7.4.3.1).
+     */
+    HrdParameters readNextWithSameCommonParameters(BitStreamWithNalSupport stream, int maxNumSubLayersMinus1) {
+        skipSubLayers(stream, maxNumSubLayersMinus1);
+        return this;
+    }
 
-                if (subPicHrdParamsPresentFlag) {
-                    /*cpb_size_du_scale = (byte)*/
-                    stream.read(4); // u(4)
-                }
-                // initial_cpb_removal_delay_length_minus1 = (byte)
-                stream.read(5); // u(5)
-                // au_cpb_removal_delay_length_minus1 = (byte)
-                stream.read(5); // u(5)
-                // dpb_output_delay_length_minus1 = (byte)
-                stream.read(5); // u(5)
+    private void skipSubLayers(BitStreamWithNalSupport stream, int maxNumSubLayersMinus1) {
+        for (int i = 0; i <= maxNumSubLayersMinus1; i++) {
+            boolean fixedPicRateGeneralFlag = stream.readFlag();
+            // inferred to be 1 when fixed_pic_rate_general_flag is (E.3.2)
+            boolean fixedPicRateWithinCvsFlag = fixedPicRateGeneralFlag || stream.readFlag();
+            boolean lowDelayHrdFlag = false;
+            if (fixedPicRateWithinCvsFlag) {
+                stream.readUev(); // elemental_duration_in_tc_minus1
+            } else {
+                lowDelayHrdFlag = stream.readFlag();
+            }
+            int cpbCnt = lowDelayHrdFlag ? 1 : stream.readUevAtMost(MAX_CPB_CNT_MINUS1) + 1;
+            if (nalHrdParametersPresentFlag) {
+                skipSubLayerHrdParameters(stream, cpbCnt);
+            }
+            if (vclHrdParametersPresentFlag) {
+                skipSubLayerHrdParameters(stream, cpbCnt);
             }
         }
+    }
 
-        boolean[] fixedPicRateGeneralFlag = new boolean[maxNumSubLayersMinus1 + 1];
-        boolean[] fixedPicRateWithinCvsFlag = new boolean[maxNumSubLayersMinus1 + 1];
-        // elemental_duration_in_tc_minus1 = new /*UInt32*/long[maxNumSubLayersMinus1 + 1];
-        boolean[] lowDelayHrdFlag = new boolean[maxNumSubLayersMinus1 + 1];
-        // cpb_cnt_minus1 = new /*UInt32*/long[maxNumSubLayersMinus1 + 1];
-        // sub_layer_hrd_parameters = new sub_layer_hrd_parameters[maxNumSubLayersMinus1 + 1];
-
-        for (int i = 0; i <= maxNumSubLayersMinus1; i++) {
-            fixedPicRateGeneralFlag[i] = stream.readFlag(); // u(1)
-            if (!fixedPicRateGeneralFlag[i]) {
-                fixedPicRateWithinCvsFlag[i] = stream.readFlag(); // u(1)
+    // sub_layer_hrd_parameters( ) (E.2.3)
+    private void skipSubLayerHrdParameters(BitStreamWithNalSupport stream, int cpbCnt) {
+        for (int i = 0; i < cpbCnt; i++) {
+            stream.readUev(); // bit_rate_value_minus1
+            stream.readUev(); // cpb_size_value_minus1
+            if (subPicHrdParamsPresentFlag) {
+                stream.readUev(); // cpb_size_du_value_minus1
+                stream.readUev(); // bit_rate_du_value_minus1
             }
-
-            if (fixedPicRateWithinCvsFlag[i])
-            /*elemental_duration_in_tc_minus1[i] =*/
-            {
-                stream.readUev(); // ue(v)
-            } else {
-                lowDelayHrdFlag[i] = stream.readFlag(); // u(1)
-            }
-
-            long cpbCntMinus1 = 0;
-            if (!lowDelayHrdFlag[i])
-            /*cpb_cnt_minus1[i] =*/
-            {
-                cpbCntMinus1 = stream.readUev(); // ue(v)
-            }
-
-            /*UInt32*/
-            long cpbCnt = ((cpbCntMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL;
-            /// *UInt32*/long CpbCnt = ((cpb_cnt_minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL;
-
-            if (nalHrdParametersPresentFlag)
-            /*sub_layer_hrd_parameters[i] = */
-            {
-                new SubLayerHrdParameters(stream, cpbCnt, subPicHrdParamsPresentFlag);
-            }
-
-            if (vclHrdParametersPresentFlag)
-            /*sub_layer_hrd_parameters[i] = */
-            {
-                new SubLayerHrdParameters(stream, cpbCnt, subPicHrdParamsPresentFlag);
-            }
+            stream.skipBits(1); // cbr_flag
         }
     }
 }

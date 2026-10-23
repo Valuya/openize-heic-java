@@ -48,7 +48,9 @@ public class NalUnit {
     }
 
     /**
-     * Parses a NAL unit of {@code size} bytes, which starts on a byte boundary, and leaves the stream after it.
+     * Parses a NAL unit of {@code size} bytes, which starts on a byte boundary, and leaves the stream after it. A
+     * payload is parsed up to the last syntax element the decoder needs: what follows, such as extension data and
+     * rbsp_trailing_bits( ), is skipped.
      */
     static NalUnit parseKnownUnit(BitStreamWithNalSupport stream, int size, NalUnitType type) {
         long startPosition = stream.getBitPosition();
@@ -88,26 +90,6 @@ public class NalUnit {
      */
     final long getEndPosition() {
         return startPosition + size * 8L;
-    }
-
-    /**
-     * Skips the extension data flags (7.3.2.1 to 7.3.2.3) that a parameter set carries for extensions this decoder
-     * does not know.
-     */
-    final void skipExtensionData(BitStreamWithNalSupport stream) {
-        while (stream.hasMoreRbspData(getEndPosition())) {
-            stream.readFlag();
-        }
-    }
-
-    /**
-     * rbsp_trailing_bits( ) (7.3.2.11): the stop bit, then zero bits up to the byte boundary.
-     */
-    static void readRbspTrailingBits(BitStreamWithNalSupport stream) {
-        stream.read(1);
-        while (stream.notByteAligned()) {
-            stream.skipBits(1);
-        }
     }
 
     @Override

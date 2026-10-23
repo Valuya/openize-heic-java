@@ -86,7 +86,6 @@ public class PicParameterSetRbsp extends NalUnit {
     boolean pps3dExtensionFlag;
     boolean ppsSccExtensionFlag;
     byte ppsExtension4bits;
-    boolean ppsExtensionDataFlag;
 
     public PicParameterSetRbsp(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
         super(stream, startPosition, size);
@@ -189,12 +188,6 @@ public class PicParameterSetRbsp extends NalUnit {
         }
 
         ppsSccExt = ppsSccExtensionFlag ? new PpsSccExtension(stream) : new PpsSccExtension();
-
-        if ((ppsExtension4bits & 0xFF) > 0) {
-            while (stream.hasMoreRbspData(getEndPosition())) ppsExtensionDataFlag = stream.readFlag(); // u(1)
-        }
-
-        readRbspTrailingBits(stream);
     }
 
     // The scan conversion tables (6.5.1, 6.5.2) are sized by the picture: built on first use by a decode, after its

@@ -20,7 +20,6 @@ public class SeqParameterSetRbsp extends NalUnit {
     final byte spsVideoParameterSetId;
     final byte spsMaxSubLayersMinus1;
     final boolean spsTemporalIdNestingFlag;
-    final ProfileTierLevel ProfileTierLevel;
     final byte spsSeqParameterSetId; // max - 16
     final int chromaFormatIdc;
     final int picWidthInLumaSamples;
@@ -59,7 +58,6 @@ public class SeqParameterSetRbsp extends NalUnit {
     SpsMultilayerExtension spsMultilayerExt;
     Sps3dExtension sps3dExt;
     final SpsSccExtension spsSccExt;
-    boolean spsExtensionDataFlag;
     final VuiParameters VuiParameters;
     boolean separateColourPlaneFlag;
     int confWinLeftOffset;
@@ -84,7 +82,7 @@ public class SeqParameterSetRbsp extends NalUnit {
         spsMaxSubLayersMinus1 = (byte) stream.read(3); // u(3)
         spsTemporalIdNestingFlag = stream.readFlag(); // u(1)
 
-        ProfileTierLevel = new ProfileTierLevel(stream, true, spsMaxSubLayersMinus1 & 0xFF);
+        ProfileTierLevel.read(stream, spsMaxSubLayersMinus1);
 
         spsSeqParameterSetId = (byte) stream.readUev(); // ue(v)
         chromaFormatIdc = stream.readUevAtMost(3); // ue(v)
@@ -182,7 +180,7 @@ public class SeqParameterSetRbsp extends NalUnit {
         strongIntraSmoothingEnabledFlag = stream.readFlag(); // u(1)
         vuiParametersPresentFlag = stream.readFlag(); // u(1)
         if (vuiParametersPresentFlag) {
-            VuiParameters = new VuiParameters(stream, this);
+            VuiParameters = new VuiParameters(stream, spsMaxSubLayersMinus1);
         } else {
             VuiParameters = new VuiParameters();
         }
@@ -209,12 +207,6 @@ public class SeqParameterSetRbsp extends NalUnit {
         spsSccExt = spsSccExtensionFlag
                 ? new SpsSccExtension(stream, chromaFormatIdc, bitDepthLumaMinus8, bitDepthChromaMinus8)
                 : new SpsSccExtension();
-
-        if ((spsExtension4bits & 0xFF) > 0) {
-            while (stream.hasMoreRbspData(getEndPosition())) spsExtensionDataFlag = stream.readFlag(); // u(1)
-        }
-
-        readRbspTrailingBits(stream);
     }
 
     @Override
