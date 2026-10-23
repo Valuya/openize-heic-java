@@ -23,135 +23,100 @@ class YuvConverter {
      * Full or TV range flag.
      * </p>
      */
-    private final boolean fullRangeFlag;
+    private static final double TV_RANGE_LUMA_SCALE = 255.0 / 219;
 
-    /**
-     * <p>
-     * Coded image.
-     * </p>
-     */
-    private final HeicImageFrame picture;
+    private static final double TV_RANGE_CHROMA_SCALE = 255.0 / 224;
+
+    private final SeqParameterSetRbsp sps;
+    private final boolean fullRangeFlag;
 
     private double cooffCrToR;
     private double cooffCrToG;
     private double cooffCbToG;
     private double cooffCbToB;
 
-    public YuvConverter(HeicImageFrame picture) {
-        fullRangeFlag = picture.hvcConfig.getSPS().VuiParameters.videoFullRangeFlag;
-
-        this.picture = picture;
-
-        defineCoefficients(picture.hvcConfig.getSPS().VuiParameters);
+    YuvConverter(SeqParameterSetRbsp sps) {
+        this.sps = sps;
+        fullRangeFlag = sps.VuiParameters.videoFullRangeFlag;
+        defineCoefficients(sps.VuiParameters);
     }
 
-    // 8 bit!
-
     /**
-     * <p>
-     * Convert YUV byte array to RGBA.
-     * </p>
-     *
-     * @return RGBA byte array.
+     * Converts the kept part of a decoded picture to 8-bit ARGB, opaque. With {@code alphaOnly}, the picture is an
+     * alpha plane: only the alpha byte of the target pixels is set, to the value the red channel would have.
      */
-    public final byte[][][] getRgbaByteArray() {
-        /*UInt32*/
-        int width = (int) (picture.hvcConfig.getSPS().picWidthInLumaSamples & 0xFFFFFFFFL);
-        /*UInt32*/
-        int height = (int) (picture.hvcConfig.getSPS().picHeightInLumaSamples & 0xFFFFFFFFL);
+    void convert(HeicPicture picture, PixelTarget target, boolean alphaOnly) {
+        int width = (int) sps.picWidthInLumaSamples;
+        int height = (int) sps.picHeightInLumaSamples;
+        PixelBox convertedBox = target.clip().intersect(PixelBox.ofSize(width, height));
 
-        byte[][][] pixels = new byte[width][height][4];
+        int bitDepthY = sps.getBitDepthY() & 0xFF;
+        int bitDepthC = sps.getBitDepthC() & 0xFF;
+        boolean highColorRange = bitDepthY > 8 || bitDepthC > 8;
+        boolean monochrome = sps.getChromaArrayType() == 0;
+        int subWidthC = sps.getSubWidthC() & 0xFF;
+        int subHeightC = sps.getSubHeightC() & 0xFF;
+        int chromaHalfRange = 1 << (bitDepthC - 1);
+        int lumaOffset = 16 << (bitDepthY - 8);
+        // scale to 8 bits
+        double lumaBitScale = 256.0 / (1 << bitDepthY);
+        double chromaBitScale = 256.0 / (1 << bitDepthC);
 
-        if (picture.rawPixels == null && picture.rawPixelsHighColorRange == null) return pixels;
+        int[] destination = target.destination();
+        int stepX = target.stepX();
+        int stepY = target.stepY();
+        int base = target.base();
 
-        double Y, cr, cb, R, G, B;
-        double[] rgb = new double[3];
-
-        int chromaHalfRange = 1 << ((picture.hvcConfig.getSPS().getBitDepthC() & 0xFF) - 1);
-        int lumaOffset = 16 << ((picture.hvcConfig.getSPS().getBitDepthY() & 0xFF) - 8);
-
-        double tvRangeCoeffLuma = 255.0 / 219;
-        double tvRangeCoeffChroma = 255.0 / 224;
-
-        // conversion to 8 bit
-        double bitKoefY = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthY() & 0xFF));
-        double bitKoefC = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthC() & 0xFF));
-        final boolean isNotChroma = (picture.hvcConfig.getSPS().getChromaArrayType() & 0xFFFFFFFFL) == 0;
-        final int configSpsSubWidthC = picture.hvcConfig.getSPS().getSubWidthC() & 0xFF;
-        final int configSpsSubHeightC = picture.hvcConfig.getSPS().getSubHeightC() & 0xFF;
-
-        boolean highColorRange = (picture.hvcConfig.getSPS().getBitDepthY() & 0xFF) > 8
-                || (picture.hvcConfig.getSPS().getBitDepthC() & 0xFF) > 8;
-
-        for (int row = 0; row < height; row++) {
-            for (int col = 0; col < width; col++) {
-                if (highColorRange) Y = picture.rawPixelsHighColorRange[0][col][row] & 0xFFFF;
-                else Y = picture.rawPixels[0][col][row] & 0xFF;
-
+        for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
+            int rowIndex = base + row * stepY;
+            for (int col = convertedBox.left(); col < convertedBox.right(); col++) {
+                double luma = sample(picture, highColorRange, 0, col, row);
                 if (!fullRangeFlag) {
-                    Y = tvRangeCoeffLuma * (Y - lumaOffset);
+                    luma = TV_RANGE_LUMA_SCALE * (luma - lumaOffset);
                 }
 
-                if (isNotChroma) {
-                    R = Y;
-                    G = Y;
-                    B = Y;
+                double red;
+                double green;
+                double blue;
+                if (monochrome) {
+                    red = luma;
+                    green = luma;
+                    blue = luma;
                 } else {
-                    if (highColorRange) {
-                        cb = (picture.rawPixelsHighColorRange[1][col / configSpsSubWidthC][row / configSpsSubHeightC]
-                                        & 0xFFFF)
-                                - chromaHalfRange;
-                        cr = (picture.rawPixelsHighColorRange[2][col / configSpsSubWidthC][row / configSpsSubHeightC]
-                                        & 0xFFFF)
-                                - chromaHalfRange;
-                    } else {
-                        cb = (picture.rawPixels[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF)
-                                - chromaHalfRange;
-                        cr = (picture.rawPixels[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF)
-                                - chromaHalfRange;
-                    }
-
+                    double cb = sample(picture, highColorRange, 1, col / subWidthC, row / subHeightC) - chromaHalfRange;
+                    double cr = sample(picture, highColorRange, 2, col / subWidthC, row / subHeightC) - chromaHalfRange;
                     if (!fullRangeFlag) {
-                        cb = tvRangeCoeffChroma * cb;
-                        cr = tvRangeCoeffChroma * cr;
+                        cb = TV_RANGE_CHROMA_SCALE * cb;
+                        cr = TV_RANGE_CHROMA_SCALE * cr;
                     }
 
-                    YCrCb2RGB(Y * bitKoefY, cb * bitKoefC, cr * bitKoefC, rgb);
-                    R = rgb[0];
-                    G = rgb[1];
-                    B = rgb[2];
+                    double scaledLuma = luma * lumaBitScale;
+                    double scaledCb = cb * chromaBitScale;
+                    double scaledCr = cr * chromaBitScale;
+                    red = scaledLuma + cooffCrToR * scaledCr;
+                    green = scaledLuma - cooffCrToG * scaledCr - cooffCbToG * scaledCb;
+                    blue = scaledLuma + cooffCbToB * scaledCb;
                 }
 
-                pixels[col][row][0] = (byte) MathExtra.clip3(0, 255, MathUtils.f64S32(R));
-                pixels[col][row][1] = (byte) MathExtra.clip3(0, 255, MathUtils.f64S32(G));
-                pixels[col][row][2] = (byte) MathExtra.clip3(0, 255, MathUtils.f64S32(B));
-                pixels[col][row][3] = (byte) 255;
+                int index = rowIndex + col * stepX;
+                int red8 = to8Bits(red);
+                if (alphaOnly) {
+                    destination[index] = (destination[index] & 0x00FFFFFF) | (red8 << 24);
+                } else {
+                    destination[index] = 0xFF000000 | (red8 << 16) | (to8Bits(green) << 8) | to8Bits(blue);
+                }
             }
         }
-
-        return pixels;
     }
 
-    /// <summary>
-    /// Calculate RGB values from YCrCb based on curred converter settings.
-    /// </summary>
-    /// <param name="Y">Luma value.</param>
-    /// <param name="Cb">Chroma blue value.</param>
-    /// <param name="Cr">Chroma red value.</param>
-    /// <returns>Red, Green and Blue values.</returns>
-    private void YCrCb2RGB(double Y, double cb, double cr, double[] outRef) {
-        outRef[0] = Y + cooffCrToR * cr;
-        outRef[1] = Y - cooffCrToG * cr - cooffCbToG * cb;
-        outRef[2] = Y + cooffCbToB * cb;
+    private static int sample(HeicPicture picture, boolean highColorRange, int cIdx, int x, int y) {
+        return highColorRange ? picture.pixelsHighColorRange[cIdx][x][y] & 0xFFFF : picture.pixels[cIdx][x][y] & 0xFF;
     }
 
-    /**
-     * <p>
-     * Define converter coefficients based on parameters of image meta data.
-     * </p>
-     *
-     * @param vui_parameters Image usability information data.
-     */
+    private static int to8Bits(double channel) {
+        return MathExtra.clip3(0, 255, MathUtils.f64S32(channel));
+    }
+
     private void defineCoefficients(VuiParameters VuiParameters) {
         // vui_parameters.video_full_range_flag;
         // vui_parameters.colour_primaries;

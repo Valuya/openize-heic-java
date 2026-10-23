@@ -12,8 +12,6 @@ package openize.heic.decoder;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 import openize.isobmff.AuxiliaryTypeProperty;
@@ -72,15 +70,7 @@ public class HeicImageFrame {
      * Multidimensional array: chroma or luma index, then two-dimensional array with x and y navigation.
      * </p>
      */
-    /*Byte*/ byte[][][] rawPixels;
-
-    /**
-     * <p>
-     * Raw YUV pixel data, used when a bit's depth is greater than 8.
-     * Multidimensional array: chroma or luma index, then two-dimensional array with x and y navigation.
-     * </p>
-     */
-    /*UInt16*/ int[][][] rawPixelsHighColorRange;
+    private long hvcConfigOffset;
 
     /**
      * <p>
@@ -107,7 +97,6 @@ public class HeicImageFrame {
         return id;
     }
 
-    private boolean cashed;
     private /*UInt32*/ long ispeWidth;
     private /*UInt32*/ long ispeHeight;
     private final boolean isHidden;
@@ -165,7 +154,6 @@ public class HeicImageFrame {
         this.id = id;
         this.stream = stream;
         this.parent = parent;
-        cashed = false;
     }
 
     /**
@@ -372,36 +360,44 @@ public class HeicImageFrame {
         if (!isImage()) {
             return null;
         }
+        int[] argbPixels = decodeArgb(validateBounds(boundsRectangle));
 
-        boundsRectangle = validateBounds(boundsRectangle);
+        int bytesPerPixel = pixelFormat == PixelFormat.Rgb24 ? 3 : 4;
+        int requiredLength = argbPixels.length * bytesPerPixel;
+        byte[] output = dstArray == null || dstArray.length < requiredLength ? new byte[requiredLength] : dstArray;
 
-        byte[][][] threeDim = getMultidimArray(boundsRectangle);
-        applyPixelFormat(threeDim, pixelFormat);
-
-        int bpp = pixelFormat == PixelFormat.Rgb24 ? 3 : 4;
-
-        byte[] output = dstArray;
-
-        final int reqArraySize = boundsRectangle.getHeight() * boundsRectangle.getWidth() * bpp;
-        if (output == null || output.length < reqArraySize) {
-            output = new byte[reqArraySize];
-        }
-
-        int index = 0;
-        final int rectangleBottom = boundsRectangle.getBottom();
-        final int boundsRectangleLeft = boundsRectangle.getLeft();
-        final int boundsRectangleRight = boundsRectangle.getRight();
-        for (int row = boundsRectangle.getTop(); row < rectangleBottom; row++) {
-            for (int col = boundsRectangleLeft; col < boundsRectangleRight; col++) {
-                output[index++] = threeDim[col][row][0];
-                output[index++] = threeDim[col][row][1];
-                output[index++] = threeDim[col][row][2];
-                if (bpp == 4) {
-                    output[index++] = threeDim[col][row][3];
+        int outputIndex = 0;
+        for (int argb : argbPixels) {
+            int alpha = argb >>> 24;
+            int red = (argb >> 16) & 0xFF;
+            int green = (argb >> 8) & 0xFF;
+            int blue = argb & 0xFF;
+            switch (pixelFormat) {
+                case Argb32 -> {
+                    output[outputIndex++] = (byte) alpha;
+                    output[outputIndex++] = (byte) red;
+                    output[outputIndex++] = (byte) green;
+                    output[outputIndex++] = (byte) blue;
+                }
+                case Bgra32 -> {
+                    output[outputIndex++] = (byte) blue;
+                    output[outputIndex++] = (byte) green;
+                    output[outputIndex++] = (byte) red;
+                    output[outputIndex++] = (byte) alpha;
+                }
+                case Rgba32 -> {
+                    output[outputIndex++] = (byte) red;
+                    output[outputIndex++] = (byte) green;
+                    output[outputIndex++] = (byte) blue;
+                    output[outputIndex++] = (byte) alpha;
+                }
+                case Rgb24 -> {
+                    output[outputIndex++] = (byte) red;
+                    output[outputIndex++] = (byte) green;
+                    output[outputIndex++] = (byte) blue;
                 }
             }
         }
-
         return output;
     }
 
@@ -449,33 +445,38 @@ public class HeicImageFrame {
         if (!isImage()) {
             return null;
         }
-
-        boundsRectangle = validateBounds(boundsRectangle);
-
-        byte[][][] threeDim = getMultidimArray(boundsRectangle);
-        applyPixelFormat(threeDim, pixelFormat);
-
-        final int reqArraySize = boundsRectangle.getHeight() * boundsRectangle.getWidth();
-
-        int[] output = dstArray;
-        if (output == null || output.length < reqArraySize) {
-            output = new int[reqArraySize];
+        int[] argbPixels = decodeArgb(validateBounds(boundsRectangle));
+        if (pixelFormat == PixelFormat.Argb32 && (dstArray == null || dstArray.length < argbPixels.length)) {
+            return argbPixels;
         }
 
-        int index = 0;
-        final int rectangleBottom = boundsRectangle.getBottom();
-        final int boundsRectangleLeft = boundsRectangle.getLeft();
-        final int boundsRectangleRight = boundsRectangle.getRight();
-        for (int row = boundsRectangle.getTop(); row < rectangleBottom; row++) {
-            for (int col = boundsRectangleLeft; col < boundsRectangleRight; col++) {
-                output[index++] = (threeDim[col][row][0] & 0xFF) << 24
-                        | (threeDim[col][row][1] & 0xFF) << 16
-                        | (threeDim[col][row][2] & 0xFF) << 8
-                        | (threeDim[col][row][3] & 0xFF);
-            }
+        int[] output = dstArray == null || dstArray.length < argbPixels.length ? new int[argbPixels.length] : dstArray;
+        for (int pixelIndex = 0; pixelIndex < argbPixels.length; pixelIndex++) {
+            int argb = argbPixels[pixelIndex];
+            output[pixelIndex] = switch (pixelFormat) {
+                case Argb32 -> argb;
+                // Rgb24 has no 32-bit layout of its own: like Rgba32, 0xRRGGBBAA
+                case Rgba32, Rgb24 -> (argb << 8) | (argb >>> 24);
+                case Bgra32 -> Integer.reverseBytes(argb);
+            };
         }
-
         return output;
+    }
+
+    private Rectangle validateBounds(Rectangle boundsRectangle) {
+        if (boundsRectangle == null || boundsRectangle.isEmpty()) {
+            return new Rectangle(0, 0, (int) getWidth(), (int) getHeight());
+        }
+
+        if (boundsRectangle.getLeft() < 0
+                || boundsRectangle.getTop() < 0
+                || boundsRectangle.getRight() > (int) getWidth()
+                || boundsRectangle.getBottom() > (int) getHeight()) {
+            throw new IndexOutOfBoundsException(
+                    "The specification of selection area cannot exceed the size of an image.");
+        }
+
+        return boundsRectangle;
     }
 
     /**
@@ -537,6 +538,7 @@ public class HeicImageFrame {
                     HEVCConfigurationBox config = (HEVCConfigurationBox) item;
                     stream.createNewImageContext(id);
                     stream.setBytePosition(config.offset);
+                    hvcConfigOffset = config.offset;
                     hvcConfig = new HEVCDecoderConfigurationRecord(stream);
                     config.record = hvcConfig; // gui
                     break;
@@ -639,341 +641,145 @@ public class HeicImageFrame {
         }
     }
 
-    private byte[][][] getMultidimArray(Rectangle boundsRectangle) {
+    /**
+     * Decodes {@code region} of this frame to 0xAARRGGBB pixels, row by row.
+     */
+    private int[] decodeArgb(Rectangle region) {
+        PixelBox regionBox = new PixelBox(region.getLeft(), region.getTop(), region.getRight(), region.getBottom());
+        int[] argbPixels = new int[regionBox.width() * regionBox.height()];
+        decodeInto(PixelTarget.forRegion(regionBox, argbPixels), false);
+        return argbPixels;
+    }
 
-        byte[][][] rgba;
-
-        byte[] databox = (locationBox.constructionMethod & 0xFF) == 1
-                ? parent.getHeader()
-                        .getItemDataBoxContent(
-                                ((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL))
-                                        & 0xFFFFFFFFL,
-                                locationBox.extents[0].length)
-                : new byte[0];
+    /**
+     * Writes the pixels of this frame to {@code target}, which is in the coordinates of this frame after its crop,
+     * rotation and mirroring. With {@code alphaOnly}, this frame is an alpha plane and sets only the alpha bytes.
+     */
+    private void decodeInto(PixelTarget target, boolean alphaOnly) {
+        PixelTarget frameTarget = target.forSourceImage(toOrientedImage(), keptBox());
+        if (frameTarget.isEmpty()) {
+            return;
+        }
 
         switch (getImageType()) {
-            case hvc1:
-                if (!cashed) {
-                    loadHvcRawPixels();
-                }
-
-                YuvConverter converter = new YuvConverter(this);
-                rgba = converter.getRgbaByteArray();
-                break;
-            case iden:
-                /*UInt32*/
-                long[] derived = parent.getHeader().getDerivedList(id);
-                HeicImageFrame frame = parent.getAllFrames().get(derived[0]);
-                rgba = frame.getMultidimArray(new Rectangle(0, 0, (int) frame.getWidth(), (int) frame.getHeight()));
-                break;
-            case iovl:
-                rgba = getByteArrayForOverlay(databox);
-                break;
-            case grid:
-                rgba = getByteArrayForGrid(databox);
-                break;
-            default:
-                throw new IllegalStateException("Unknown image type.");
+            case hvc1 -> new YuvConverter(hvcConfig.getSPS()).convert(decodePicture(), frameTarget, alphaOnly);
+            case iden -> getDerivedFrame(0).decodeInto(frameTarget, alphaOnly);
+            case grid -> decodeGridInto(frameTarget, alphaOnly);
+            case iovl -> decodeOverlayInto(frameTarget, alphaOnly);
+            default -> throw new IllegalStateException("Unknown image type.");
         }
 
-        if (rgba == null) {
-            throw new IllegalStateException("Unknown image type.");
-        }
-
-        rgba = cropImage(rgba);
-        rgba = transformImage(rgba);
-        addAlphaLayer(rgba, boundsRectangle);
-
-        return rgba;
-    }
-
-    private Rectangle validateBounds(Rectangle boundsRectangle) {
-        if (boundsRectangle == null || boundsRectangle.isEmpty()) {
-            return new Rectangle(0, 0, (int) getWidth(), (int) getHeight());
-        }
-
-        if (boundsRectangle.getLeft() < 0
-                || boundsRectangle.getTop() < 0
-                || boundsRectangle.getRight() > (int) getWidth()
-                || boundsRectangle.getBottom() > (int) getHeight()) {
-            throw new IndexOutOfBoundsException(
-                    "The specification of selection area cannot exceed the size of an image.");
-        }
-
-        return boundsRectangle;
-    }
-
-    private void addAlphaLayer(byte[][][] pixels, Rectangle boundsRectangle) {
-        if (alphaReference == null) {
-            return;
-        }
-        long tmp0 = alphaReference & 0xFFFFFFFFL;
-
-        byte[][][] alpha = parent.getAllFrames().get(tmp0).getMultidimArray(boundsRectangle);
-
-        final long height = getHeight() & 0xFFFFFFFFL;
-        final long width = getWidth() & 0xFFFFFFFFL;
-        for (
-        /*UInt32*/ long row = 0; row < height; row++) {
-            for (
-            /*UInt32*/ long col = 0; col < width; col++) {
-                pixels[(int) (col)][(int) (row)][3] = alpha[(int) (col)][(int) (row)][0];
-            }
+        if (!alphaOnly && alphaReference != null) {
+            parent.getAllFrames().get(alphaReference).decodeInto(target, true);
         }
     }
 
-    // Clean aperture (clap) crop, applied before rotation and mirroring
-    private byte[][][] cropImage(byte[][][] pixels) {
-        if (cleanAperture == null) return pixels;
-
-        int left = (int) getCropLeft();
-        int top = (int) getCropTop();
-        int width = (int) getCroppedWidth();
-        int height = (int) getCroppedHeight();
-        byte[][][] cropped = new byte[width][height][];
-        for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) cropped[x][y] = pixels[left + x][top + y];
-        return cropped;
+    // The part of the decoded picture this frame shows: its clean aperture, or all of it
+    private PixelBox keptBox() {
+        if (cleanAperture == null) {
+            return PixelBox.ofSize((int) ispeWidth, (int) ispeHeight);
+        }
+        int cropLeft = (int) getCropLeft();
+        int cropTop = (int) getCropTop();
+        return new PixelBox(cropLeft, cropTop, cropLeft + (int) getCroppedWidth(), cropTop + (int) getCroppedHeight());
     }
 
-    private byte[][][] transformImage(byte[][][] pixels) {
-        final int rotationAngle = imageRotationAngle & 0xFF;
-        if (rotationAngle == 0 && (imageMirrorAxis & 0xFF) == 0) {
-            return pixels;
-        }
-
-        final long width = getWidth() & 0xFFFFFFFFL;
-        final long height = getHeight() & 0xFFFFFFFFL;
-        byte[][][] rotated = new byte[(int) width][(int) height][4];
-
-        /*UInt32*/
-        long oldCol, oldRow;
-
-        for (
-        /*UInt32*/ long newRow = 0; newRow < height; newRow++) {
-            for (
-            /*UInt32*/ long newCol = 0; newCol < width; newCol++) {
-                switch (imageRotationAngle) {
-                    case 3:
-                        oldCol = newRow;
-                        oldRow = width - newCol - 1;
-                        break;
-                    case 2:
-                        oldCol = width - newCol - 1;
-                        oldRow = height - newRow - 1;
-                        break;
-                    case 1:
-                        oldCol = height - newRow - 1;
-                        oldRow = newCol;
-                        break;
-                    case 0:
-                    default:
-                        oldCol = newCol;
-                        oldRow = newRow;
-                        break;
-                }
-
-                if ((imageMirrorAxis & 0xFF) == 1) // vertical
-                {
-                    if (rotationAngle == 0 || rotationAngle == 2) oldRow = height - oldRow - 1;
-                    else oldCol = height - oldCol - 1;
-                } else if ((imageMirrorAxis & 0xFF) == 2) // horizontal
-                {
-                    if (rotationAngle == 0 || rotationAngle == 2) oldCol = width - oldCol - 1;
-                    else oldRow = width - oldRow - 1;
-                }
-
-                rotated[(int) (newCol)][(int) (newRow)][0] = pixels[(int) (oldCol)][(int) (oldRow)][0];
-                rotated[(int) (newCol)][(int) (newRow)][1] = pixels[(int) (oldCol)][(int) (oldRow)][1];
-                rotated[(int) (newCol)][(int) (newRow)][2] = pixels[(int) (oldCol)][(int) (oldRow)][2];
-                rotated[(int) (newCol)][(int) (newRow)][3] = pixels[(int) (oldCol)][(int) (oldRow)][3];
-            }
-        }
-        return rotated;
+    private AxisTransform toOrientedImage() {
+        PixelBox keptBox = keptBox();
+        ImageOrientation imageOrientation = new ImageOrientation(imageRotationAngle & 0xFF, imageMirrorAxis & 0xFF);
+        return AxisTransform.translation(-keptBox.left(), -keptBox.top())
+                .andThen(imageOrientation.toOrientedImage((int) getWidth(), (int) getHeight()));
     }
 
-    private void applyPixelFormat(byte[][][] rgba, PixelFormat pixelFormat) {
-        if (pixelFormat == PixelFormat.Rgba32 || pixelFormat == PixelFormat.Rgb24) {
-            return;
+    private HeicImageFrame getDerivedFrame(int index) {
+        long[] derivedIds = parent.getHeader().getDerivedList(id);
+        return parent.getAllFrames().get(derivedIds[index]);
+    }
+
+    // A fresh reader per decode: frames decode independently of each other and of earlier decodes
+    private HeicPicture decodePicture() {
+        BitStreamWithNalSupport pictureStream = new BitStreamWithNalSupport(parent.getHeicData());
+        pictureStream.createNewImageContext(id);
+        pictureStream.setBytePosition(hvcConfigOffset);
+        new HEVCDecoderConfigurationRecord(pictureStream);
+
+        long start = locationBox.baseOffset + locationBox.extents[0].offset;
+        long end = start + locationBox.extents[0].length;
+        pictureStream.setBytePosition(start);
+        while (pictureStream.getBitPosition() / 8 < end) {
+            NalUnit.parseUnit(pictureStream);
         }
 
-        byte r, g, b, a;
+        HeicPicture picture = pictureStream.getContext().getPictures().get(id);
+        if (picture == null) {
+            throw new HeicFormatException("Image #%d holds no picture".formatted(id));
+        }
+        picture.applyLoopFilters();
+        return picture;
+    }
 
-        final long height = getHeight() & 0xFFFFFFFFL;
-        final long width = getWidth() & 0xFFFFFFFFL;
-        for (
-        /*UInt32*/ long row = 0; row < height; row++) {
-            for (
-            /*UInt32*/ long col = 0; col < width; col++) {
-                byte[] bytesPtr = rgba[(int) (col)][(int) (row)];
-                r = bytesPtr[0];
-                g = bytesPtr[1];
-                b = bytesPtr[2];
-                a = bytesPtr[3];
+    private void decodeGridInto(PixelTarget gridTarget, boolean alphaOnly) {
+        byte[] gridDescriptor = readItemData();
+        int fieldLength = ((gridDescriptor[1] & 1) + 1) * 2;
+        int rowCount = (gridDescriptor[2] & 0xFF) + 1;
+        int columnCount = (gridDescriptor[3] & 0xFF) + 1;
+        int gridWidth = getByteFromIdatField(gridDescriptor, 4, fieldLength);
+        int gridHeight = getByteFromIdatField(gridDescriptor, 4 + fieldLength, fieldLength);
 
-                switch (pixelFormat) {
-                    case Argb32:
-                        bytesPtr[0] = a;
-                        bytesPtr[1] = r;
-                        bytesPtr[2] = g;
-                        bytesPtr[3] = b;
-                        break;
-                    case Bgra32:
-                        bytesPtr[0] = b;
-                        // bytesPtr[1] = g;
-                        bytesPtr[2] = r;
-                        // bytesPtr[3] = a;
-                        break;
+        for (int row = 0; row < rowCount; row++) {
+            for (int column = 0; column < columnCount; column++) {
+                HeicImageFrame tileFrame = getDerivedFrame(row * columnCount + column);
+                int tileX = column * (int) tileFrame.getWidth();
+                int tileY = row * (int) tileFrame.getHeight();
+                PixelBox gridBoxInTile = new PixelBox(-tileX, -tileY, gridWidth - tileX, gridHeight - tileY);
+                PixelTarget tileTarget =
+                        gridTarget.forSourceImage(AxisTransform.translation(tileX, tileY), gridBoxInTile);
+
+                // tiles outside the requested region are not decoded at all
+                if (!tileTarget.isEmpty()) {
+                    tileFrame.decodeInto(tileTarget, alphaOnly);
                 }
             }
         }
     }
 
-    private void loadHvcRawPixels() {
-        stream.setCurrentImageId(id);
-        stream.setBytePosition(
-                ((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    private void decodeOverlayInto(PixelTarget overlayTarget, boolean alphaOnly) {
+        byte[] overlayDescriptor = readItemData();
+        long[] derivedIds = parent.getHeader().getDerivedList(id);
+        int fieldLength = ((overlayDescriptor[1] & 1) + 1) * 2;
+        // skips canvas_fill_value: the canvas is opaque black
+        int index = 2 + 4 * 2;
+        int overlayWidth = getByteFromIdatField(overlayDescriptor, index, fieldLength);
+        int overlayHeight = getByteFromIdatField(overlayDescriptor, index + fieldLength, fieldLength);
+        index += 2 * fieldLength;
 
-        /*UInt32*/ long end = ((((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL))
-                                & 0xFFFFFFFFL)
-                        + (locationBox.extents[0].length & 0xFFFFFFFFL))
-                & 0xFFFFFFFFL;
+        // as an alpha plane, the opaque black canvas reads as transparent
+        overlayTarget.fill(PixelBox.ofSize(overlayWidth, overlayHeight), 0xFF000000, alphaOnly);
 
-        while (stream.getBitPosition() / 8 < (end & 0xFFFFFFFFL)) {
-            NalUnit.parseUnit(stream);
+        for (long derivedId : derivedIds) {
+            int horizontalOffset = getByteFromIdatField(overlayDescriptor, index, fieldLength);
+            int verticalOffset = getByteFromIdatField(overlayDescriptor, index + fieldLength, fieldLength);
+            index += 2 * fieldLength;
+
+            PixelBox overlayBoxInLayer = new PixelBox(
+                    -horizontalOffset,
+                    -verticalOffset,
+                    overlayWidth - horizontalOffset,
+                    overlayHeight - verticalOffset);
+            PixelTarget layerTarget = overlayTarget.forSourceImage(
+                    AxisTransform.translation(horizontalOffset, verticalOffset), overlayBoxInLayer);
+            if (!layerTarget.isEmpty()) {
+                parent.getAllFrames().get(derivedId).decodeInto(layerTarget, alphaOnly);
+            }
         }
-
-        if (stream.getContext().getPictures().containsKey(id)) {
-            stream.getContext().getPictures().get(id).applyLoopFilters();
-            rawPixels = stream.getContext().getPictures().get(id).pixels;
-            rawPixelsHighColorRange = stream.getContext().getPictures().get(id).pixelsHighColorRange;
-        } else {
-            rawPixels = null;
-            rawPixelsHighColorRange = null;
-            throw new NoSuchElementException(String.format("Image #%d was not loaded [NalUnit not found].", id));
-        }
-
-        cashed = true;
-        stream.deleteImageContext(id);
     }
 
-    private byte[][][] getByteArrayForGrid(byte[] databox) {
-        int gridFieldLength = (((databox[1] & 0xFF) & 1) + 1) * 2;
-
-        int rows = databox[2] & 0xFF;
-
-        int columns = databox[3] & 0xFF;
-
-        /*UInt32*/
-        long localWidth = getByteFromIdatField(databox, 4, gridFieldLength) & 0xFFFFFFFFL;
-        /*UInt32*/
-        long localHeight = getByteFromIdatField(databox, 4 + gridFieldLength, gridFieldLength) & 0xFFFFFFFFL;
-
-        int index;
-        /*UInt32*/
-        long[] derived = parent.getHeader().getDerivedList(id);
-
-        HeicImageFrame frame;
-
-        byte[][][] framePixels;
-
-        byte[][][] output = new byte[(int) localWidth][(int) localHeight][4];
-
-        final Map<Long, HeicImageFrame> allFrames = parent.getAllFrames();
-        for (int i = 0; i <= rows; i++) {
-            for (int j = 0; j <= columns; j++) {
-                index = i * (columns + 1) + j;
-                frame = allFrames.get(derived[index]);
-                final long frameWidth = frame.getWidth();
-                final long frameHeight = frame.getHeight();
-                framePixels = frame.getMultidimArray(new Rectangle(0, 0, (int) frameWidth, (int) frameHeight));
-
-                for (int k = 0; k < (frameHeight & 0xFFFFFFFFL); k++) {
-                    for (int l = 0; l < (frameWidth & 0xFFFFFFFFL); l++) {
-                        if (((j * frameWidth) & 0xFFFFFFFFL) + l < localWidth
-                                && ((i * frameHeight) & 0xFFFFFFFFL) + k < localHeight) {
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
-                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][0] =
-                                    framePixels[l][k][0];
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
-                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][1] =
-                                    framePixels[l][k][1];
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
-                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][2] =
-                                    framePixels[l][k][2];
-                            output[(int) (((j * frameWidth) & 0xFFFFFFFFL) + l)][
-                                            (int) (((i * frameHeight) & 0xFFFFFFFFL) + k)][3] =
-                                    framePixels[l][k][3];
-                        }
-                    }
-                }
-            }
-        }
-        return output;
-    }
-
-    private byte[][][] getByteArrayForOverlay(byte[] databox) {
-        /*UInt32*/
-        long[] derived = parent.getHeader().getDerivedList(id);
-
-        int iovlFieldLength = (((databox[1] & 0xFF) & 1) + 1) * 2;
-        int index = 2;
-
-        /*UInt16*/
-        //    int[] canvas_fill_value = new /*UInt16*/int[4];
-        for (int j = 0; j < 4; j++) {
-            //       canvas_fill_value[j] = getByteFromIdatField(databox, index, 2) & 0xFFFF;
-            index += 2;
-        }
-
-        /*UInt32*/
-        long outputWidth = getByteFromIdatField(databox, index, iovlFieldLength) & 0xFFFFFFFFL;
-        /*UInt32*/
-        long outputHeight = getByteFromIdatField(databox, index + iovlFieldLength, iovlFieldLength) & 0xFFFFFFFFL;
-        index += 2 * iovlFieldLength;
-
-        int[] horizontalOffset = new int[derived.length];
-        int[] verticalOffset = new int[derived.length];
-
-        for (int i = 0; i < derived.length; i++) {
-            horizontalOffset[i] = getByteFromIdatField(databox, index, iovlFieldLength);
-            verticalOffset[i] = getByteFromIdatField(databox, index + iovlFieldLength, iovlFieldLength);
-            index += 2 * iovlFieldLength;
-        }
-
-        HeicImageFrame frame;
-
-        byte[][][] framePixels;
-
-        byte[][][] output = new byte[(int) outputWidth][(int) outputHeight][4];
-
-        final long height = getHeight() & 0xFFFFFFFFL;
-        final long width = getWidth() & 0xFFFFFFFFL;
-        for (
-        /*UInt32*/ long row = 0; (row & 0xFFFFFFFFL) < height; row++) {
-            for (
-            /*UInt32*/ long col = 0; (col & 0xFFFFFFFFL) < width; col++) {
-                output[(int) (col)][(int) (row)][3] = (byte) 255;
-            }
-        }
-
-        for (int i = 0; i < derived.length; i++) {
-            frame = parent.getAllFrames().get(derived[i]);
-            final long frameWidth = frame.getWidth();
-            final long frameHeight = frame.getHeight();
-            framePixels = frame.getMultidimArray(new Rectangle(0, 0, (int) frameWidth, (int) frameHeight));
-
-            for (int k = 0; k < frameHeight; k++) {
-                for (int l = 0; l < frameWidth; l++) {
-                    if (horizontalOffset[i] + l < outputWidth && verticalOffset[i] + k < outputHeight) {
-                        output[horizontalOffset[i] + l][verticalOffset[i] + k][0] = framePixels[l][k][0];
-                        output[horizontalOffset[i] + l][verticalOffset[i] + k][1] = framePixels[l][k][1];
-                        output[horizontalOffset[i] + l][verticalOffset[i] + k][2] = framePixels[l][k][2];
-                        output[horizontalOffset[i] + l][verticalOffset[i] + k][3] = framePixels[l][k][3];
-                    }
-                }
-            }
-        }
-        return output;
+    private byte[] readItemData() {
+        return (locationBox.constructionMethod & 0xFF) == 1
+                ? parent.getHeader()
+                        .getItemDataBoxContent(
+                                locationBox.baseOffset + locationBox.extents[0].offset, locationBox.extents[0].length)
+                : new byte[0];
     }
 
     private int getByteFromIdatField(byte[] arr, int offset, int length) {

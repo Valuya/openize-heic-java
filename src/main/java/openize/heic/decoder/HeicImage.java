@@ -41,6 +41,8 @@ public class HeicImage {
 
     private final HeicHeader header;
 
+    private final byte[] heicData;
+
     /**
      * <p>
      * Create heic image object.
@@ -49,8 +51,9 @@ public class HeicImage {
      * @param header File header.
      * @param stream File stream.
      */
-    private HeicImage(HeicHeader header, BitStreamWithNalSupport stream) {
+    private HeicImage(HeicHeader header, BitStreamWithNalSupport stream, byte[] heicData) {
         this.header = header;
+        this.heicData = heicData;
         framesById = new HashMap<>();
         readFramesMeta(stream);
     }
@@ -99,7 +102,7 @@ public class HeicImage {
             Box box = Box.parseBox(bitstream);
 
             if (box.type == BoxType.meta) {
-                return new HeicImage(new HeicHeader((MetaBox) box), bitstream);
+                return new HeicImage(new HeicHeader((MetaBox) box), bitstream, heicData);
             }
         }
 
@@ -229,6 +232,11 @@ public class HeicImage {
      */
     public final HeicHeader getHeader() {
         return header;
+    }
+
+    // The whole file: frames read their coded data from it when they decode
+    byte[] getHeicData() {
+        return heicData;
     }
 
     /**
