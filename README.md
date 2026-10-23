@@ -61,8 +61,11 @@ median of 5 to 7 decodes, Java 21 on an Intel Core Ultra 9 285H:
 | libheif 1.17 (native, `heif-convert`) | 2.7 s | 1.5 s | | |
 
 The photo is `iphone_photo.heic`, a grid of 512x512 tiles: 48 MB of its 116 MB is the decoded image itself. The
-16 MP `samsung_a71.heic` allocates 177 MB, 64 MB of it the image, and decodes in a 96 MB heap. The Java times leave
-out JIT warm-up; libheif's are per process, writing raw YCbCr. Java 21 and 26 decode equally fast.
+16 MP `samsung_a71.heic` allocates 177 MB, 64 MB of it the image, and decodes in an 80 MB heap. Those allocations are
+for each photo decoded on its own: in the run below, where the JIT has compiled the decoder for the other samples
+first, they are 127 and 231 MB. The heaps are G1's, decoding the tiles in parallel; [Memory](#memory) has the other
+collectors and libheif. The Java times leave out JIT warm-up; libheif's are per process, writing raw YCbCr. Java 21
+and 26 decode equally fast.
 
 `DecodeBenchmark`, in the test sources, makes the measurement:
 
@@ -71,6 +74,62 @@ mvn -q test-compile dependency:build-classpath -Dmdep.outputFile=target/classpat
 taskset -c 4 java -cp target/classes:target/test-classes:$(cat target/classpath.txt) \
         io.github.valuya.heic.tests.DecodeBenchmark 4 7 false \
         $(ls TestsData/samples/*.heic TestsData/samples/nokia/*.heic | grep -v -e tmap -e gimp_rgb)
+```
+
+### Memory
+
+Peak resident memory of a process that decodes one photo, as GNU `time` reports it, in MiB, median of 3 runs on one
+P-core:
+
+| | before decoding | 12 MP `iphone_photo.heic` | 16 MP `samsung_a71.heic` |
+|---|---|---|---|
+| libheif 1.17, `heif-convert` to YCbCr (`.y4m`) | 5 | 77 | 75 |
+| libheif 1.17, `heif-convert` to RGB (`.png`) | 5 | 77 | 98 |
+| this fork, G1, smallest heap (56 and 72 MiB) | 41 | 138 | 159 |
+| this fork, Serial GC, smallest heap (72 and 96 MiB) | 40 | 150 | 178 |
+| this fork, no `-Xmx` (Serial, the JVM's choice on one CPU) | 42 | 201 | 266 |
+
+"Before decoding" is `heif-convert --version`, and `DecodeBenchmark` given no file. On 8 E-cores libheif peaks the
+same; the fork, decoding the tiles in parallel, needs 64 and 80 MiB of G1 heap and peaks at 172 and 177 MiB (223
+and 255 MiB without `-Xmx`). The other samples are 12 MP at most: libheif peaks within 1 MiB of the iPhone photo on
+them, and the fork needs no bigger heap.
+
+The smallest heap, in 4 MiB steps, depends on the collector. Serial needs the most because the decoded image, one
+`int[]` of 46.5 MiB for 12 MP, must fit in its old generation (two thirds of the heap by default) with whatever else
+is still live. The JVM picks Serial when it sees one CPU or less than 1792 MB of memory, as in a small container.
+
+What compares, and what does not:
+
+* Neither process is only a decoder. `heif-convert` is a small native program; the JVM takes about 41 MiB before it
+  decodes anything, and a process that decodes once also pays for compiling the decoder, about 45 MiB: in the same
+  56 MiB heap, the iPhone photo peaks at 99 MiB with `-XX:TieredStopAtLevel=1` (no C2), and at 95 MiB interpreted
+  (`-Xint`), the JVM plus its heap.
+* A long-running JVM pays both once, shared with the rest of the application, so what one more decode costs there
+  is its heap: 56 to 72 MiB for the iPhone photo and 72 to 96 MiB for the Samsung one. `heif-convert` adds 72 MiB
+  to its process for the iPhone photo, and 70 (YCbCr) or 93 MiB (RGB) for the Samsung one. libheif 1.23.6 inside
+  another process (through pillow-heif, decoding to RGB, peak above the Python interpreter's) adds 50 and 73 MiB.
+* The outputs differ. The fork returns ARGB `int`s: 46.5 and 61 MiB. `heif-convert` keeps YCbCr 4:2:0 for `.y4m`
+  (17 and 23 MiB) and converts it to RGB for `.png` (35 and 46 MiB), which it then compresses row by row.
+* Without `-Xmx` the JVM sizes the heap from the memory it may use (a quarter of it, 13.75 GiB here) and lets
+  garbage pile up before collecting, so that row measures the JVM's heap sizing more than the decoder.
+
+One cold decode per process, with the heap to try:
+
+```bash
+taskset -c 4 /usr/bin/time -f '%M KiB' java -XX:+UseG1GC -Xmx56m \
+        -cp target/classes:target/test-classes:$(cat target/classpath.txt) \
+        io.github.valuya.heic.tests.DecodeBenchmark 0 1 false TestsData/samples/iphone_photo.heic
+```
+
+and libheif 1.17, from Ubuntu 24.04:
+
+```bash
+docker build -t libheif-1.17 - <<'EOF'
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends libheif-examples libheif-plugin-libde265 time
+EOF
+docker run --rm --cpuset-cpus 4 -v "$PWD/TestsData/samples:/s:ro" libheif-1.17 \
+        /usr/bin/time -f '%M KiB' heif-convert --quiet /s/iphone_photo.heic /tmp/out.y4m
 ```
 
 ## Usage
