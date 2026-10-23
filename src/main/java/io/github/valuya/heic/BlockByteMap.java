@@ -22,10 +22,11 @@ final class BlockByteMap {
     private final int widthInBlocks;
     private final byte[] values;
 
-    BlockByteMap(int width, int height) {
+    /** A map of a picture of {@code width} x {@code height} samples, all 0, in the array of a workspace slot. */
+    BlockByteMap(int width, int height, DecoderWorkspace workspace, int slot) {
         widthInBlocks = (width + 3) >> LOG2_BLOCK_SIZE;
         int heightInBlocks = (height + 3) >> LOG2_BLOCK_SIZE;
-        values = new byte[widthInBlocks * heightInBlocks];
+        values = workspace.bytes(slot, widthInBlocks * heightInBlocks);
     }
 
     int get(int x, int y) {
@@ -49,6 +50,11 @@ final class BlockByteMap {
 
     boolean getBit(int x, int y, int bit) {
         return (get(x, y) & (1 << bit)) != 0;
+    }
+
+    /** Sets the bits of {@code bits} in the value of the block at (x, y). */
+    void setBits(int x, int y, int bits) {
+        values[index(x, y)] |= (byte) bits;
     }
 
     void setBit(int x, int y, int bit, boolean bitValue) {

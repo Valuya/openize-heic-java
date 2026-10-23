@@ -16,15 +16,15 @@ import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The state of one decode: the parameter sets by id, the picture being decoded, the scratch buffers, and the coding
- * unit state that carries over from one coding unit to the next, across slice segments.
+ * The state of one decode: the parameter sets by id, the picture being decoded, the workspace it is decoded in, and
+ * the coding unit state that carries over from one coding unit to the next, across slice segments.
  */
 final class DecoderContext {
     private final Map<Integer, VideoParameterSetRbsp> videoParameterSets = new HashMap<>();
     private final Map<Integer, SeqParameterSetRbsp> sequenceParameterSets = new HashMap<>();
     private final Map<Integer, PicParameterSetRbsp> pictureParameterSets = new HashMap<>();
-    private final ResidualBuffers residualBuffers = new ResidualBuffers();
-    private final IntraPredictionBuffers intraPredictionBuffers = new IntraPredictionBuffers();
+    // set when a picture is decoded, created then otherwise: parsing the parameter sets needs none
+    private @Nullable DecoderWorkspace workspace;
     private HeicDecodingOptions decodingOptions = HeicDecodingOptions.DEFAULT;
     private @Nullable HeicPicture currentPicture;
 
@@ -84,7 +84,7 @@ final class DecoderContext {
      * Starts the picture whose first slice segment has {@code header}.
      */
     HeicPicture startPicture(SliceSegmentHeader header) {
-        currentPicture = new HeicPicture(header);
+        currentPicture = new HeicPicture(header, getWorkspace());
         return currentPicture;
     }
 
@@ -96,11 +96,25 @@ final class DecoderContext {
         this.decodingOptions = decodingOptions;
     }
 
+    /** Decodes in {@code workspace}, a workspace no other decode uses meanwhile. */
+    void setWorkspace(DecoderWorkspace workspace) {
+        this.workspace = workspace;
+    }
+
+    private DecoderWorkspace getWorkspace() {
+        DecoderWorkspace current = workspace;
+        if (current == null) {
+            current = new DecoderWorkspace();
+            workspace = current;
+        }
+        return current;
+    }
+
     ResidualBuffers getResidualBuffers() {
-        return residualBuffers;
+        return getWorkspace().residualBuffers;
     }
 
     IntraPredictionBuffers getIntraPredictionBuffers() {
-        return intraPredictionBuffers;
+        return getWorkspace().intraPredictionBuffers;
     }
 }

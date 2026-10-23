@@ -351,6 +351,13 @@ final class Cabac {
         int ctxSet;
         int greater1Ctx;
         boolean greater1Flag;
+
+        // for a new transform block
+        void reset() {
+            ctxSet = 0;
+            greater1Ctx = 0;
+            greater1Flag = false;
+        }
     }
 
     // 9.3.4.2.6: ctxInc from the previous invocations in the transform block

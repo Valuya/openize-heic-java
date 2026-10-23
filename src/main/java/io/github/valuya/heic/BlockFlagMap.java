@@ -11,13 +11,13 @@
 package io.github.valuya.heic;
 
 /**
- * A flag per 4x4 block of luma samples, all clear to start with.
+ * A flag per 4x4 block of luma samples, all clear to start with, in a {@link BlockByteMap}.
  */
 final class BlockFlagMap {
     private final BlockByteMap flags;
 
-    BlockFlagMap(int width, int height) {
-        flags = new BlockByteMap(width, height);
+    BlockFlagMap(BlockByteMap flags) {
+        this.flags = flags;
     }
 
     boolean get(int x, int y) {

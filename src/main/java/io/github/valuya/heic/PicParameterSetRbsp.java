@@ -19,6 +19,8 @@ class PicParameterSetRbsp extends NalUnit {
     // 7.4.3.3.1
     private static final int MAX_PPS_ID = 63;
     private static final int MAX_SPS_ID = 15;
+    // the bits of a position in a coding tree block, 0 to 15 minimum transform blocks, spread to the even bits
+    private static final int[] Z_ORDER_BITS = {0, 1, 4, 5, 16, 17, 20, 21, 64, 65, 68, 69, 80, 81, 84, 85};
 
     final SeqParameterSetRbsp sps;
     final int ppsPicParameterSetId;
@@ -232,8 +234,18 @@ class PicParameterSetRbsp extends NalUnit {
         return getScanTables().tileIdFromRs();
     }
 
-    final int[][] getMinTbAddrZs() {
-        return getScanTables().minTbAddrZs();
+    /**
+     * MinTbAddrZs[x][y] (6.5.2): the z-scan order address of the minimum transform block at (x, y), in minimum
+     * transform blocks. It is the tile scan address of its coding tree block followed by the bits of its position in
+     * that coding tree block, interleaved.
+     */
+    final int minTbAddrZs(int x, int y) {
+        int log2MinTbsPerCtb = sps.getCtbLog2SizeY() - sps.getMinTbLog2SizeY();
+        int mask = (1 << log2MinTbsPerCtb) - 1;
+        int ctbAddrRs = (y >> log2MinTbsPerCtb) * sps.getPicWidthInCtbsY() + (x >> log2MinTbsPerCtb);
+        return (getScanTables().ctbAddrRsToTs()[ctbAddrRs] << (2 * log2MinTbsPerCtb))
+                | Z_ORDER_BITS[x & mask]
+                | (Z_ORDER_BITS[y & mask] << 1);
     }
 
     private ScanTables getScanTables() {
@@ -294,14 +306,7 @@ class PicParameterSetRbsp extends NalUnit {
             }
         }
 
-        return new ScanTables(
-                colBd,
-                rowBd,
-                ctbAddrRsToTs,
-                ctbAddrTsToRs,
-                tileIdByCtbAddrTs,
-                tileIdFromRs,
-                minTbAddrZs(ctbAddrRsToTs));
+        return new ScanTables(colBd, rowBd, ctbAddrRsToTs, ctbAddrTsToRs, tileIdByCtbAddrTs, tileIdFromRs);
     }
 
     // colWidth / rowHeight (6-3, 6-4): uniform, or as coded with the last tile taking what remains
@@ -345,33 +350,6 @@ class PicParameterSetRbsp extends NalUnit {
         return tileIndex;
     }
 
-    // MinTbAddrZs[x][y]: the z-scan order address of each minimum transform block (6.5.2)
-    private int[][] minTbAddrZs(int[] ctbAddrRsToTs) {
-        int picWidthInCtbs = sps.getPicWidthInCtbsY();
-        int ctbLog2Size = sps.getCtbLog2SizeY();
-        int minTbLog2Size = sps.getMinTbLog2SizeY();
-        int log2MinTbsPerCtb = ctbLog2Size - minTbLog2Size;
-        int xMax = picWidthInCtbs << log2MinTbsPerCtb;
-        int yMax = sps.getPicHeightInCtbsY() << log2MinTbsPerCtb;
-
-        int[][] addresses = new int[xMax][yMax];
-        for (int y = 0; y < yMax; y++) {
-            for (int x = 0; x < xMax; x++) {
-                int tbX = (x << minTbLog2Size) >> ctbLog2Size;
-                int tbY = (y << minTbLog2Size) >> ctbLog2Size;
-                int ctbAddrRs = picWidthInCtbs * tbY + tbX;
-
-                int address = ctbAddrRsToTs[ctbAddrRs] << (log2MinTbsPerCtb * 2);
-                for (int i = 0; i < log2MinTbsPerCtb; i++) {
-                    int m = 1 << i;
-                    address += ((m & x) != 0 ? m * m : 0) + ((m & y) != 0 ? 2 * m * m : 0);
-                }
-                addresses[x][y] = address;
-            }
-        }
-        return addresses;
-    }
-
     // the arrays are the tables themselves: a ScanTables is never compared or hashed
     @SuppressWarnings("ArrayRecordComponent")
     private record ScanTables(
@@ -382,6 +360,5 @@ class PicParameterSetRbsp extends NalUnit {
             int[] ctbAddrTsToRs,
             int[] tileIdByCtbAddrTs,
             // the tile ID of each CTB, in CTB raster scan
-            int[] tileIdFromRs,
-            int[][] minTbAddrZs) {}
+            int[] tileIdFromRs) {}
 }
