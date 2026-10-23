@@ -51,6 +51,8 @@ public class HeicImage {
 
     private final byte[] heicData;
 
+    private final HeicDecodingOptions decodingOptions;
+
     /**
      * <p>
      * Create heic image object.
@@ -59,9 +61,11 @@ public class HeicImage {
      * @param header File header.
      * @param stream File stream.
      */
-    private HeicImage(HeicHeader header, BitStreamWithNalSupport stream, byte[] heicData) {
+    private HeicImage(
+            HeicHeader header, BitStreamWithNalSupport stream, byte[] heicData, HeicDecodingOptions decodingOptions) {
         this.header = header;
         this.heicData = heicData;
+        this.decodingOptions = decodingOptions;
         framesById = new HashMap<>();
         readFramesMeta(stream);
     }
@@ -73,7 +77,17 @@ public class HeicImage {
      * @throws HeicFormatException if it is not a HEIC image this decoder can read
      */
     public static HeicImage load(Path heicFile) throws IOException {
-        return load(Files.readAllBytes(heicFile));
+        return load(heicFile, HeicDecodingOptions.DEFAULT);
+    }
+
+    /**
+     * Reads a HEIC file, to be decoded with the given options.
+     *
+     * @throws IOException if the file cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(Path heicFile, HeicDecodingOptions decodingOptions) throws IOException {
+        return load(Files.readAllBytes(heicFile), decodingOptions);
     }
 
     /**
@@ -83,7 +97,17 @@ public class HeicImage {
      * @throws HeicFormatException if it is not a HEIC image this decoder can read
      */
     public static HeicImage load(InputStream heicStream) throws IOException {
-        return load(heicStream.readAllBytes());
+        return load(heicStream, HeicDecodingOptions.DEFAULT);
+    }
+
+    /**
+     * Reads a HEIC image from a stream, which is read to its end but not closed, to be decoded with the given options.
+     *
+     * @throws IOException if the stream cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(InputStream heicStream, HeicDecodingOptions decodingOptions) throws IOException {
+        return load(heicStream.readAllBytes(), decodingOptions);
     }
 
     /**
@@ -92,18 +116,28 @@ public class HeicImage {
      * @throws HeicFormatException if it is not a HEIC image this decoder can read
      */
     public static HeicImage load(byte[] heicData) {
+        return load(heicData, HeicDecodingOptions.DEFAULT);
+    }
+
+    /**
+     * Reads a HEIC image held in memory, to be decoded with the given options. The array is not copied and must not
+     * change afterwards.
+     *
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(byte[] heicData, HeicDecodingOptions decodingOptions) {
         if (!canLoad(heicData)) {
             throw new HeicFormatException("Not a HEIC image.");
         }
 
         try {
-            return readMetadata(heicData);
+            return readMetadata(heicData, decodingOptions);
         } catch (IsoBmffFormatException exception) {
             throw new HeicFormatException("Malformed HEIF container: " + exception.getMessage(), exception);
         }
     }
 
-    private static HeicImage readMetadata(byte[] heicData) {
+    private static HeicImage readMetadata(byte[] heicData, HeicDecodingOptions decodingOptions) {
         BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(heicData);
 
         Box.setExternalConstructor(BoxType.hvcC, (str, size) -> {
@@ -118,7 +152,8 @@ public class HeicImage {
             Box box = Box.parseBox(bitstream);
 
             if (box.type == BoxType.meta) {
-                HeicImage heicImage = new HeicImage(new HeicHeader((MetaBox) box), bitstream, heicData);
+                HeicImage heicImage =
+                        new HeicImage(new HeicHeader((MetaBox) box), bitstream, heicData, decodingOptions);
                 if (heicImage.getDefaultFrame() == null) {
                     throw new HeicFormatException("No primary image");
                 }
@@ -267,6 +302,10 @@ public class HeicImage {
     // The whole file: frames read their coded data from it when they decode
     byte[] getHeicData() {
         return heicData;
+    }
+
+    HeicDecodingOptions getDecodingOptions() {
+        return decodingOptions;
     }
 
     /**

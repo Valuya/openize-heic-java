@@ -98,7 +98,7 @@ class NeighbouringSamplesGenerator {
 
         currCTBSlice = picture.sliceAddrRs[xCurrCtb][yCurrCtb];
         currCTBTileId = (int) picture.pps
-                .tileIdFromRs[(int) (xCurrCtb + ((yCurrCtb * (picWidthInCtbs & 0xFFFFFFFFL)) & 0xFFFFFFFFL))];
+                .getTileIdFromRs()[(int) (xCurrCtb + ((yCurrCtb * (picWidthInCtbs & 0xFFFFFFFFL)) & 0xFFFFFFFFL))];
 
         availableLeft = reCheckFlag(availableLeft, xLeftCtb, yCurrCtb);
         availableTop = reCheckFlag(availableTop, xCurrCtb, yTopCtb);
@@ -111,7 +111,7 @@ class NeighbouringSamplesGenerator {
             if (currCTBSlice != (picture.sliceAddrRs[x][y] & 0xFFFFFFFFL)
                     || currCTBTileId
                             != (picture.pps
-                                            .tileIdFromRs[
+                                            .getTileIdFromRs()[
                                             (int) (x + ((y * (picWidthInCtbs & 0xFFFFFFFFL)) & 0xFFFFFFFFL))]
                                     & 0xFFFFFFFFL)) {
                 return false;
@@ -139,7 +139,7 @@ class NeighbouringSamplesGenerator {
 
         /*UInt32*/
         long currBlockAddr = picture.pps
-                        .minTbAddrZs[xBLuma >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
+                        .getMinTbAddrZs()[xBLuma >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
                         yBLuma >> (picture.sps.getMinTbLog2SizeY() & 0xFF)]
                 & 0xFFFFFFFFL;
 
@@ -152,7 +152,7 @@ class NeighbouringSamplesGenerator {
             for (int y = nBottom - 1; y >= 0; y -= 4) {
                 /*UInt32*/
                 long nBlockAddr = picture.pps
-                                .minTbAddrZs[((x0 - 1) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
+                                .getMinTbAddrZs()[((x0 - 1) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
                                 ((y0 + y) * subHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)]
                         & 0xFFFFFFFFL;
 
@@ -189,7 +189,7 @@ class NeighbouringSamplesGenerator {
         if (availableTopLeft) {
             /*UInt32*/
             long nBlockAddr = picture.pps
-                            .minTbAddrZs[((x0 - 1) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
+                            .getMinTbAddrZs()[((x0 - 1) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
                             ((y0 - 1) * subHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)]
                     & 0xFFFFFFFFL;
 
@@ -222,7 +222,7 @@ class NeighbouringSamplesGenerator {
             if (x < nTbS ? availableTop : availableTopRight) {
                 /*UInt32*/
                 long nBlockAddr = picture.pps
-                                .minTbAddrZs[((x0 + x) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
+                                .getMinTbAddrZs()[((x0 + x) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][
                                 ((y0 - 1) * subHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)]
                         & 0xFFFFFFFFL;
 

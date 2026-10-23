@@ -52,24 +52,24 @@ public class PicParameterSetRbsp extends NalUnit {
     // the height of the j-th tile row in units of CTBs
     public /*UInt32*/ long[] rowHeight;
     // the location of the i-th tile column boundary in units of CTBs
-    public /*UInt32*/ long[] colBd;
+    private /*UInt32*/ long[] colBd;
     // the location of the j-th tile row boundary in units of CTBs
-    public /*UInt32*/ long[] rowBd;
+    private /*UInt32*/ long[] rowBd;
     // the conversion from a CTB address in CTB raster scan of a picture to a CTB address in tile scan
-    public /*UInt32*/ long[] ctbAddrRsToTs;
+    private /*UInt32*/ long[] ctbAddrRsToTs;
     // the conversion from a CTB address in tile scan to a CTB address in CTB raster scan of a picture
-    public /*UInt32*/ long[] ctbAddrTsToRs;
+    private /*UInt32*/ long[] ctbAddrTsToRs;
     // the conversion from a CTB address in tile scan to a tile ID
-    public /*UInt32*/ long[] tileIdByCtbAddrTs;
+    private /*UInt32*/ long[] tileIdByCtbAddrTs;
     // the conversion from a CTB address in CTB raster scan to a tile ID
-    public /*UInt32*/ long[] tileIdFromRs;
+    private /*UInt32*/ long[] tileIdFromRs;
     // the width of the i-th tile column in units of luma samples
     //    public /*UInt32*/ long[] ColumnWidthInLumaSamples;
     // the height of the j-th tile row in units of luma samples
     //  public /*UInt32*/ long[] RowHeightInLumaSamples;
     // the conversion from a location (x, y) in units of minimum transform blocks
     // to a transform block address in z-scan order
-    public /*UInt32*/ int[][] minTbAddrZs;
+    private /*UInt32*/ int[][] minTbAddrZs;
     /*UInt32*/ long diffCuQpDeltaDepth;
     /*UInt32*/ long numTileColumnsMinus1;
     /*UInt32*/ long numTileRowsMinus1;
@@ -187,9 +187,50 @@ public class PicParameterSetRbsp extends NalUnit {
         }
 
         new RbspTrailingBits(stream);
+    }
 
-        ctbRasterAndTileScan();
-        zscanInit();
+    // The scan conversion tables (6.5.1, 6.5.2) are sized by the picture: built on first use by a decode, after its
+    // size has been checked, rather than for every parameter set read
+    private void ensureScanTables() {
+        if (minTbAddrZs == null) {
+            ctbRasterAndTileScan();
+            zscanInit();
+        }
+    }
+
+    long[] getColBd() {
+        ensureScanTables();
+        return colBd;
+    }
+
+    long[] getRowBd() {
+        ensureScanTables();
+        return rowBd;
+    }
+
+    long[] getCtbAddrRsToTs() {
+        ensureScanTables();
+        return ctbAddrRsToTs;
+    }
+
+    long[] getCtbAddrTsToRs() {
+        ensureScanTables();
+        return ctbAddrTsToRs;
+    }
+
+    long[] getTileIdByCtbAddrTs() {
+        ensureScanTables();
+        return tileIdByCtbAddrTs;
+    }
+
+    long[] getTileIdFromRs() {
+        ensureScanTables();
+        return tileIdFromRs;
+    }
+
+    int[][] getMinTbAddrZs() {
+        ensureScanTables();
+        return minTbAddrZs;
     }
 
     @Override
@@ -435,6 +476,7 @@ public class PicParameterSetRbsp extends NalUnit {
      * </p>
      */
     public boolean checkIfTileIsFirst(int tileX, int tileY) {
+        ensureScanTables();
         for (int i = 0; i <= numTileColumnsMinus1; i++) {
             if (colBd[i] == tileX) {
                 for (int k = 0; k <= numTileRowsMinus1; k++) {

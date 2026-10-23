@@ -418,7 +418,7 @@ final class LoopFilter {
         if (currentSlice == neighbourSlice) return true;
 
         // the later slice in decoding order owns the boundary between the two
-        boolean neighbourFirst = pps.ctbAddrRsToTs[neighbourSlice] < pps.ctbAddrRsToTs[currentSlice];
+        boolean neighbourFirst = pps.getCtbAddrRsToTs()[neighbourSlice] < pps.getCtbAddrRsToTs()[currentSlice];
         int widthInCtbs = (int) sps.getPicWidthInCtbsY();
         int laterCtb = neighbourFirst ? currentCtb : neighbourCtb;
         SliceSegmentHeader later =
@@ -442,7 +442,7 @@ final class LoopFilter {
     }
 
     private int tileId(int ctbAddrRs) {
-        return (int) pps.tileIdByCtbAddrTs[(int) pps.ctbAddrRsToTs[ctbAddrRs]];
+        return (int) pps.getTileIdByCtbAddrTs()[(int) pps.getCtbAddrRsToTs()[ctbAddrRs]];
     }
 
     private int sliceAddr(int x, int y) {

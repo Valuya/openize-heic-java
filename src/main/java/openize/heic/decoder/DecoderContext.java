@@ -39,6 +39,7 @@ public class DecoderContext {
     private final HashMap<Long, HeicPicture> pictures;
 
     private final ResidualBuffers residualBuffers = new ResidualBuffers();
+    private HeicDecodingOptions decodingOptions = HeicDecodingOptions.DEFAULT;
     private final IntraPredictionBuffers intraPredictionBuffers = new IntraPredictionBuffers();
 
     // public boolean first_decoded_picture = true;
@@ -177,6 +178,14 @@ public class DecoderContext {
 
     IntraPredictionBuffers getIntraPredictionBuffers() {
         return intraPredictionBuffers;
+    }
+
+    HeicDecodingOptions getDecodingOptions() {
+        return decodingOptions;
+    }
+
+    void setDecodingOptions(HeicDecodingOptions decodingOptions) {
+        this.decodingOptions = decodingOptions;
     }
 
     ResidualBuffers getResidualBuffers() {
@@ -372,7 +381,7 @@ public class DecoderContext {
         } else {
             int xTmp = xQgN >> (picture.sps.getMinTbLog2SizeY() & 0xFF);
             int yTmp = yQgN >> (picture.sps.getMinTbLog2SizeY() & 0xFF);
-            int minTbAddrA = picture.pps.minTbAddrZs[xTmp][yTmp];
+            int minTbAddrA = picture.pps.getMinTbAddrZs()[xTmp][yTmp];
             int ctbAddrA = minTbAddrA
                     >> (2 * ((picture.sps.getCtbLog2SizeY() & 0xFF) - (picture.sps.getMinTbLog2SizeY() & 0xFF)));
 

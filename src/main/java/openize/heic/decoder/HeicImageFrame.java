@@ -572,6 +572,7 @@ public class HeicImageFrame {
                 case hvcC: // hvcC
                     HEVCConfigurationBox config = (HEVCConfigurationBox) item;
                     stream.createNewImageContext(id);
+                    stream.getContext().setDecodingOptions(parent.getDecodingOptions());
                     stream.setBytePosition(config.offset);
                     hvcConfigOffset = config.offset;
                     hvcConfig = new HEVCDecoderConfigurationRecord(stream);
@@ -685,6 +686,7 @@ public class HeicImageFrame {
      * Decodes {@code region} of this frame to 0xAARRGGBB pixels, row by row.
      */
     private int[] decodeArgb(Rectangle region) {
+        parent.getDecodingOptions().checkPixelCount("Image %d".formatted(id), region.getWidth(), region.getHeight());
         PixelBox regionBox = new PixelBox(region.getLeft(), region.getTop(), region.getRight(), region.getBottom());
         int[] argbPixels = new int[regionBox.width() * regionBox.height()];
         decodeInto(PixelTarget.forRegion(regionBox, argbPixels), false);
@@ -744,6 +746,7 @@ public class HeicImageFrame {
         requireItemData();
         BitStreamWithNalSupport pictureStream = new BitStreamWithNalSupport(parent.getHeicData());
         pictureStream.createNewImageContext(id);
+        pictureStream.getContext().setDecodingOptions(parent.getDecodingOptions());
         pictureStream.setBytePosition(hvcConfigOffset);
         new HEVCDecoderConfigurationRecord(pictureStream);
 
@@ -787,7 +790,11 @@ public class HeicImageFrame {
                 }
             }
         }
-        tileDecodes.parallelStream().forEach(Runnable::run);
+        if (parent.getDecodingOptions().parallel()) {
+            tileDecodes.parallelStream().forEach(Runnable::run);
+        } else {
+            tileDecodes.forEach(Runnable::run);
+        }
     }
 
     private void decodeOverlayInto(PixelTarget overlayTarget, boolean alphaOnly) {

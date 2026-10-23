@@ -180,14 +180,14 @@ public class HeicPicture {
             return false;
 
         // The minimum luma block address in z-scan order minBlockAddrCurr of the current block
-        /*UInt32*/ long minBlockAddrCurr =
-                pps.minTbAddrZs[xCurr >> (sps.getMinTbLog2SizeY() & 0xFF)][yCurr >> (sps.getMinTbLog2SizeY() & 0xFF)]
-                        & 0xFFFFFFFFL;
+        /*UInt32*/ long minBlockAddrCurr = pps.getMinTbAddrZs()[xCurr >> (sps.getMinTbLog2SizeY() & 0xFF)][
+                        yCurr >> (sps.getMinTbLog2SizeY() & 0xFF)]
+                & 0xFFFFFFFFL;
 
         // The minimum luma block address in z-scan order minBlockAddrN of the neighbouring block covering the location
         // (xNbY, yNbY)
         /*UInt32*/ long minBlockAddrN =
-                pps.minTbAddrZs[xNbY >> (sps.getMinTbLog2SizeY() & 0xFF)][yNbY >> (sps.getMinTbLog2SizeY() & 0xFF)]
+                pps.getMinTbAddrZs()[xNbY >> (sps.getMinTbLog2SizeY() & 0xFF)][yNbY >> (sps.getMinTbLog2SizeY() & 0xFF)]
                         & 0xFFFFFFFFL;
 
         if ((minBlockAddrN & 0xFFFFFFFFL) > (minBlockAddrCurr & 0xFFFFFFFFL)) return false;
@@ -207,7 +207,8 @@ public class HeicPicture {
             return false;
 
         // the neighbouring block is contained in a different tile than the current block
-        return (pps.tileIdFromRs[ctbCurrAddrRs] & 0xFFFFFFFFL) == (pps.tileIdFromRs[ctbNbAddrRs] & 0xFFFFFFFFL);
+        return (pps.getTileIdFromRs()[ctbCurrAddrRs] & 0xFFFFFFFFL)
+                == (pps.getTileIdFromRs()[ctbNbAddrRs] & 0xFFFFFFFFL);
     }
 
     // 6.4.2 Derivation process for prediction block availability

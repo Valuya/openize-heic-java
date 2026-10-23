@@ -33,11 +33,11 @@ class Sao {
 
         if (rx > 0) {
             leftCtbInSliceSeg = (header.getCtbAddrInRs() & 0xFFFFFFFFL) > (header.getSliceAddrRs() & 0xFFFFFFFFL);
-            leftCtbInTile = header.pps.tileIdByCtbAddrTs[(int) (header.getCtbAddrInTs())]
+            leftCtbInTile = header.pps.getTileIdByCtbAddrTs()[(int) (header.getCtbAddrInTs())]
                     == header.pps
-                            .tileIdByCtbAddrTs[
+                            .getTileIdByCtbAddrTs()[
                             (int) (header.pps
-                                    .ctbAddrRsToTs[
+                                    .getCtbAddrRsToTs()[
                                     (int) (((header.getCtbAddrInRs() & 0xFFFFFFFFL) - 1) & 0xFFFFFFFFL)])];
 
             if (leftCtbInSliceSeg && leftCtbInTile)
@@ -48,11 +48,11 @@ class Sao {
             upCtbInSliceSeg =
                     (((header.getCtbAddrInRs() & 0xFFFFFFFFL) - (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
                             >= (header.getSliceAddrRs() & 0xFFFFFFFFL);
-            upCtbInTile = header.pps.tileIdByCtbAddrTs[(int) (header.getCtbAddrInTs())]
+            upCtbInTile = header.pps.getTileIdByCtbAddrTs()[(int) (header.getCtbAddrInTs())]
                     == header.pps
-                            .tileIdByCtbAddrTs[
+                            .getTileIdByCtbAddrTs()[
                             (int) (header.pps
-                                    .ctbAddrRsToTs[
+                                    .getCtbAddrRsToTs()[
                                     (int) (((header.getCtbAddrInRs() & 0xFFFFFFFFL)
                                                     - (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL))
                                             & 0xFFFFFFFFL)])];

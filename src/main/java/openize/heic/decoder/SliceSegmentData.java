@@ -46,7 +46,7 @@ public class SliceSegmentData {
 
             header.setCtbAddrInTs(header.getCtbAddrInTs() + 1) /*Property++*/;
             if ((header.getCtbAddrInTs() & 0xFFFFFFFFL) < (sps.getPicSizeInCtbsY() & 0xFFFFFFFFL)) {
-                header.setCtbAddrInRs(header.pps.ctbAddrTsToRs[(int) (header.getCtbAddrInTs())]);
+                header.setCtbAddrInRs(header.pps.getCtbAddrTsToRs()[(int) (header.getCtbAddrInTs())]);
             }
 
             if (header.getCtbAddrInTs() == sps.getPicSizeInCtbsY()) {
@@ -55,9 +55,10 @@ public class SliceSegmentData {
 
             if (!endOfSliceSegmentFlag
                     && ((header.pps.tilesEnabledFlag
-                                    && (header.pps.tileIdByCtbAddrTs[(int) (header.getCtbAddrInTs())] & 0xFFFFFFFFL)
+                                    && (header.pps.getTileIdByCtbAddrTs()[(int) (header.getCtbAddrInTs())]
+                                                    & 0xFFFFFFFFL)
                                             != (header.pps
-                                                            .tileIdByCtbAddrTs[
+                                                            .getTileIdByCtbAddrTs()[
                                                             (int) (((header.getCtbAddrInTs() & 0xFFFFFFFFL) - 1)
                                                                     & 0xFFFFFFFFL)]
                                                     & 0xFFFFFFFFL))
@@ -66,12 +67,12 @@ public class SliceSegmentData {
                                                                     % (sps.getPicWidthInCtbsY() & 0xFFFFFFFFL))
                                                             & 0xFFFFFFFFL)
                                                     == 0
-                                            || (header.pps.tileIdByCtbAddrTs[(int) (header.getCtbAddrInTs())]
+                                            || (header.pps.getTileIdByCtbAddrTs()[(int) (header.getCtbAddrInTs())]
                                                             & 0xFFFFFFFFL)
                                                     != (header.pps
-                                                                    .tileIdByCtbAddrTs[
+                                                                    .getTileIdByCtbAddrTs()[
                                                                     (int) (header.pps
-                                                                            .ctbAddrRsToTs[
+                                                                            .getCtbAddrRsToTs()[
                                                                             (int) (((header.getCtbAddrInRs()
                                                                                                     & 0xFFFFFFFFL)
                                                                                             - 1)

@@ -85,6 +85,10 @@ public class SliceSegmentHeader {
             throw new HeicFormatException("A slice refers to picture parameter set %d, which is not defined"
                     .formatted(slicePicParameterSetId & 0xFF));
         }
+        // the picture and the scan tables are allocated at the coded size, before any crop: bound it first
+        stream.getContext()
+                .getDecodingOptions()
+                .checkPixelCount("A coded picture", pps.sps.picWidthInLumaSamples, pps.sps.picHeightInLumaSamples);
         SeqParameterSetRbsp sps = pps.sps;
 
         if (!firstSliceSegmentInPicFlag) {
@@ -97,7 +101,7 @@ public class SliceSegmentHeader {
                     & 0xFFFFFFFFL);
 
             setCtbAddrInRs(sliceSegmentAddress);
-            setCtbAddrInTs(pps.ctbAddrRsToTs[(int) (getCtbAddrInRs())]);
+            setCtbAddrInTs(pps.getCtbAddrRsToTs()[(int) (getCtbAddrInRs())]);
         }
 
         // int CuQpDeltaVal = 0;
@@ -325,7 +329,7 @@ public class SliceSegmentHeader {
         return !dependentSliceSegmentFlag
                 ? sliceSegmentAddress
                 : // if not dependent slice
-                pps.ctbAddrTsToRs[(int) ((pps.ctbAddrRsToTs[sliceSegmentAddress] - 1) & 0xFFFFFFFFL)];
+                pps.getCtbAddrTsToRs()[(int) ((pps.getCtbAddrRsToTs()[sliceSegmentAddress] - 1) & 0xFFFFFFFFL)];
     } // else take preceding slice segment
 
     final /*UInt32*/ long getCurrRpsIdx() {
