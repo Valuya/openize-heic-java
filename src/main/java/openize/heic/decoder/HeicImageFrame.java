@@ -92,6 +92,8 @@ public class HeicImageFrame {
      * </p>
      */
     private ColourInformationBox colr = null;
+    // the colour information property of type nclx, when the frame has one besides or instead of an ICC profile
+    private ColourInformationBox nclxColour = null;
 
     /**
      * <p>
@@ -586,6 +588,9 @@ public class HeicImageFrame {
                     break;
                 case colr:
                     colr = (ColourInformationBox) item;
+                    if (colr.isNclx()) {
+                        nclxColour = colr;
+                    }
                     break;
                 case pixi:
                     PixelInformationProperty pixi = (PixelInformationProperty) item;
@@ -710,8 +715,7 @@ public class HeicImageFrame {
         switch (getImageType()) {
             case hvc1 -> {
                 SeqParameterSetRbsp sps = requireHevcConfiguration().getSPS();
-                new YuvConverter(sps, YuvConverter.ColourDescription.of(sps.VuiParameters))
-                        .convert(decodePicture(), frameTarget, alphaOnly);
+                new YuvConverter(sps, colourDescription(sps)).convert(decodePicture(), frameTarget, alphaOnly);
             }
             case iden -> getDerivedFrame(0).decodeInto(frameTarget, alphaOnly);
             case grid -> decodeGridInto(frameTarget, alphaOnly);
@@ -773,6 +777,15 @@ public class HeicImageFrame {
                 .orElseThrow(() -> new HeicFormatException("Image #%d holds no picture".formatted(id)));
         picture.applyLoopFilters();
         return picture;
+    }
+
+    // an nclx colour information property takes precedence over the video usability information of the bitstream
+    private YuvConverter.ColourDescription colourDescription(SeqParameterSetRbsp sps) {
+        if (nclxColour == null) {
+            return YuvConverter.ColourDescription.of(sps.VuiParameters);
+        }
+        return new YuvConverter.ColourDescription(
+                nclxColour.getColourPrimaries(), nclxColour.getMatrixCoefficients(), nclxColour.isFullRange());
     }
 
     private void decodeGridInto(PixelTarget gridTarget, boolean alphaOnly) {

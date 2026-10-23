@@ -52,6 +52,14 @@ public class ColourInformationBox extends Box {
     }
 
     /**
+     * Whether the box describes the samples with colour primaries, transfer characteristics and matrix
+     * coefficients ({@code nclx}), rather than with an ICC profile.
+     */
+    public final boolean isNclx() {
+        return colourType == NCLX;
+    }
+
+    /**
      * The colour primaries, coded as in ISO/IEC 23091-2; 0 unless the type is {@code nclx}.
      */
     public final int getColourPrimaries() {
