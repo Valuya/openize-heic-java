@@ -570,11 +570,11 @@ public class HeicImageFrame {
         for (Box item : properties) {
             switch (item.getType()) {
                 case hvcC: // hvcC
-                    stream.createNewImageContext(id);
-                    stream.getContext().setDecodingOptions(parent.getDecodingOptions());
-                    stream.setBytePosition(item.getContentOffset());
+                    BitStreamWithNalSupport configStream = new BitStreamWithNalSupport(parent.getHeicData());
+                    configStream.getContext().setDecodingOptions(parent.getDecodingOptions());
+                    configStream.setBytePosition(item.getContentOffset());
                     hvcConfigOffset = item.getContentOffset();
-                    hvcConfig = new HEVCDecoderConfigurationRecord(stream);
+                    hvcConfig = new HEVCDecoderConfigurationRecord(configStream);
                     break;
                 case ispe:
                     ImageSpatialExtentsProperty ispe = (ImageSpatialExtentsProperty) item;
@@ -708,8 +708,11 @@ public class HeicImageFrame {
         }
 
         switch (getImageType()) {
-            case hvc1 ->
-                new YuvConverter(requireHevcConfiguration().getSPS()).convert(decodePicture(), frameTarget, alphaOnly);
+            case hvc1 -> {
+                SeqParameterSetRbsp sps = requireHevcConfiguration().getSPS();
+                new YuvConverter(sps, YuvConverter.ColourDescription.of(sps.VuiParameters))
+                        .convert(decodePicture(), frameTarget, alphaOnly);
+            }
             case iden -> getDerivedFrame(0).decodeInto(frameTarget, alphaOnly);
             case grid -> decodeGridInto(frameTarget, alphaOnly);
             case iovl -> decodeOverlayInto(frameTarget, alphaOnly);
@@ -753,7 +756,6 @@ public class HeicImageFrame {
         requireItemData();
         requireHevcConfiguration();
         BitStreamWithNalSupport pictureStream = new BitStreamWithNalSupport(parent.getHeicData());
-        pictureStream.createNewImageContext(id);
         pictureStream.getContext().setDecodingOptions(parent.getDecodingOptions());
         pictureStream.setBytePosition(hvcConfigOffset);
         new HEVCDecoderConfigurationRecord(pictureStream);
@@ -765,10 +767,10 @@ public class HeicImageFrame {
             NalUnit.parseUnit(pictureStream);
         }
 
-        HeicPicture picture = pictureStream.getContext().getPictures().get(id);
-        if (picture == null) {
-            throw new HeicFormatException("Image #%d holds no picture".formatted(id));
-        }
+        HeicPicture picture = pictureStream
+                .getContext()
+                .getCurrentPictureOptional()
+                .orElseThrow(() -> new HeicFormatException("Image #%d holds no picture".formatted(id)));
         picture.applyLoopFilters();
         return picture;
     }

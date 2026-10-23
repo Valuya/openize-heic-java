@@ -13,32 +13,40 @@ package openize.heic.decoder;
 import openize.MathUtils;
 
 /**
- * <p>
- * Class used to convert colors from YUV colorspace to RGB.
- * </p>
+ * Converts decoded YCbCr samples to 8-bit RGB with the matrix coefficients and range of a {@link ColourDescription}.
  */
-class YuvConverter {
+final class YuvConverter {
     /**
-     * <p>
-     * Full or TV range flag.
-     * </p>
+     * The colour description of an image (Annex E): its {@code nclx} colour information property when it has one,
+     * which takes precedence, otherwise the video usability information of its sequence parameter set.
      */
-    private static final double TV_RANGE_LUMA_SCALE = 255.0 / 219;
+    record ColourDescription(int colourPrimaries, int matrixCoefficients, boolean fullRangeFlag) {
+        static ColourDescription of(VuiParameters vui) {
+            return new ColourDescription(vui.colourPrimaries & 0xFF, vui.matrixCoeffs & 0xFF, vui.videoFullRangeFlag);
+        }
+    }
 
+    // the scale of limited ("TV") range samples, 16..235 for luma and 16..240 for chroma at 8 bits
+    private static final double TV_RANGE_LUMA_SCALE = 255.0 / 219;
     private static final double TV_RANGE_CHROMA_SCALE = 255.0 / 224;
 
     private final SeqParameterSetRbsp sps;
     private final boolean fullRangeFlag;
+    private final double crToRed;
+    private final double crToGreen;
+    private final double cbToGreen;
+    private final double cbToBlue;
 
-    private double cooffCrToR;
-    private double cooffCrToG;
-    private double cooffCbToG;
-    private double cooffCbToB;
-
-    YuvConverter(SeqParameterSetRbsp sps) {
+    YuvConverter(SeqParameterSetRbsp sps, ColourDescription colour) {
         this.sps = sps;
-        fullRangeFlag = sps.VuiParameters.videoFullRangeFlag;
-        defineCoefficients(sps.VuiParameters);
+        fullRangeFlag = colour.fullRangeFlag();
+
+        LumaWeights weights = LumaWeights.of(colour.matrixCoefficients(), colour.colourPrimaries());
+        double kg = 1 - weights.kr() - weights.kb();
+        crToRed = 2 * (1 - weights.kr());
+        crToGreen = 2 * weights.kr() * (1 - weights.kr()) / kg;
+        cbToGreen = 2 * weights.kb() * (1 - weights.kb()) / kg;
+        cbToBlue = 2 * (1 - weights.kb());
     }
 
     /**
@@ -46,16 +54,15 @@ class YuvConverter {
      * alpha plane: only the alpha byte of the target pixels is set, to the value the red channel would have.
      */
     void convert(HeicPicture picture, PixelTarget target, boolean alphaOnly) {
-        int width = (int) sps.picWidthInLumaSamples;
-        int height = (int) sps.picHeightInLumaSamples;
+        int width = sps.picWidthInLumaSamples;
+        int height = sps.picHeightInLumaSamples;
         PixelBox convertedBox = target.clip().intersect(PixelBox.ofSize(width, height));
 
-        int bitDepthY = sps.getBitDepthY() & 0xFF;
-        int bitDepthC = sps.getBitDepthC() & 0xFF;
-        boolean highColorRange = bitDepthY > 8 || bitDepthC > 8;
+        int bitDepthY = sps.getBitDepthY();
+        int bitDepthC = sps.getBitDepthC();
         boolean monochrome = sps.getChromaArrayType() == 0;
-        int subWidthC = sps.getSubWidthC() & 0xFF;
-        int subHeightC = sps.getSubHeightC() & 0xFF;
+        int subWidthC = sps.getSubWidthC();
+        int subHeightC = sps.getSubHeightC();
         int chromaHalfRange = 1 << (bitDepthC - 1);
         int lumaOffset = 16 << (bitDepthY - 8);
         // scale to 8 bits
@@ -70,7 +77,7 @@ class YuvConverter {
         for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
             int rowIndex = base + row * stepY;
             for (int col = convertedBox.left(); col < convertedBox.right(); col++) {
-                double luma = sample(picture, highColorRange, 0, col, row);
+                double luma = picture.getSample(0, col, row);
                 if (!fullRangeFlag) {
                     luma = TV_RANGE_LUMA_SCALE * (luma - lumaOffset);
                 }
@@ -79,12 +86,12 @@ class YuvConverter {
                 double green;
                 double blue;
                 if (monochrome) {
-                    red = luma;
-                    green = luma;
-                    blue = luma;
+                    red = luma * lumaBitScale;
+                    green = red;
+                    blue = red;
                 } else {
-                    double cb = sample(picture, highColorRange, 1, col / subWidthC, row / subHeightC) - chromaHalfRange;
-                    double cr = sample(picture, highColorRange, 2, col / subWidthC, row / subHeightC) - chromaHalfRange;
+                    double cb = picture.getSample(1, col / subWidthC, row / subHeightC) - chromaHalfRange;
+                    double cr = picture.getSample(2, col / subWidthC, row / subHeightC) - chromaHalfRange;
                     if (!fullRangeFlag) {
                         cb = TV_RANGE_CHROMA_SCALE * cb;
                         cr = TV_RANGE_CHROMA_SCALE * cr;
@@ -93,9 +100,9 @@ class YuvConverter {
                     double scaledLuma = luma * lumaBitScale;
                     double scaledCb = cb * chromaBitScale;
                     double scaledCr = cr * chromaBitScale;
-                    red = scaledLuma + cooffCrToR * scaledCr;
-                    green = scaledLuma - cooffCrToG * scaledCr - cooffCbToG * scaledCb;
-                    blue = scaledLuma + cooffCbToB * scaledCb;
+                    red = scaledLuma + crToRed * scaledCr;
+                    green = scaledLuma - crToGreen * scaledCr - cbToGreen * scaledCb;
+                    blue = scaledLuma + cbToBlue * scaledCb;
                 }
 
                 int index = rowIndex + col * stepX;
@@ -109,138 +116,75 @@ class YuvConverter {
         }
     }
 
-    private static int sample(HeicPicture picture, boolean highColorRange, int cIdx, int x, int y) {
-        return highColorRange ? picture.pixelsHighColorRange[cIdx][x][y] & 0xFFFF : picture.pixels[cIdx][x][y] & 0xFF;
-    }
-
     private static int to8Bits(double channel) {
         return MathExtra.clip3(0, 255, MathUtils.f64S32(channel));
     }
 
-    private void defineCoefficients(VuiParameters VuiParameters) {
-        // vui_parameters.video_full_range_flag;
-        // vui_parameters.colour_primaries;
-        // vui_parameters.transfer_characteristics;
-        // vui_parameters.matrix_coeffs;
+    /**
+     * KR and KB of the matrix coefficients (Table E.5), derived from the colour primaries for the chromaticity-derived
+     * matrices (E-22 to E-27). Unspecified and unsupported matrices fall back to those of BT.601.
+     */
+    private record LumaWeights(double kr, double kb) {
+        private static final LumaWeights BT601 = new LumaWeights(0.299, 0.114);
 
-        double kr;
-        double kb;
-        switch (VuiParameters.matrixCoeffs) {
-            case 1:
-                kr = 0.2126;
-                kb = 0.0722;
-                break;
-            case 4:
-                kr = 0.30;
-                kb = 0.11;
-                break;
-            case 5:
-            case 6:
-                kr = 0.299;
-                kb = 0.114;
-                break;
-            case 7:
-                kr = 0.212;
-                kb = 0.087;
-                break;
-            case 9:
-            case 10:
-                kr = 0.2627;
-                kb = 0.0593;
-                break;
-
-            case 12:
-            case 13:
-                ColorPrimaries p = ColorPrimaries.getSpecified(VuiParameters.colourPrimaries & 0xFF);
-
-                double zR = 1 - (p.xR + p.yR);
-                double zG = 1 - (p.xG + p.yG);
-                double zB = 1 - (p.xB + p.yB);
-                double zW = 1 - (p.xW + p.yW);
-
-                final double tmpGmBBmG = p.yG * zB - p.yB * zG;
-                final double tmpRmGGmR = p.yR * zG - p.yG * zR;
-                double denom = p.yW * (p.xR * tmpGmBBmG + p.xG * (p.yB * zR - p.yR * zB) + p.xB * tmpRmGGmR);
-
-                try {
-                    kr = (p.yR * (p.xW * tmpGmBBmG + p.yW * (p.xB * zG - p.xG * zB) + zW * (p.xG * p.yB - p.xB * p.yG)))
-                            / denom;
-                    kb = (p.yB * (p.xW * tmpRmGGmR + p.yW * (p.xG * zR - p.xR * zG) + zW * (p.xR * p.yG - p.xG * p.yR)))
-                            / denom;
-                } catch (java.lang.RuntimeException e) {
-                    kr = 0.299;
-                    kb = 0.114;
-                }
-                break;
-
-            case 0: // Identity; See Equations E-31 to E-33
-            case 2: // Unspecified
-            case 3: // Reserved
-            case 8: // YCgCo;    See Equations E-28 to E-30
-            case 11: // Y′D′ZD′X; See Equations E-59 to E-61
-            case 14: // ICTCP
-            default:
-                kr = 0.299;
-                kb = 0.114;
-                break;
+        static LumaWeights of(int matrixCoeffs, int colourPrimaries) {
+            return switch (matrixCoeffs) {
+                case 1 -> new LumaWeights(0.2126, 0.0722);
+                case 4 -> new LumaWeights(0.30, 0.11);
+                case 5, 6 -> BT601;
+                case 7 -> new LumaWeights(0.212, 0.087);
+                case 9, 10 -> new LumaWeights(0.2627, 0.0593);
+                case 12, 13 -> fromPrimaries(ColourPrimaries.of(colourPrimaries));
+                // 0 identity, 8 YCgCo, 11 Y'D'zD'x, 14 ICtCp and the reserved values
+                default -> BT601;
+            };
         }
 
-        double kg = 1 - kr - kb;
-
-        cooffCrToR = 2 * (1 - kr);
-        cooffCrToG = 2 * kr * (1 - kr) / kg;
-        cooffCbToG = 2 * kb * (1 - kb) / kg;
-        cooffCbToB = 2 * (1 - kb);
+        private static LumaWeights fromPrimaries(ColourPrimaries p) {
+            double zR = 1 - (p.xR() + p.yR());
+            double zG = 1 - (p.xG() + p.yG());
+            double zB = 1 - (p.xB() + p.yB());
+            double zW = 1 - (p.xW() + p.yW());
+            double greenBlue = p.yG() * zB - p.yB() * zG;
+            double redGreen = p.yR() * zG - p.yG() * zR;
+            double denominator =
+                    p.yW() * (p.xR() * greenBlue + p.xG() * (p.yB() * zR - p.yR() * zB) + p.xB() * redGreen);
+            double kr = p.yR()
+                    * (p.xW() * greenBlue
+                            + p.yW() * (p.xB() * zG - p.xG() * zB)
+                            + zW * (p.xG() * p.yB() - p.xB() * p.yG()))
+                    / denominator;
+            double kb = p.yB()
+                    * (p.xW() * redGreen
+                            + p.yW() * (p.xG() * zR - p.xR() * zG)
+                            + zW * (p.xR() * p.yG() - p.xG() * p.yR()))
+                    / denominator;
+            return Double.isFinite(kr) && Double.isFinite(kb) ? new LumaWeights(kr, kb) : BT601;
+        }
     }
 
-    static class ColorPrimaries {
-        public final double xG;
-        public final double yG;
-        public final double xB;
-        public final double yB;
-        public final double xR;
-        public final double yR;
-        public final double xW;
-        public final double yW;
+    /**
+     * The chromaticity coordinates of the green, blue and red primaries and of the white point (Table E.3).
+     */
+    private record ColourPrimaries(
+            double xG, double yG, double xB, double yB, double xR, double yR, double xW, double yW) {
+        private static final ColourPrimaries BT709 =
+                new ColourPrimaries(0.300, 0.600, 0.150, 0.060, 0.640, 0.330, 0.3127, 0.3290);
 
-        public ColorPrimaries(double xG, double yG, double xB, double yB, double xR, double yR, double xW, double yW) {
-            this.xG = xG;
-            this.yG = yG;
-            this.xB = xB;
-            this.yB = yB;
-            this.xR = xR;
-            this.yR = yR;
-            this.xW = xW;
-            this.yW = yW;
-        }
-
-        public static ColorPrimaries getSpecified(int colourPrimaries) {
-            switch (colourPrimaries) {
-                case 1:
-                    return new ColorPrimaries(0.300, 0.600, 0.150, 0.060, 0.640, 0.330, 0.3127, 0.3290);
-                case 4:
-                    return new ColorPrimaries(0.210, 0.710, 0.140, 0.080, 0.670, 0.330, 0.3100, 0.3160);
-                case 5:
-                    return new ColorPrimaries(0.290, 0.600, 0.150, 0.060, 0.640, 0.330, 0.3127, 0.3290);
-                case 6:
-                case 7:
-                    return new ColorPrimaries(0.310, 0.595, 0.155, 0.070, 0.630, 0.340, 0.3127, 0.3290);
-                case 8:
-                    return new ColorPrimaries(0.243, 0.692, 0.145, 0.049, 0.681, 0.319, 0.3100, 0.3160);
-                case 9:
-                    return new ColorPrimaries(0.170, 0.797, 0.131, 0.046, 0.708, 0.292, 0.3127, 0.3290);
-                case 10:
-                    return new ColorPrimaries(0.000, 1.000, 0.000, 0.000, 1.000, 0.000, 0.333333, 0.33333);
-                case 11:
-                    return new ColorPrimaries(0.265, 0.690, 0.150, 0.060, 0.680, 0.320, 0.3140, 0.3510);
-                case 12:
-                    return new ColorPrimaries(0.265, 0.690, 0.150, 0.060, 0.680, 0.320, 0.3127, 0.3290);
-                case 22:
-                    return new ColorPrimaries(0.295, 0.605, 0.155, 0.077, 0.630, 0.340, 0.3127, 0.3290);
-                case 2: // Unspecified
-                default: // Reserved: the BT.709 primaries of value 1, the usual default
-                    return new ColorPrimaries(0.300, 0.600, 0.150, 0.060, 0.640, 0.330, 0.3127, 0.3290);
-            }
+        static ColourPrimaries of(int colourPrimaries) {
+            return switch (colourPrimaries) {
+                case 4 -> new ColourPrimaries(0.210, 0.710, 0.140, 0.080, 0.670, 0.330, 0.3100, 0.3160);
+                case 5 -> new ColourPrimaries(0.290, 0.600, 0.150, 0.060, 0.640, 0.330, 0.3127, 0.3290);
+                case 6, 7 -> new ColourPrimaries(0.310, 0.595, 0.155, 0.070, 0.630, 0.340, 0.3127, 0.3290);
+                case 8 -> new ColourPrimaries(0.243, 0.692, 0.145, 0.049, 0.681, 0.319, 0.3100, 0.3160);
+                case 9 -> new ColourPrimaries(0.170, 0.797, 0.131, 0.046, 0.708, 0.292, 0.3127, 0.3290);
+                case 10 -> new ColourPrimaries(0.000, 1.000, 0.000, 0.000, 1.000, 0.000, 0.333333, 0.33333);
+                case 11 -> new ColourPrimaries(0.265, 0.690, 0.150, 0.060, 0.680, 0.320, 0.3140, 0.3510);
+                case 12 -> new ColourPrimaries(0.265, 0.690, 0.150, 0.060, 0.680, 0.320, 0.3127, 0.3290);
+                case 22 -> new ColourPrimaries(0.295, 0.605, 0.155, 0.077, 0.630, 0.340, 0.3127, 0.3290);
+                // 1, and BT.709 too for 2 (unspecified) and the reserved values
+                default -> BT709;
+            };
         }
     }
 }

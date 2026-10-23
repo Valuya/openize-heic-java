@@ -38,6 +38,8 @@ final class ResidualBuffers {
     final boolean[] coeffSignFlags = new boolean[16];
     final int[] coeffAbsLevelRemainings = new int[16];
 
+    // transform_skip_flag of the current block
+    boolean transformSkipFlag;
     private final int[] coefficients = new int[MAX_BLOCK_AREA];
     private int blockSize;
     // bounds of the non-zero coefficients, -1 while there are none
@@ -86,5 +88,6 @@ final class ResidualBuffers {
         }
         lastNonZeroX = -1;
         lastNonZeroY = -1;
+        transformSkipFlag = false;
     }
 }

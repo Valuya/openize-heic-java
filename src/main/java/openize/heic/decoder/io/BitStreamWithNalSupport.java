@@ -10,13 +10,9 @@
 
 package openize.heic.decoder.io;
 
-import java.util.HashMap;
-import java.util.Map;
 import openize.heic.decoder.Cabac;
-import openize.heic.decoder.CabacType;
 import openize.heic.decoder.DecoderContext;
 import openize.heic.decoder.HeicFormatException;
-import openize.heic.decoder.HeicPicture;
 import openize.isobmff.io.BitStreamReader;
 
 /**
@@ -27,8 +23,7 @@ public class BitStreamWithNalSupport extends BitStreamReader {
     private static final int MAX_EXP_GOLOMB_LEADING_ZEROS = 31;
 
     private final Cabac cabac;
-    private final Map<Long, DecoderContext> contextByImageId = new HashMap<>();
-    private long currentImageId;
+    private final DecoderContext context = new DecoderContext();
 
     // In a NAL unit payload, 0x000003 is followed by a byte that must not be read as data
     private boolean nalMode;
@@ -45,25 +40,7 @@ public class BitStreamWithNalSupport extends BitStreamReader {
     }
 
     public final DecoderContext getContext() {
-        return contextByImageId.get(currentImageId);
-    }
-
-    public final long getCurrentImageId() {
-        return currentImageId;
-    }
-
-    public final void setCurrentImageId(long imageId) {
-        currentImageId = imageId;
-    }
-
-    public final void createNewImageContext(long imageId) {
-        contextByImageId.computeIfAbsent(imageId, newImageId -> new DecoderContext());
-        setCurrentImageId(imageId);
-    }
-
-    public final void deleteImageContext(long imageId) {
-        DecoderContext decoderContext = contextByImageId.remove(imageId);
-        decoderContext.getPictures().values().forEach(HeicPicture::cleanMemory);
+        return context;
     }
 
     public final void turnOnNalUnitMode() {
@@ -119,7 +96,7 @@ public class BitStreamWithNalSupport extends BitStreamReader {
             }
         }
 
-        return ((1L << leadingZeroBits) - 1 + Integer.toUnsignedLong(read(leadingZeroBits))) & 0xFFFFFFFFL;
+        return (1L << leadingZeroBits) - 1 + Integer.toUnsignedLong(read(leadingZeroBits));
     }
 
     /**
@@ -143,20 +120,18 @@ public class BitStreamWithNalSupport extends BitStreamReader {
         return (negative ? -1 : 1) * (int) ((codeNum + 1) / 2);
     }
 
-    public final int readAev() {
-        return readAev(CabacType.saoMergeFlag);
-    }
-
-    public final int readAev(CabacType type) {
-        throw new UnsupportedOperationException();
-    }
-
-    public final boolean readAevFlag() {
-        return readAevFlag(CabacType.saoMergeFlag);
-    }
-
-    final boolean readAevFlag(CabacType type) {
-        throw new UnsupportedOperationException();
+    /**
+     * Reads a signed exp-Golomb value the syntax bounds to {@code minimum..maximum}.
+     *
+     * @throws HeicFormatException if the value is outside
+     */
+    public final int readSevInRange(int minimum, int maximum, String elementName) {
+        int value = readSev();
+        if (value < minimum || value > maximum) {
+            throw new HeicFormatException("%s %d at bit %d, outside %d..%d"
+                    .formatted(elementName, value, getBitPosition(), minimum, maximum));
+        }
+        return value;
     }
 
     /**

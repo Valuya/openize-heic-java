@@ -10,378 +10,234 @@
 
 package openize.heic.decoder;
 
-import openize.MathUtils;
+import java.util.Optional;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-public class SliceSegmentHeader {
-    public final PicParameterSetRbsp pps;
-    public int sliceIndex;
-    public HeicPicture parentPicture;
+/**
+ * A slice segment header (7.3.6.1). A dependent slice segment takes the slice-level elements of the slice segment
+ * before it (7.4.7.1); only intra (I) slices are decoded.
+ */
+final class SliceSegmentHeader {
+    // 7.4.3.3 and 7.4.7.1: ranges of the syntax elements
+    private static final int MAX_PPS_ID = 63;
+    private static final int MAX_CHROMA_QP_OFFSET = 12;
+    private static final int MAX_DEBLOCKING_OFFSET_DIV2 = 6;
+    private static final int MAX_LONG_TERM_PICTURES = 32;
+    private static final int MAX_SLICE_SEGMENT_HEADER_EXTENSION_LENGTH = 256;
+    private static final int MAX_OFFSET_LENGTH_MINUS1 = 31;
+
+    final PicParameterSetRbsp pps;
+    final SeqParameterSetRbsp sps;
     final boolean firstSliceSegmentInPicFlag;
-    boolean noOutputOfPriorPicsFlag;
-    final byte slicePicParameterSetId;
-    boolean dependentSliceSegmentFlag;
-    /*UInt32*/ int sliceSegmentAddress;
-    // final boolean[] slice_reserved_flag;
-    SliceType sliceType;
-    boolean picOutputFlag;
-    byte colourPlaneId;
-    int slicePicOrderCntLsb;
-    boolean shortTermRefPicSetSpsFlag;
-    int shortTermRefPicSetIdx;
-    /*UInt32*/ int numLongTermSps;
-    /*UInt32*/ int numLongTermPics;
-    boolean[] usedByCurrPicLtFlag;
-    /*UInt32*/ int[] ltIdxSps;
-    int[] pocLsbLt;
-    boolean[] deltaPocMsbPresentFlag;
-    // /*UInt32*/ long[] delta_poc_msb_cycle_lt;
-    boolean sliceTemporalMvpEnabledFlag;
-    boolean sliceSaoLumaFlag;
-    boolean sliceSaoChromaFlag;
-    boolean numRefIdxActiveOverrideFlag;
-    /*UInt32*/ long numRefIdxL0ActiveMinus1;
-    /*UInt32*/ long numRefIdxL1ActiveMinus1;
-    boolean collocatedFromL0Flag;
-    /*UInt32*/ long collocatedRefIdx;
-    boolean cabacInitFlag;
-    boolean mvdL1ZeroFlag;
-    byte fiveMinusMaxNumMergeCand;
-    boolean useIntegerMvFlag;
-    int sliceQpDelta;
-    int sliceCbQpOffset;
-    int sliceCrQpOffset;
-    int sliceActYQpOffset;
-    int sliceActCbQpOffset;
-    int sliceActCrQpOffset;
-    boolean cuChromaQpOffsetEnabledFlag;
-    boolean deblockingFilterOverrideFlag;
-    boolean sliceDeblockingFilterDisabledFlag;
-    int sliceBetaOffsetDiv2;
-    int sliceTcOffsetDiv2;
-    boolean sliceLoopFilterAcrossSlicesEnabledFlag;
-    /*UInt32*/ long numEntryPointOffsets;
-    int offsetLenMinus1;
-    // int[] entry_point_offset_minus1;
-    /*UInt32*/ int sliceSegmentHeaderExtensionLength;
-    // byte[] slice_segment_header_extension_data_byte;
-    // ref_pic_lists_modification ref_pic_lists_modification;
-    // public int CurrRpsIdx;
-    // pred_weight_table pred_weight_table;
-    private /*UInt32*/ long ctbAddrInRs;
-    private /*UInt32*/ long ctbAddrInTs;
+    final boolean dependentSliceSegmentFlag;
+    final int sliceSegmentAddress;
+    final SliceHeader slice;
 
-    public SliceSegmentHeader(BitStreamWithNalSupport stream, SliceSegmentLayerRbsp parent) {
+    /**
+     * Reads the header of a slice segment of a picture whose earlier slice segments, if any, are those of
+     * {@code currentPicture}.
+     */
+    SliceSegmentHeader(
+            BitStreamWithNalSupport stream, NalHeader nalHeader, Optional<HeicPicture> currentPictureOptional) {
         firstSliceSegmentInPicFlag = stream.readFlag();
-
-        if (parent.nalHeader.isRapPicture()) {
-            noOutputOfPriorPicsFlag = stream.readFlag();
+        if (nalHeader.isIrapPicture()) {
+            stream.skipBits(1); // no_output_of_prior_pics_flag
         }
-
-        slicePicParameterSetId = (byte) stream.readUev();
-
-        pps = stream.getContext().getPPS().get(slicePicParameterSetId & 0xFF);
-        if (pps == null) {
-            throw new HeicFormatException("A slice refers to picture parameter set %d, which is not defined"
-                    .formatted(slicePicParameterSetId & 0xFF));
-        }
-        if (pps.sps == null) {
-            throw new HeicFormatException(
-                    "Picture parameter set %d refers to a sequence parameter set that is not defined"
-                            .formatted(slicePicParameterSetId & 0xFF));
-        }
+        pps = findPictureParameterSet(stream, stream.readUevAtMost(MAX_PPS_ID));
+        sps = pps.sps;
         // the picture and the scan tables are allocated at the coded size, before any crop: bound it first
         stream.getContext()
                 .getDecodingOptions()
-                .checkPixelCount("A coded picture", pps.sps.picWidthInLumaSamples, pps.sps.picHeightInLumaSamples);
-        SeqParameterSetRbsp sps = pps.sps;
+                .checkPixelCount("A coded picture", sps.picWidthInLumaSamples, sps.picHeightInLumaSamples);
+        if (sps.separateColourPlaneFlag) {
+            throw new HeicFormatException("Pictures coded as separate colour planes are not supported");
+        }
 
-        if (!firstSliceSegmentInPicFlag) {
-            if (pps.dependentSliceSegmentsEnabledFlag) {
-                dependentSliceSegmentFlag = stream.readFlag();
-            }
-
-            sliceSegmentAddress = (int) (stream.read(MathUtils.f64S32(
-                            MathUtils.ceiling(MathUtils.log(sps.getPicSizeInCtbsY() & 0xFFFFFFFFL, 2))))
-                    & 0xFFFFFFFFL);
-
+        if (firstSliceSegmentInPicFlag) {
+            dependentSliceSegmentFlag = false;
+            sliceSegmentAddress = 0;
+        } else {
+            dependentSliceSegmentFlag = pps.dependentSliceSegmentsEnabledFlag && stream.readFlag();
+            sliceSegmentAddress = stream.read(ceilLog2(sps.getPicSizeInCtbsY()));
             if (sliceSegmentAddress >= sps.getPicSizeInCtbsY()) {
-                throw new HeicFormatException("Slice segment address %d past the %d CTBs of the picture"
+                throw new HeicFormatException("Slice segment address %d past the %d coding tree blocks of the picture"
                         .formatted(sliceSegmentAddress, sps.getPicSizeInCtbsY()));
             }
-            setCtbAddrInRs(sliceSegmentAddress);
-            setCtbAddrInTs(pps.getCtbAddrRsToTs()[(int) (getCtbAddrInRs())]);
         }
 
-        // int CuQpDeltaVal = 0;
-        // slice_reserved_flag = new boolean[pps.num_extra_slice_header_bits];
-        if (!dependentSliceSegmentFlag) {
-            for (int i = 0; i < (pps.numExtraSliceHeaderBits & 0xFF); i++)
-                /*slice_reserved_flag[i] =*/ stream.readFlag();
-
-            sliceType = SliceType.get(stream.readUev());
-
-            if (sliceType != SliceType.I) {
-                throw new HeicFormatException(
-                        "Inter-coded %s slices are not supported: only intra-coded pictures decode"
-                                .formatted(sliceType));
-            }
-
-            if (pps.outputFlagPresentFlag) {
-                picOutputFlag = stream.readFlag();
-            }
-            // else = true?
-
-            if (sps.separateColourPlaneFlag) {
-                colourPlaneId = (byte) stream.read(2);
-            }
-
-            if (parent.nalHeader.type != NalUnitType.IDR_W_RADL && parent.nalHeader.type != NalUnitType.IDR_N_LP) {
-
-                slicePicOrderCntLsb = stream.read((sps.log2MaxPicOrderCntLsbMinus4 & 0xFF) + 4);
-                shortTermRefPicSetSpsFlag = stream.readFlag();
-
-                if (!shortTermRefPicSetSpsFlag) {
-
-                    sps.stRefPicSets.put(
-                            sps.stRefPicSets.size(), new StRefPicSet(stream, sps, sps.numShortTermRefPicSets));
-                } else if ((sps.numShortTermRefPicSets & 0xFFFFFFFFL) > 1) {
-                    shortTermRefPicSetIdx = stream.read(MathUtils.f64S32(
-                            MathUtils.ceiling(MathUtils.log(sps.numShortTermRefPicSets & 0xFFFFFFFFL, 2))));
-                }
-
-                if (sps.longTermRefPicsPresentFlag) {
-                    if ((sps.numLongTermRefPicsSps & 0xFFFFFFFFL) > 0) {
-                        numLongTermSps = (int) stream.readUev();
-                    }
-                    numLongTermPics = (int) stream.readUev();
-
-                    /*UInt32*/
-                    int numLongTermSum = numLongTermSps + numLongTermPics;
-                    if (numLongTermSps < 0 || numLongTermPics < 0 || numLongTermSum > 32) {
-                        throw new HeicFormatException(
-                                "%d long-term reference pictures, more than 32".formatted(numLongTermSum));
-                    }
-                    usedByCurrPicLtFlag = new boolean[(int) (numLongTermSum & 0xFFFFFFFFL)];
-                    ltIdxSps = new /*UInt32*/ int[(int) (numLongTermSum & 0xFFFFFFFFL)];
-                    pocLsbLt = new int[(int) (numLongTermSum & 0xFFFFFFFFL)];
-                    deltaPocMsbPresentFlag = new boolean[(int) (numLongTermSum & 0xFFFFFFFFL)];
-                    // delta_poc_msb_cycle_lt = new /*UInt32*/long[(int) (num_long_term_sum & 0xFFFFFFFFL)];
-
-                    for (int i = 0; i < ((numLongTermSps + numLongTermPics) & 0xFFFFFFFFL); i++) {
-                        if (i < (numLongTermSps & 0xFFFFFFFFL)) {
-                            if ((sps.numLongTermRefPicsSps & 0xFFFFFFFFL) > 1) {
-                                ltIdxSps[i] = (int) stream.readUev();
-                            }
-                        } else {
-                            pocLsbLt[i] = stream.read((sps.log2MaxPicOrderCntLsbMinus4 & 0xFF) + 4);
-                            usedByCurrPicLtFlag[i] = stream.readFlag();
-                        }
-
-                        deltaPocMsbPresentFlag[i] = stream.readFlag();
-
-                        if (deltaPocMsbPresentFlag[i]) {
-                            /*delta_poc_msb_cycle_lt[i] =*/ stream.readUev();
-                        }
-                    }
-                }
-                if (sps.spsTemporalMvpEnabledFlag) {
-                    sliceTemporalMvpEnabledFlag = stream.readFlag();
-                }
-            }
-
-            if (sps.sampleAdaptiveOffsetEnabledFlag) {
-                sliceSaoLumaFlag = stream.readFlag();
-                if ((sps.getChromaArrayType() & 0xFFFFFFFFL) != 0) {
-                    sliceSaoChromaFlag = stream.readFlag();
-                }
-            }
-
-            if (sliceType == SliceType.P || sliceType == SliceType.B) {
-                numRefIdxActiveOverrideFlag = stream.readFlag();
-                if (numRefIdxActiveOverrideFlag) {
-                    numRefIdxL0ActiveMinus1 = stream.readUev();
-                    if (sliceType == SliceType.B) {
-                        numRefIdxL1ActiveMinus1 = stream.readUev();
-                    }
-                }
-
-                if (pps.listsModificationPresentFlag && (getNumPicTotalCurr() & 0xFFFFFFFFL) > 1) {
-                    /*ref_pic_lists_modification =*/ new RefPicListsModification(
-                            stream, sliceType, numRefIdxL0ActiveMinus1, numRefIdxL1ActiveMinus1, pps);
-                }
-
-                if (sliceType == SliceType.B) {
-                    mvdL1ZeroFlag = stream.readFlag();
-                }
-                if (pps.cabacInitPresentFlag) {
-                    cabacInitFlag = stream.readFlag();
-                }
-
-                if (sliceTemporalMvpEnabledFlag) {
-                    if (sliceType == SliceType.B) {
-                        collocatedFromL0Flag = stream.readFlag();
-                    }
-                    if ((collocatedFromL0Flag && (numRefIdxL1ActiveMinus1 & 0xFFFFFFFFL) > 0)
-                            || (!collocatedFromL0Flag && (numRefIdxL1ActiveMinus1 & 0xFFFFFFFFL) > 0)) {
-                        collocatedRefIdx = stream.readUev();
-                    }
-                }
-
-                if ((pps.weightedPredFlag && sliceType == SliceType.P)
-                        || (pps.weightedBipredFlag && sliceType == SliceType.B)) {
-                    /*pred_weight_table =*/ new PredWeightTable(stream, this);
-                }
-
-                fiveMinusMaxNumMergeCand = (byte) stream.readUev();
-                if ((sps.spsSccExt != null ? sps.spsSccExt.motionVectorResolutionControlIdc : 0) == 2) {
-                    useIntegerMvFlag = stream.readFlag();
-                }
-            }
-
-            sliceQpDelta = stream.readSev();
-            if (pps.ppsSliceChromaQpOffsetsPresentFlag) {
-                sliceCbQpOffset = stream.readSev();
-                sliceCrQpOffset = stream.readSev();
-            }
-            boolean tmp0 = (pps.ppsSccExt != null && pps.ppsSccExt.ppsSliceActQpOffsetsPresentFlag);
-
-            if (tmp0) {
-                sliceActYQpOffset = stream.readSev();
-                sliceActCbQpOffset = stream.readSev();
-                sliceActCrQpOffset = stream.readSev();
-            }
-            boolean tmp1 = (pps.ppsRangeExt != null && pps.ppsRangeExt.chromaQpOffsetListEnabledFlag);
-
-            if (tmp1) {
-                cuChromaQpOffsetEnabledFlag = stream.readFlag();
-            }
-
-            sliceDeblockingFilterDisabledFlag = pps.ppsDeblockingFilterDisabledFlag;
-            sliceBetaOffsetDiv2 = pps.ppsBetaOffsetDiv2;
-            sliceTcOffsetDiv2 = pps.ppsTcOffsetDiv2;
-            sliceLoopFilterAcrossSlicesEnabledFlag = pps.ppsLoopFilterAcrossSlicesEnabledFlag;
-
-            if (pps.deblockingFilterOverrideEnabledFlag) {
-                deblockingFilterOverrideFlag = stream.readFlag();
-            }
-
-            if (deblockingFilterOverrideFlag) {
-                sliceDeblockingFilterDisabledFlag = stream.readFlag();
-                if (!sliceDeblockingFilterDisabledFlag) {
-                    sliceBetaOffsetDiv2 = stream.readSev();
-                    sliceTcOffsetDiv2 = stream.readSev();
-                }
-            }
-
-            if (pps.ppsLoopFilterAcrossSlicesEnabledFlag
-                    && (sliceSaoLumaFlag || sliceSaoChromaFlag || !sliceDeblockingFilterDisabledFlag)) {
-                sliceLoopFilterAcrossSlicesEnabledFlag = stream.readFlag();
-            }
+        if (dependentSliceSegmentFlag) {
+            slice = currentPictureOptional
+                    .flatMap(HeicPicture::getLastSliceHeaderOptional)
+                    .map(precedingSegment -> precedingSegment.slice)
+                    .orElseThrow(() -> new HeicFormatException("A dependent slice segment starts a picture"));
+        } else {
+            slice = readSliceHeader(stream, nalHeader);
         }
 
-        if (pps.tilesEnabledFlag || pps.entropyCodingSyncEnabledFlag) {
-            numEntryPointOffsets = stream.readUev();
-            if ((numEntryPointOffsets & 0xFFFFFFFFL) > 0) {
-                offsetLenMinus1 = (byte) stream.readUev() & 0xFF;
-                // entry_point_offset_minus1 = new int[(int) (num_entry_point_offsets & 0xFFFFFFFFL)];
-                for (int i = 0; i < (numEntryPointOffsets & 0xFFFFFFFFL); i++)
-                    /*entry_point_offset_minus1[i] =*/ stream.read(offsetLenMinus1 + 1);
-                // entry_point_offset_minus1[i+1] += entry_point_offset_minus1[i]
-            }
-        }
+        skipEntryPoints(stream);
         if (pps.sliceSegmentHeaderExtensionPresentFlag) {
-            sliceSegmentHeaderExtensionLength = (int) stream.readUev();
-            //            slice_segment_header_extension_data_byte =
-            //                    new byte[slice_segment_header_extension_length];
-            for (int i = 0; i < sliceSegmentHeaderExtensionLength; i++)
-                /*slice_segment_header_extension_data_byte[i] = (byte)*/ stream.read(8);
+            int extensionLength = stream.readUevAtMost(MAX_SLICE_SEGMENT_HEADER_EXTENSION_LENGTH);
+            stream.skipBits(extensionLength * 8);
         }
 
-        stream.read(1); /* equal to 1; alignment_bit_equal_to_one */
-        while (stream.notByteAligned()) stream.skipBits(1); /* equal to 0; alignment_bit_equal_to_zero */
-    }
-
-    public final int getMaxNumMergeCand() {
-        return 5 - (fiveMinusMaxNumMergeCand & 0xFF);
-    }
-
-    public final int getInitType() {
-        switch (sliceType) {
-            case P:
-                return (cabacInitFlag ? 1 : 0) + 1;
-            case B:
-                return 2 - (cabacInitFlag ? 1 : 0);
-            case I:
-            default:
-                return 0;
+        // byte_alignment(): alignment_bit_equal_to_one, then zero bits
+        stream.skipBits(1);
+        while (stream.notByteAligned()) {
+            stream.skipBits(1);
         }
     }
 
-    public final int getSliceQPY() {
-        return 26 + pps.initQpMinus26 + sliceQpDelta;
+    private static PicParameterSetRbsp findPictureParameterSet(BitStreamWithNalSupport stream, int ppsId) {
+        PicParameterSetRbsp pps = stream.getContext().getPPS().get(ppsId);
+        if (pps == null) {
+            throw new HeicFormatException(
+                    "A slice refers to picture parameter set %d, which is not defined".formatted(ppsId));
+        }
+        if (pps.sps == null) {
+            throw new HeicFormatException(
+                    "Picture parameter set %d refers to a sequence parameter set that is not defined".formatted(ppsId));
+        }
+        return pps;
     }
 
-    final /*UInt32*/ long getCtbAddrInRs() {
-        return ctbAddrInRs;
-    }
-
-    final void setCtbAddrInRs(/*UInt32*/ long value) {
-        ctbAddrInRs = value;
-    }
-
-    final /*UInt32*/ long getCtbAddrInTs() {
-        return ctbAddrInTs;
-    }
-
-    final void setCtbAddrInTs(/*UInt32*/ long value) {
-        ctbAddrInTs = value;
-    }
-
-    final /*UInt32*/ long getSliceAddrRs() {
-        return !dependentSliceSegmentFlag
-                ? sliceSegmentAddress
-                : // if not dependent slice
-                pps.getCtbAddrTsToRs()[(int) ((pps.getCtbAddrRsToTs()[sliceSegmentAddress] - 1) & 0xFFFFFFFFL)];
-    } // else take preceding slice segment
-
-    final /*UInt32*/ long getCurrRpsIdx() {
-        return shortTermRefPicSetSpsFlag ? (shortTermRefPicSetIdx & 0xFFFFFFFFL) : pps.sps.numShortTermRefPicSets;
-    }
-
-    public final /*UInt32*/ long getNumPicTotalCurr() {
-        /*UInt32*/
-        long numPicTotalCurr = 0;
-
-        for (int i = 0; i < (pps.sps.numNegativePics((int) getCurrRpsIdx()) & 0xFFFFFFFFL); i++)
-            if (pps.sps.usedByCurrPicS0((int) getCurrRpsIdx())[i]) {
-                numPicTotalCurr++;
-            }
-
-        for (int i = 0; i < (pps.sps.numPositivePics((int) getCurrRpsIdx()) & 0xFFFFFFFFL); i++)
-            if (pps.sps.usedByCurrPicS1((int) getCurrRpsIdx())[i]) {
-                numPicTotalCurr++;
-            }
-
-        for (int i = 0; i < (((numLongTermSps & 0xFFFFFFFFL) + (numLongTermPics & 0xFFFFFFFFL)) & 0xFFFFFFFFL); i++)
-            if (usedByCurrPicLt(i)) {
-                numPicTotalCurr++;
-            }
-
-        if (pps.ppsSccExt.ppsCurrPicRefEnabledFlag) {
-            numPicTotalCurr++;
+    private SliceHeader readSliceHeader(BitStreamWithNalSupport stream, NalHeader nalHeader) {
+        stream.skipBits(pps.numExtraSliceHeaderBits); // slice_reserved_flag[i]
+        SliceType sliceType = SliceType.get(stream.readUevAtMost(2));
+        if (sliceType != SliceType.I) {
+            throw new HeicFormatException(
+                    "Inter-coded %s slices are not supported: only intra-coded pictures decode".formatted(sliceType));
+        }
+        if (pps.outputFlagPresentFlag) {
+            stream.skipBits(1); // pic_output_flag
+        }
+        if (!nalHeader.isIdrPicture()) {
+            skipReferencePictureSets(stream);
         }
 
-        return numPicTotalCurr;
+        boolean sliceSaoLumaFlag = false;
+        boolean sliceSaoChromaFlag = false;
+        if (sps.sampleAdaptiveOffsetEnabledFlag) {
+            sliceSaoLumaFlag = stream.readFlag();
+            sliceSaoChromaFlag = sps.getChromaArrayType() != 0 && stream.readFlag();
+        }
+
+        int sliceQpY = 26 + pps.initQpMinus26 + stream.readSev();
+        if (sliceQpY < -sps.getQpBdOffsetY() || sliceQpY > 51) {
+            throw new HeicFormatException("Slice QP %d outside %d..51".formatted(sliceQpY, -sps.getQpBdOffsetY()));
+        }
+
+        int sliceCbQpOffset = 0;
+        int sliceCrQpOffset = 0;
+        if (pps.ppsSliceChromaQpOffsetsPresentFlag) {
+            sliceCbQpOffset = readChromaQpOffset(stream, "slice_cb_qp_offset");
+            sliceCrQpOffset = readChromaQpOffset(stream, "slice_cr_qp_offset");
+        }
+
+        int sliceActYQpOffset = 0;
+        int sliceActCbQpOffset = 0;
+        int sliceActCrQpOffset = 0;
+        if (pps.ppsSccExt.ppsSliceActQpOffsetsPresentFlag) {
+            sliceActYQpOffset = readChromaQpOffset(stream, "slice_act_y_qp_offset");
+            sliceActCbQpOffset = readChromaQpOffset(stream, "slice_act_cb_qp_offset");
+            sliceActCrQpOffset = readChromaQpOffset(stream, "slice_act_cr_qp_offset");
+        }
+
+        boolean cuChromaQpOffsetEnabledFlag = pps.ppsRangeExt.chromaQpOffsetListEnabledFlag && stream.readFlag();
+
+        boolean deblockingFilterOverrideFlag = pps.deblockingFilterOverrideEnabledFlag && stream.readFlag();
+        boolean sliceDeblockingFilterDisabledFlag = pps.ppsDeblockingFilterDisabledFlag;
+        int sliceBetaOffsetDiv2 = pps.ppsBetaOffsetDiv2;
+        int sliceTcOffsetDiv2 = pps.ppsTcOffsetDiv2;
+        if (deblockingFilterOverrideFlag) {
+            sliceDeblockingFilterDisabledFlag = stream.readFlag();
+            if (!sliceDeblockingFilterDisabledFlag) {
+                sliceBetaOffsetDiv2 = readDeblockingOffset(stream, "slice_beta_offset_div2");
+                sliceTcOffsetDiv2 = readDeblockingOffset(stream, "slice_tc_offset_div2");
+            }
+        }
+
+        boolean sliceLoopFilterAcrossSlicesEnabledFlag = pps.ppsLoopFilterAcrossSlicesEnabledFlag;
+        if (pps.ppsLoopFilterAcrossSlicesEnabledFlag
+                && (sliceSaoLumaFlag || sliceSaoChromaFlag || !sliceDeblockingFilterDisabledFlag)) {
+            sliceLoopFilterAcrossSlicesEnabledFlag = stream.readFlag();
+        }
+
+        return new SliceHeader(
+                sliceSegmentAddress,
+                sliceSaoLumaFlag,
+                sliceSaoChromaFlag,
+                sliceQpY,
+                sliceCbQpOffset,
+                sliceCrQpOffset,
+                sliceActYQpOffset,
+                sliceActCbQpOffset,
+                sliceActCrQpOffset,
+                cuChromaQpOffsetEnabledFlag,
+                sliceDeblockingFilterDisabledFlag,
+                sliceBetaOffsetDiv2,
+                sliceTcOffsetDiv2,
+                sliceLoopFilterAcrossSlicesEnabledFlag);
     }
 
-    public final int pocLsbLt(int i) {
-        return (i < (numLongTermSps & 0xFFFFFFFFL)) ? pps.sps.ltRefPicPocLsbSps[ltIdxSps[i]] : pocLsbLt[i];
+    // slice_pic_order_cnt_lsb and the reference picture sets: a still image refers to no other picture
+    private void skipReferencePictureSets(BitStreamWithNalSupport stream) {
+        int pocLsbBitCount = sps.log2MaxPicOrderCntLsbMinus4 + 4;
+        stream.skipBits(pocLsbBitCount); // slice_pic_order_cnt_lsb
+
+        boolean shortTermRefPicSetSpsFlag = stream.readFlag();
+        if (!shortTermRefPicSetSpsFlag) {
+            new StRefPicSet(stream, sps, sps.numShortTermRefPicSets);
+        } else if (sps.numShortTermRefPicSets > 1) {
+            stream.skipBits(ceilLog2(sps.numShortTermRefPicSets)); // short_term_ref_pic_set_idx
+        }
+
+        if (sps.longTermRefPicsPresentFlag) {
+            int numLongTermSps = sps.numLongTermRefPicsSps > 0 ? stream.readUevAtMost(sps.numLongTermRefPicsSps) : 0;
+            int numLongTermPics = stream.readUevAtMost(MAX_LONG_TERM_PICTURES - numLongTermSps);
+            for (int i = 0; i < numLongTermSps + numLongTermPics; i++) {
+                if (i < numLongTermSps) {
+                    if (sps.numLongTermRefPicsSps > 1) {
+                        stream.skipBits(ceilLog2(sps.numLongTermRefPicsSps)); // lt_idx_sps[i]
+                    }
+                } else {
+                    stream.skipBits(pocLsbBitCount + 1); // poc_lsb_lt[i], used_by_curr_pic_lt_flag[i]
+                }
+                boolean deltaPocMsbPresentFlag = stream.readFlag();
+                if (deltaPocMsbPresentFlag) {
+                    stream.readUev(); // delta_poc_msb_cycle_lt[i]
+                }
+            }
+        }
+
+        if (sps.spsTemporalMvpEnabledFlag) {
+            stream.skipBits(1); // slice_temporal_mvp_enabled_flag
+        }
     }
 
-    public final boolean usedByCurrPicLt(int i) {
-        return (i < (numLongTermSps & 0xFFFFFFFFL))
-                ? pps.sps.usedByCurrPicLtSpsFlag[ltIdxSps[i]]
-                : usedByCurrPicLtFlag[i];
+    // The coding tree blocks are decoded in order, so the entry points into the slice data are not needed
+    private void skipEntryPoints(BitStreamWithNalSupport stream) {
+        if (!pps.tilesEnabledFlag && !pps.entropyCodingSyncEnabledFlag) {
+            return;
+        }
+        int numEntryPointOffsets = stream.readUevAtMost(sps.getPicSizeInCtbsY() - 1);
+        if (numEntryPointOffsets > 0) {
+            int offsetBitCount = stream.readUevAtMost(MAX_OFFSET_LENGTH_MINUS1) + 1;
+            for (int i = 0; i < numEntryPointOffsets; i++) {
+                stream.skipBits(offsetBitCount); // entry_point_offset_minus1[i]
+            }
+        }
+    }
+
+    private static int readChromaQpOffset(BitStreamWithNalSupport stream, String elementName) {
+        return stream.readSevInRange(-MAX_CHROMA_QP_OFFSET, MAX_CHROMA_QP_OFFSET, elementName);
+    }
+
+    private static int readDeblockingOffset(BitStreamWithNalSupport stream, String elementName) {
+        return stream.readSevInRange(-MAX_DEBLOCKING_OFFSET_DIV2, MAX_DEBLOCKING_OFFSET_DIV2, elementName);
+    }
+
+    // Ceil(Log2(value)), the bit count of an index below value
+    private static int ceilLog2(int value) {
+        return 32 - Integer.numberOfLeadingZeros(value - 1);
     }
 }

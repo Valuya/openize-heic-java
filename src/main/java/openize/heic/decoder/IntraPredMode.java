@@ -10,57 +10,49 @@
 
 package openize.heic.decoder;
 
-import java.util.Arrays;
+/**
+ * The intra prediction modes (Table 8-1): the ordinal of each is its number, predModeIntra.
+ */
+enum IntraPredMode {
+    INTRA_PLANAR,
+    INTRA_DC,
+    INTRA_ANGULAR2,
+    INTRA_ANGULAR3,
+    INTRA_ANGULAR4,
+    INTRA_ANGULAR5,
+    INTRA_ANGULAR6,
+    INTRA_ANGULAR7,
+    INTRA_ANGULAR8,
+    INTRA_ANGULAR9,
+    INTRA_ANGULAR10,
+    INTRA_ANGULAR11,
+    INTRA_ANGULAR12,
+    INTRA_ANGULAR13,
+    INTRA_ANGULAR14,
+    INTRA_ANGULAR15,
+    INTRA_ANGULAR16,
+    INTRA_ANGULAR17,
+    INTRA_ANGULAR18,
+    INTRA_ANGULAR19,
+    INTRA_ANGULAR20,
+    INTRA_ANGULAR21,
+    INTRA_ANGULAR22,
+    INTRA_ANGULAR23,
+    INTRA_ANGULAR24,
+    INTRA_ANGULAR25,
+    INTRA_ANGULAR26,
+    INTRA_ANGULAR27,
+    INTRA_ANGULAR28,
+    INTRA_ANGULAR29,
+    INTRA_ANGULAR30,
+    INTRA_ANGULAR31,
+    INTRA_ANGULAR32,
+    INTRA_ANGULAR33,
+    INTRA_ANGULAR34;
 
-public enum IntraPredMode {
-    INTRA_PLANAR, /*  = 0 */
-    INTRA_DC, /*  = 1 */
-    INTRA_ANGULAR2, /*  = 2 */
-    INTRA_ANGULAR3, /*  = 3 */
-    INTRA_ANGULAR4, /*  = 4 */
-    INTRA_ANGULAR5, /*  = 5 */
-    INTRA_ANGULAR6, /*  = 6 */
-    INTRA_ANGULAR7, /*  = 7 */
-    INTRA_ANGULAR8, /*  = 8 */
-    INTRA_ANGULAR9, /*  = 9 */
-    INTRA_ANGULAR10, /*  = 10 */
-    INTRA_ANGULAR11, /*  = 11 */
-    INTRA_ANGULAR12, /*  = 12 */
-    INTRA_ANGULAR13, /*  = 13 */
-    INTRA_ANGULAR14, /*  = 14 */
-    INTRA_ANGULAR15, /*  = 15 */
-    INTRA_ANGULAR16, /*  = 16 */
-    INTRA_ANGULAR17, /*  = 17 */
-    INTRA_ANGULAR18, /*  = 18 */
-    INTRA_ANGULAR19, /*  = 19 */
-    INTRA_ANGULAR20, /*  = 20 */
-    INTRA_ANGULAR21, /*  = 21 */
-    INTRA_ANGULAR22, /*  = 22 */
-    INTRA_ANGULAR23, /*  = 23 */
-    INTRA_ANGULAR24, /*  = 24 */
-    INTRA_ANGULAR25, /*  = 25 */
-    INTRA_ANGULAR26, /*  = 26 */
-    INTRA_ANGULAR27, /*  = 27 */
-    INTRA_ANGULAR28, /*  = 28 */
-    INTRA_ANGULAR29, /*  = 29 */
-    INTRA_ANGULAR30, /*  = 30 */
-    INTRA_ANGULAR31, /*  = 31 */
-    INTRA_ANGULAR32, /*  = 32 */
-    INTRA_ANGULAR33, /*  = 33 */
-    INTRA_ANGULAR34, /*  = 34 */
-    INTRA_WEDGE, /*  = 35 */
-    INTRA_CONTOUR, /*  = 36 */
-    INTRA_SINGLE; /*  = 37 */
+    private static final IntraPredMode[] VALUES = values();
 
-    static IntraPredMode[] createArray(int count) {
-        IntraPredMode[] array = new IntraPredMode[count];
-        Arrays.fill(array, IntraPredMode.INTRA_PLANAR);
-        return array;
+    static IntraPredMode get(int predModeIntra) {
+        return VALUES[predModeIntra];
     }
-
-    public static IntraPredMode get(int id) {
-        return values[id];
-    }
-
-    private static final IntraPredMode[] values = IntraPredMode.values();
 }

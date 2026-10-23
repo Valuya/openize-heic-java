@@ -10,311 +10,212 @@
 
 package openize.heic.decoder;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
-public class HeicPicture {
-    public final HashMap<Integer, SliceSegmentHeader> getSliceHeaders() {
-        return sliceHeaders;
-    }
+/**
+ * A decoded picture: its samples, at the coded size, and the per-block state that decoding and the in-loop filters
+ * read back. Only intra-coded pictures are decoded, so every coding unit is intra.
+ */
+public final class HeicPicture {
+    final SeqParameterSetRbsp sps;
+    final PicParameterSetRbsp pps;
+    private final List<SliceSegmentHeader> sliceSegmentHeaders = new ArrayList<>();
 
-    private final HashMap<Integer, SliceSegmentHeader> sliceHeaders;
-
-    public final HashMap<Integer, SliceSegmentData> getSliceUnits() {
-        return sliceUnits;
-    }
-
-    private final HashMap<Integer, SliceSegmentData> sliceUnits;
-
-    public final VideoParameterSetRbsp vps;
-    public final SeqParameterSetRbsp sps;
-    public final PicParameterSetRbsp pps;
-    public final NalHeader nalHeader = new NalHeader();
-
-    public int picOrderCntVal;
-    public int pictureOrderCntLsb;
-
-    public int[][][] saoTypeIdx;
-    public int[][][][] saoOffsetVal;
-    public int[][][] saoEoClass;
-
-    public int[][][][] saoOffsetAbs;
-    public int[][][][] saoOffsetSign;
-    public int[][][] saoBandPosition;
-
-    public /*UInt32*/ int[][] sliceAddrRs;
-    // per 4x4 luma block, or per CTB for the slice header index
-    public final BlockIntMap sliceHeaderIndex;
-    public final BlockEnumMap<IntraPredMode> intraPredModeY;
-    public final BlockEnumMap<IntraPredMode> intraPredModeC;
-    public final BlockIntMap ctDepth;
-    public final BlockEnumMap<PredMode> cuPredMode;
-    public final BlockIntMap qpY;
-    public final BlockIntMap log2CbSize;
-    public final BlockFlagMap mergeFlag;
-    public final BlockFlagMap cuSkipFlag;
-    public final BlockFlagMap paletteModeFlag;
-    public final BlockFlagMap pcmFlag;
-    public final BlockFlagMap prevIntraLumaPredFlag;
-    public final BlockIntMap mpmIdx;
-    public final BlockEnumMap<IntraPredMode> remIntraLumaPredMode;
-    public final BlockIntMap intraChromaPredMode;
-    public final BlockFlagMap tuResidualActFlag;
-    // one bit per transform tree depth
-    public final BlockIntMap cbfCb;
-    public final BlockIntMap cbfCr;
-    public final BlockIntMap cbfLuma;
-    // one bit per colour component
-    public final BlockIntMap explicitRdpcmFlag;
-    public final BlockIntMap explicitRdpcmDirFlag;
-
-    public int[] pcmSampleLuma;
-    public int[] pcmSampleChroma;
-
-    // per 4x4 luma block: LoopFilter.VERTICAL_EDGE, HORIZONTAL_EDGE and NO_FILTER bits
-    public byte[][] blockFlags;
+    // the samples, [cIdx][x][y]: bytes up to 8 bits, ints above
+    final byte[][][] pixels;
+    final int[][][] pixelsHighColorRange;
+    final boolean highColorRange;
 
     // ScalingFactor[sizeId][matrixId][x][y] (7.4.5) from the PPS scaling list, the SPS one, or the defaults
     final int[][][][] scalingFactor;
 
-    public /*Byte*/ byte[][][] pixels;
-    public /*UInt16*/ int[][][] pixelsHighColorRange;
+    // per coding tree block: SliceAddrRs, and the sample adaptive offset parameters [cIdx][rx][ry] (7.4.9.3)
+    final int[][] sliceAddrRs;
+    final int[][][] saoTypeIdx;
+    final int[][][] saoEoClass;
+    final int[][][] saoBandPosition;
+    final int[][][][] saoOffsetAbs;
+    final int[][][][] saoOffsetSign;
 
-    public HeicPicture(SliceSegmentHeader sliceHeader, NalHeader nalHeader) {
-        sliceHeaders = new HashMap<>();
-        sliceUnits = new HashMap<>();
+    // per 4x4 luma block; the slice segment header index is set per coding tree block
+    final BlockIntMap sliceHeaderIndex;
+    final BlockIntMap ctDepth;
+    final BlockIntMap log2CbSize;
+    final BlockIntMap qpY;
+    final BlockFlagMap pcmFlag;
+    final BlockEnumMap<IntraPredMode> intraPredModeY;
+    final BlockEnumMap<IntraPredMode> intraPredModeC;
+    final BlockIntMap intraChromaPredMode;
+    final BlockFlagMap tuResidualActFlag;
+    // one bit per transform tree depth
+    final BlockIntMap cbfCb;
+    final BlockIntMap cbfCr;
+    final BlockIntMap cbfLuma;
 
-        pps = sliceHeader.pps;
+    // per 4x4 luma block: LoopFilter.VERTICAL_EDGE, HORIZONTAL_EDGE and NO_FILTER bits
+    final byte[][] blockFlags;
+
+    HeicPicture(SliceSegmentHeader firstSliceSegmentHeader) {
+        pps = firstSliceSegmentHeader.pps;
         sps = pps.sps;
-        vps = sps.vps;
-        nalHeader.cloneTo(this.nalHeader);
 
         ScalingListData scalingList = pps.ppsScalingListDataPresentFlag
                 ? pps.ppsScalingListData
                 : sps.spsScalingListDataPresentFlag ? sps.ScalingListData : ScalingListData.DEFAULT;
         scalingFactor = scalingList.getScalingFactor(sps.getChromaArrayType());
 
-        /*UInt32*/ long widthMax;
-        /*UInt32*/ long heightMax;
+        // whole coding tree blocks, so that blocks straddling the right and bottom edges can be reconstructed
+        int width = sps.getPicWidthInCtbsY() << sps.getCtbLog2SizeY();
+        int height = sps.getPicHeightInCtbsY() << sps.getCtbLog2SizeY();
+        int componentCount = sps.getChromaArrayType() != 0 ? 3 : 1;
+        int widthInCtbs = sps.getPicWidthInCtbsY();
+        int heightInCtbs = sps.getPicHeightInCtbsY();
 
-        widthMax = ((sps.getPicWidthInCtbsY() & 0xFFFFFFFFL) << ((sps.getCtbLog2SizeY() & 0xFF) & 0x1F)) & 0xFFFFFFFFL;
-        heightMax =
-                ((sps.getPicHeightInCtbsY() & 0xFFFFFFFFL) << ((sps.getCtbLog2SizeY() & 0xFF) & 0x1F)) & 0xFFFFFFFFL;
+        highColorRange = sps.getBitDepthY() > 8 || sps.getBitDepthC() > 8;
+        pixels = highColorRange ? new byte[0][][] : new byte[componentCount][width][height];
+        pixelsHighColorRange = highColorRange ? new int[componentCount][width][height] : new int[0][][];
 
-        int chromaCount = (sps.getChromaArrayType() & 0xFFFFFFFFL) != 0 ? 3 : 1;
+        sliceAddrRs = new int[widthInCtbs][heightInCtbs];
+        saoTypeIdx = new int[componentCount][widthInCtbs][heightInCtbs];
+        saoEoClass = new int[componentCount][widthInCtbs][heightInCtbs];
+        saoBandPosition = new int[componentCount][widthInCtbs][heightInCtbs];
+        saoOffsetAbs = new int[componentCount][widthInCtbs][heightInCtbs][4];
+        saoOffsetSign = new int[componentCount][widthInCtbs][heightInCtbs][4];
 
-        saoTypeIdx = new int[chromaCount][][];
-        saoEoClass = new int[chromaCount][][];
-        saoOffsetVal = new int[chromaCount][][][];
-        saoOffsetAbs = new int[chromaCount][][][];
-        saoOffsetSign = new int[chromaCount][][][];
-        saoBandPosition = new int[chromaCount][][];
-
-        if ((sps.getBitDepthY() & 0xFF) > 8 || (sps.getBitDepthC() & 0xFF) > 8)
-            pixelsHighColorRange = new /*UInt16*/ int[chromaCount][][];
-        else pixels = new /*Byte*/ byte[chromaCount][][];
-
-        for (int i = 0; i < chromaCount; i++) {
-            saoTypeIdx[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
-            saoEoClass[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
-            saoOffsetVal[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
-            saoOffsetAbs[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
-            saoOffsetSign[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
-            saoBandPosition[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
-
-            if ((sps.getBitDepthY() & 0xFF) > 8 || (sps.getBitDepthC() & 0xFF) > 8)
-                pixelsHighColorRange[i] =
-                        new /*UInt16*/ int[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-            else pixels[i] = new /*Byte*/ byte[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
-        }
-
-        blockFlags = new byte[(int) (widthMax >> 2)][(int) (heightMax >> 2)];
-        int width = (int) widthMax;
-        int height = (int) heightMax;
         sliceHeaderIndex = new BlockIntMap(width, height);
         ctDepth = new BlockIntMap(width, height);
-        cuPredMode = new BlockEnumMap<>(PredMode.class, width, height);
-        qpY = new BlockIntMap(width, height);
         log2CbSize = new BlockIntMap(width, height);
+        qpY = new BlockIntMap(width, height);
+        pcmFlag = new BlockFlagMap(width, height);
         intraPredModeY = new BlockEnumMap<>(IntraPredMode.class, width, height);
         intraPredModeC = new BlockEnumMap<>(IntraPredMode.class, width, height);
-        mergeFlag = new BlockFlagMap(width, height);
-        cuSkipFlag = new BlockFlagMap(width, height);
-        paletteModeFlag = new BlockFlagMap(width, height);
-        pcmFlag = new BlockFlagMap(width, height);
-        prevIntraLumaPredFlag = new BlockFlagMap(width, height);
-        mpmIdx = new BlockIntMap(width, height);
-        remIntraLumaPredMode = new BlockEnumMap<>(IntraPredMode.class, width, height);
         intraChromaPredMode = new BlockIntMap(width, height);
         tuResidualActFlag = new BlockFlagMap(width, height);
         cbfCb = new BlockIntMap(width, height);
         cbfCr = new BlockIntMap(width, height);
         cbfLuma = new BlockIntMap(width, height);
-        explicitRdpcmFlag = new BlockIntMap(width, height);
-        explicitRdpcmDirFlag = new BlockIntMap(width, height);
+        blockFlags = new byte[width >> 2][height >> 2];
     }
 
-    public final void cleanMemory() {
-        saoTypeIdx = null;
-        saoOffsetVal = null;
-        saoEoClass = null;
-        saoOffsetAbs = null;
-        saoOffsetSign = null;
-        saoBandPosition = null;
-        sliceAddrRs = null;
-        blockFlags = null;
-        pcmSampleLuma = null;
-        pcmSampleChroma = null;
+    /**
+     * Adds the header of the next slice segment of the picture.
+     *
+     * @return its index, the value {@link #sliceHeaderIndex} holds for its coding tree blocks
+     */
+    int addSliceSegmentHeader(SliceSegmentHeader header) {
+        sliceSegmentHeaders.add(header);
+        return sliceSegmentHeaders.size() - 1;
     }
 
-    // 6.4.1 Derivation process for z-scan order block availability
-    //
-    // The luma location ( xCurr, yCurr ) of the top-left sample of the current block
-    // relative to the top-left luma sample of the current picture
-    //
-    // The luma location ( xNbY, yNbY ) covered by a neighbouring block relative
-    // to the top-left luma sample of the current picture.
-    final boolean checkZScanAvailability(int xCurr, int yCurr, int xNbY, int yNbY) {
-        if (xNbY < 0 || yNbY < 0) return false;
-
-        if (xNbY >= (sps.picWidthInLumaSamples & 0xFFFFFFFFL) || yNbY >= (sps.picHeightInLumaSamples & 0xFFFFFFFFL))
-            return false;
-
-        // The minimum luma block address in z-scan order minBlockAddrCurr of the current block
-        /*UInt32*/ long minBlockAddrCurr = pps.getMinTbAddrZs()[xCurr >> (sps.getMinTbLog2SizeY() & 0xFF)][
-                        yCurr >> (sps.getMinTbLog2SizeY() & 0xFF)]
-                & 0xFFFFFFFFL;
-
-        // The minimum luma block address in z-scan order minBlockAddrN of the neighbouring block covering the location
-        // (xNbY, yNbY)
-        /*UInt32*/ long minBlockAddrN =
-                pps.getMinTbAddrZs()[xNbY >> (sps.getMinTbLog2SizeY() & 0xFF)][yNbY >> (sps.getMinTbLog2SizeY() & 0xFF)]
-                        & 0xFFFFFFFFL;
-
-        if ((minBlockAddrN & 0xFFFFFFFFL) > (minBlockAddrCurr & 0xFFFFFFFFL)) return false;
-
-        // SliceAddrRs associated with the slice segment containing the current block
-        int xCurrCtb = xCurr >> (sps.getCtbLog2SizeY() & 0xFF);
-        int yCurrCtb = yCurr >> (sps.getCtbLog2SizeY() & 0xFF);
-        int ctbCurrAddrRs = yCurrCtb * (int) sps.getPicWidthInCtbsY() + xCurrCtb;
-
-        // SliceAddrRs associated with the slice segment containing the neighbouring block
-        int xNbCtb = xNbY >> (sps.getCtbLog2SizeY() & 0xFF);
-        int yNbCtb = yNbY >> (sps.getCtbLog2SizeY() & 0xFF);
-        int ctbNbAddrRs = yNbCtb * (int) sps.getPicWidthInCtbsY() + xNbCtb;
-
-        // the current block and the neighbouring block are in the same slice
-        if ((sliceAddrRs[xCurrCtb][yCurrCtb] & 0xFFFFFFFFL) != (sliceAddrRs[xNbCtb][yNbCtb] & 0xFFFFFFFFL))
-            return false;
-
-        // the neighbouring block is contained in a different tile than the current block
-        return (pps.getTileIdFromRs()[ctbCurrAddrRs] & 0xFFFFFFFFL)
-                == (pps.getTileIdFromRs()[ctbNbAddrRs] & 0xFFFFFFFFL);
+    SliceSegmentHeader getSliceSegmentHeader(int index) {
+        return sliceSegmentHeaders.get(index);
     }
 
-    // 6.4.2 Derivation process for prediction block availability
-    //
-    // the luma location ( xCb, yCb ) of the top-left sample of the current luma coding block
-    // relative to the top-left luma sample of the current picture
-    //
-    // a variable nCbS specifying the size of the current luma coding block
-    //
-    // the luma location ( xPb, yPb ) of the top-left sample of the current luma prediction block
-    // relative to the top-left luma sample of the current picture
-    //
-    // two variables nPbW and nPbH specifying the width and the height of the current luma prediction block
-    //
-    // a variable partIdx specifying the partition index of the current prediction unit within the current coding unit
-    //
-    // the luma location ( xNbY, yNbY ) covered by a neighbouring prediction block
-    // relative to the top-left luma sample of the current picture
-    //
-    // Output of this process is the availability of the neighbouring prediction block covering the location ( xNbY,
-    // yNbY )
-    final boolean checkPredictionAvailability(
-            int xCb, int yCb, int nCbS, int xPb, int yPb, int nPbW, int nPbH, int partIdx, int xNbY, int yNbY) {
-        boolean sameCb = (xCb <= xNbY) && (yCb <= yNbY) && (xCb + nCbS > xNbY) && (yCb + nCbS > yNbY);
+    List<SliceSegmentHeader> getSliceSegmentHeaders() {
+        return sliceSegmentHeaders;
+    }
 
-        boolean availableN;
+    Optional<SliceSegmentHeader> getLastSliceHeaderOptional() {
+        return sliceSegmentHeaders.isEmpty()
+                ? Optional.empty()
+                : Optional.of(sliceSegmentHeaders.get(sliceSegmentHeaders.size() - 1));
+    }
 
-        if (!sameCb) {
-            availableN = checkZScanAvailability(xPb, yPb, xNbY, yNbY);
+    int getSample(int cIdx, int x, int y) {
+        return highColorRange ? pixelsHighColorRange[cIdx][x][y] : pixels[cIdx][x][y] & 0xFF;
+    }
+
+    void setSample(int cIdx, int x, int y, int value) {
+        if (highColorRange) {
+            pixelsHighColorRange[cIdx][x][y] = value;
         } else {
-            availableN =
-                    nPbW << 1 != nCbS || nPbH << 1 != nCbS || partIdx != 1 || yCb + nPbH > yNbY || xCb + nPbW <= xNbY;
+            pixels[cIdx][x][y] = (byte) value;
+        }
+    }
+
+    // 6.4.1 Derivation process for z-scan order block availability: whether the block covering the luma location
+    // (xNbY, yNbY) is available to the block at (xCurr, yCurr)
+    boolean checkZScanAvailability(int xCurr, int yCurr, int xNbY, int yNbY) {
+        if (xNbY < 0 || yNbY < 0 || xNbY >= sps.picWidthInLumaSamples || yNbY >= sps.picHeightInLumaSamples) {
+            return false;
         }
 
-        if (availableN && cuPredMode.get(xNbY, yNbY) == PredMode.MODE_INTRA) availableN = false;
+        int minTbLog2SizeY = sps.getMinTbLog2SizeY();
+        int[][] minTbAddrZs = pps.getMinTbAddrZs();
+        int minBlockAddrCurr = minTbAddrZs[xCurr >> minTbLog2SizeY][yCurr >> minTbLog2SizeY];
+        int minBlockAddrN = minTbAddrZs[xNbY >> minTbLog2SizeY][yNbY >> minTbLog2SizeY];
+        if (minBlockAddrN > minBlockAddrCurr) {
+            return false;
+        }
 
-        return availableN;
+        int ctbLog2SizeY = sps.getCtbLog2SizeY();
+        int xCurrCtb = xCurr >> ctbLog2SizeY;
+        int yCurrCtb = yCurr >> ctbLog2SizeY;
+        int xNbCtb = xNbY >> ctbLog2SizeY;
+        int yNbCtb = yNbY >> ctbLog2SizeY;
+        if (sliceAddrRs[xCurrCtb][yCurrCtb] != sliceAddrRs[xNbCtb][yNbCtb]) {
+            return false;
+        }
+
+        int[] tileIdFromRs = pps.getTileIdFromRs();
+        int widthInCtbs = sps.getPicWidthInCtbsY();
+        return tileIdFromRs[yCurrCtb * widthInCtbs + xCurrCtb] == tileIdFromRs[yNbCtb * widthInCtbs + xNbCtb];
     }
 
-    final void setCtDepth(int x0, int y0, int log2CbSize, int cqtDepth) {
+    void setCtDepth(int x0, int y0, int log2CbSize, int cqtDepth) {
         ctDepth.fill(x0, y0, 1 << log2CbSize, cqtDepth);
     }
 
-    final void setCuPredMode(int x0, int y0, int nCbS, PredMode mode) {
-        cuPredMode.fill(x0, y0, nCbS, mode);
-        if (mode == PredMode.MODE_SKIP) {
-            mergeFlag.fill(x0, y0, nCbS, true);
-        }
-    }
-
-    final void setPcmFlag(int x0, int y0, int nCbS, boolean value) {
+    void setPcmFlag(int x0, int y0, int nCbS, boolean value) {
         pcmFlag.fill(x0, y0, nCbS, value);
     }
 
-    final void setQpY(int x0, int y0, int log2CbSize, int qpYValue) {
+    void setQpY(int x0, int y0, int log2CbSize, int qpYValue) {
         qpY.fill(x0, y0, 1 << log2CbSize, qpYValue);
     }
+
+    void setLog2CbSize(int x0, int y0, int log2CbSizeValue) {
+        log2CbSize.fill(x0, y0, 1 << log2CbSizeValue, log2CbSizeValue);
+    }
+
     // Marks the left and top edges of a transform (or coding) block for the deblocking filter
-    final void markTransformBlock(int x0, int y0, int size) {
-        int blocks = Math.max(size >> 2, 1);
-        for (int i = 0; i < blocks; i++) {
+    void markTransformBlock(int x0, int y0, int size) {
+        int blockCount = Math.max(size >> 2, 1);
+        for (int i = 0; i < blockCount; i++) {
             blockFlags[x0 >> 2][(y0 >> 2) + i] |= LoopFilter.VERTICAL_EDGE;
             blockFlags[(x0 >> 2) + i][y0 >> 2] |= LoopFilter.HORIZONTAL_EDGE;
         }
     }
 
-    // Samples of a coding unit coded with cu_transquant_bypass_flag are left untouched by the in-loop filters
-    final void markNoFilter(int x0, int y0, int nCbS) {
-        for (int i = x0 >> 2; i < (x0 + nCbS) >> 2; i++)
-            for (int j = y0 >> 2; j < (y0 + nCbS) >> 2; j++) blockFlags[i][j] |= LoopFilter.NO_FILTER;
+    // The deblocking filter and sample adaptive offset leave the samples of the coding unit at (x0, y0) untouched
+    void markNoFilter(int x0, int y0, int nCbS) {
+        for (int i = x0 >> 2; i < (x0 + nCbS) >> 2; i++) {
+            for (int j = y0 >> 2; j < (y0 + nCbS) >> 2; j++) {
+                blockFlags[i][j] |= LoopFilter.NO_FILTER;
+            }
+        }
     }
 
     // Applies the deblocking filter and sample adaptive offset once every slice of the picture is reconstructed
-    public final void applyLoopFilters() {
+    void applyLoopFilters() {
         LoopFilter.apply(this);
     }
 
-    final void setLog2CbSize(int x0, int y0, int log2CbSizeValue) {
-        log2CbSize.fill(x0, y0, 1 << log2CbSizeValue, log2CbSizeValue);
-    }
+    // 8.4.2 Derivation process for luma intra prediction mode: the candidate modes from the left and above neighbours
+    IntraPredMode[] generateIntraPredModeCandidates(int xPb, int yPb, boolean availableA, boolean availableB) {
+        IntraPredMode candIntraPredModeA =
+                !availableA || pcmFlag.get(xPb - 1, yPb) ? IntraPredMode.INTRA_DC : intraPredModeY.get(xPb - 1, yPb);
 
-    // 8.4.2 Derivation process for luma intra prediction mode
-    final IntraPredMode[] generateIntraPredModeCandidates(
-            int xPb, int yPb, int pbOffset, boolean availableA, boolean availableB) {
-        IntraPredMode candIntraPredModeA, candIntraPredModeB;
+        // the neighbour above, outside the current coding tree block, is not used
+        int ctbLog2SizeY = sps.getCtbLog2SizeY();
+        boolean aboveInCurrentCtb = yPb - 1 >= ((yPb >> ctbLog2SizeY) << ctbLog2SizeY);
+        IntraPredMode candIntraPredModeB = !availableB || pcmFlag.get(xPb, yPb - 1) || !aboveInCurrentCtb
+                ? IntraPredMode.INTRA_DC
+                : intraPredModeY.get(xPb, yPb - 1);
 
-        if (!availableA) {
-            candIntraPredModeA = IntraPredMode.INTRA_DC;
-        } else if (cuPredMode.get(xPb - 1, yPb) != PredMode.MODE_INTRA || pcmFlag.get(xPb - 1, yPb)) {
-            candIntraPredModeA = IntraPredMode.INTRA_DC;
-        } else {
-            candIntraPredModeA = intraPredModeY.get(xPb - 1, yPb);
-        }
-
-        if (!availableB) {
-            candIntraPredModeB = IntraPredMode.INTRA_DC;
-        } else if (cuPredMode.get(xPb, yPb - 1) != PredMode.MODE_INTRA || pcmFlag.get(xPb, yPb - 1)) {
-            candIntraPredModeB = IntraPredMode.INTRA_DC;
-        } else if (yPb - 1 < ((yPb >> (sps.getCtbLog2SizeY() & 0xFF)) << (sps.getCtbLog2SizeY() & 0xFF))) {
-            candIntraPredModeB = IntraPredMode.INTRA_DC;
-        } else {
-            candIntraPredModeB = intraPredModeY.get(xPb, yPb - 1);
-        }
-
-        IntraPredMode[] candModeList = IntraPredMode.createArray(3);
-
+        IntraPredMode[] candModeList = new IntraPredMode[3];
         if (candIntraPredModeB == candIntraPredModeA) {
             if (candIntraPredModeA.ordinal() < 2) {
                 candModeList[0] = IntraPredMode.INTRA_PLANAR;
@@ -322,90 +223,79 @@ public class HeicPicture {
                 candModeList[2] = IntraPredMode.INTRA_ANGULAR26;
             } else {
                 candModeList[0] = candIntraPredModeA;
-                candModeList[1] = IntraPredMode.get((2 + ((candIntraPredModeA.ordinal() + 29) % 32)));
-                candModeList[2] = IntraPredMode.get((2 + (((candIntraPredModeA.ordinal() - 2) + 1) % 32)));
+                candModeList[1] = IntraPredMode.get(2 + ((candIntraPredModeA.ordinal() + 29) % 32));
+                candModeList[2] = IntraPredMode.get(2 + ((candIntraPredModeA.ordinal() - 2 + 1) % 32));
             }
         } else {
             candModeList[0] = candIntraPredModeA;
             candModeList[1] = candIntraPredModeB;
-
-            if (candModeList[0] != IntraPredMode.INTRA_PLANAR && candModeList[1] != IntraPredMode.INTRA_PLANAR) {
+            if (candIntraPredModeA != IntraPredMode.INTRA_PLANAR && candIntraPredModeB != IntraPredMode.INTRA_PLANAR) {
                 candModeList[2] = IntraPredMode.INTRA_PLANAR;
-            } else if (candModeList[0] != IntraPredMode.INTRA_DC && candModeList[1] != IntraPredMode.INTRA_DC) {
+            } else if (candIntraPredModeA != IntraPredMode.INTRA_DC && candIntraPredModeB != IntraPredMode.INTRA_DC) {
                 candModeList[2] = IntraPredMode.INTRA_DC;
             } else {
                 candModeList[2] = IntraPredMode.INTRA_ANGULAR26;
             }
         }
-
         return candModeList;
     }
 
-    final IntraPredMode setIntraPredModeY(int xPb, int yPb, int pbSize, IntraPredMode[] candModeList) {
+    /**
+     * Sets IntraPredModeY of the prediction block at (xPb, yPb), from mpm_idx when prev_intra_luma_pred_flag is set,
+     * from rem_intra_luma_pred_mode otherwise (8.4.2).
+     */
+    IntraPredMode setIntraPredModeY(
+            int xPb,
+            int yPb,
+            int pbSize,
+            IntraPredMode[] candModeList,
+            boolean prevIntraLumaPredFlag,
+            int mpmIdxOrRemIntraLumaPredMode) {
         IntraPredMode mode;
-
-        if (prevIntraLumaPredFlag.get(xPb, yPb)) {
-            mode = candModeList[mpmIdx.get(xPb, yPb)];
+        if (prevIntraLumaPredFlag) {
+            mode = candModeList[mpmIdxOrRemIntraLumaPredMode];
         } else {
-            if (candModeList[0].ordinal() > candModeList[1].ordinal()) {
-                final IntraPredMode tmp = candModeList[0];
-                candModeList[0] = candModeList[1];
-                candModeList[1] = tmp;
-            }
+            sortByMode(candModeList, 0, 1);
+            sortByMode(candModeList, 0, 2);
+            sortByMode(candModeList, 1, 2);
 
-            if (candModeList[0].ordinal() > candModeList[2].ordinal()) {
-                final IntraPredMode tmp = candModeList[0];
-                candModeList[0] = candModeList[2];
-                candModeList[2] = tmp;
+            int modeIndex = mpmIdxOrRemIntraLumaPredMode;
+            for (IntraPredMode candidate : candModeList) {
+                if (modeIndex >= candidate.ordinal()) {
+                    modeIndex++;
+                }
             }
-
-            if (candModeList[1].ordinal() > candModeList[2].ordinal()) {
-                final IntraPredMode tmp = candModeList[1];
-                candModeList[1] = candModeList[2];
-                candModeList[2] = tmp;
-            }
-
-            mode = remIntraLumaPredMode.get(xPb, yPb);
-
-            int intMode = mode.ordinal();
-            for (int i = 0; i < 3; i++) {
-                if (intMode >= candModeList[i].ordinal()) intMode++;
-            }
-            mode = IntraPredMode.get(intMode);
+            mode = IntraPredMode.get(modeIndex);
         }
 
         intraPredModeY.fill(xPb, yPb, pbSize, mode);
-
         return mode;
     }
 
-    final void setIntraPredModeC(int xPb, int yPb, int pbSize, IntraPredMode mode) {
+    private static void sortByMode(IntraPredMode[] candModeList, int first, int second) {
+        if (candModeList[first].ordinal() > candModeList[second].ordinal()) {
+            IntraPredMode swapped = candModeList[first];
+            candModeList[first] = candModeList[second];
+            candModeList[second] = swapped;
+        }
+    }
+
+    void setIntraPredModeC(int xPb, int yPb, int pbSize, IntraPredMode mode) {
         intraPredModeC.fill(xPb, yPb, pbSize, mode);
     }
 
-    final IntraPredMode deriveIntraPredModeIndex(IntraPredMode intraLumaPredMode, int intraChromaPredMode) {
-        if ((intraChromaPredMode & 0xFF) == 4) return intraLumaPredMode;
-
-        IntraPredMode candidate;
-
-        switch (intraChromaPredMode) {
-            case 0:
-                candidate = IntraPredMode.INTRA_PLANAR;
-                break;
-            case 1:
-                candidate = IntraPredMode.INTRA_ANGULAR26;
-                break;
-            case 2:
-                candidate = IntraPredMode.INTRA_ANGULAR10;
-                break;
-            case 3:
-            default:
-                candidate = IntraPredMode.INTRA_DC;
-                break;
+    // 8.4.3 Derivation process for chroma intra prediction mode, Table 8-2
+    static IntraPredMode deriveIntraPredModeC(IntraPredMode intraLumaPredMode, int intraChromaPredMode) {
+        if (intraChromaPredMode == 4) {
+            return intraLumaPredMode;
         }
 
-        if (intraLumaPredMode == candidate) return IntraPredMode.INTRA_ANGULAR34;
-
-        return candidate;
+        IntraPredMode candidate = switch (intraChromaPredMode) {
+            case 0 -> IntraPredMode.INTRA_PLANAR;
+            case 1 -> IntraPredMode.INTRA_ANGULAR26;
+            case 2 -> IntraPredMode.INTRA_ANGULAR10;
+            default -> IntraPredMode.INTRA_DC;
+        };
+        return intraLumaPredMode == candidate ? IntraPredMode.INTRA_ANGULAR34 : candidate;
     }
 }

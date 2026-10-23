@@ -12,52 +12,21 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+/**
+ * A coded slice segment NAL unit (7.3.2.9): its header is read, then its coding tree blocks are decoded into the
+ * current picture.
+ */
 public class SliceSegmentLayerRbsp extends NalUnit {
-    public final SliceSegmentHeader sliceHeader;
-    public SliceSegmentData data;
-
-    public SliceSegmentLayerRbsp(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
+    public SliceSegmentLayerRbsp(BitStreamWithNalSupport stream, long startPosition, int size) {
         super(stream, startPosition, size);
 
-        sliceHeader = new SliceSegmentHeader(stream, this);
+        DecoderContext context = stream.getContext();
+        SliceSegmentHeader header = new SliceSegmentHeader(stream, nalHeader, context.getCurrentPictureOptional());
+        HeicPicture picture = header.firstSliceSegmentInPicFlag
+                ? context.startPicture(header)
+                : context.getCurrentPictureOptional()
+                        .orElseThrow(() -> new HeicFormatException("A picture lacks its first slice segment"));
 
-        stream.getCabac().initialization(sliceHeader);
-
-        if (sliceHeader.firstSliceSegmentInPicFlag) {
-            HeicPicture picture = new HeicPicture(sliceHeader, nalHeader.copy());
-            stream.getContext().getPictures().put(stream.getCurrentImageId(), picture);
-            sliceHeader.parentPicture = picture;
-
-            if (nalHeader.isIrapPicture()) {
-                if (nalHeader.isIdrPicture()
-                        || nalHeader.isBlaPicture()
-                        ||
-                        // first_decoded_picture ||
-                        stream.getContext().firstAfterEndOfSequenceNAL) {
-                    stream.getContext().noRaslOutputFlag = true;
-                    stream.getContext().firstAfterEndOfSequenceNAL = false;
-                } else {
-                    stream.getContext().noRaslOutputFlag = false;
-                    stream.getContext().handleCraAsBlaFlag = false;
-                }
-            }
-        }
-
-        if (stream.getContext().getPictures().isEmpty()) {
-            throw new HeicFormatException("A slice segment that does not start a picture comes first");
-        }
-
-        HeicPicture currentPicture = stream.getContext().getPictures().get(stream.getCurrentImageId());
-
-        if (sliceHeader.parentPicture == null) {
-            sliceHeader.parentPicture = currentPicture;
-        }
-
-        sliceHeader.sliceIndex = currentPicture.getSliceHeaders().size();
-        currentPicture.getSliceHeaders().put(sliceHeader.sliceIndex, sliceHeader);
-
-        stream.getContext().decodingPictureOrderCount(currentPicture);
-
-        /*data =*/ new SliceSegmentData(stream, sliceHeader);
+        new SliceSegmentDecoder(stream, header, picture).decode();
     }
 }

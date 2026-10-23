@@ -11,11 +11,11 @@
 package openize.heic.decoder;
 
 /**
- * In-loop filters applied to a fully reconstructed intra picture: the deblocking
- * filter (ITU-T H.265 8.7.2) followed by sample adaptive offset (8.7.3).
+ * In-loop filters applied to a fully reconstructed intra picture: the deblocking filter (8.7.2) followed by sample
+ * adaptive offset (8.7.3).
  *
- * Only intra pictures are decoded, so every coding block is intra and the boundary
- * filtering strength of every transform block edge is 2.
+ * <p>Only intra pictures are decoded, so every coding block is intra and the boundary filtering strength of every
+ * transform block edge is 2.
  */
 final class LoopFilter {
     static final byte VERTICAL_EDGE = 1;
@@ -52,8 +52,9 @@ final class LoopFilter {
     private final int subWidthC;
     private final int subHeightC;
 
-    private byte[][][] pixels;
-    private int[][][] pixelsHighColorRange;
+    private final boolean highColorRange;
+    private final byte[][][] pixels;
+    private final int[][][] pixelsHighColorRange;
 
     // the four lines of a luma edge segment, three samples p0..p2 / q0..q2 on each side once filtered
     private final int[][] edgeSamplesP = new int[4][4];
@@ -65,34 +66,34 @@ final class LoopFilter {
         this.picture = picture;
         this.sps = picture.sps;
         this.pps = picture.pps;
-        this.width = (int) sps.picWidthInLumaSamples;
-        this.height = (int) sps.picHeightInLumaSamples;
-        this.ctbLog2Size = sps.getCtbLog2SizeY() & 0xFF;
+        this.width = sps.picWidthInLumaSamples;
+        this.height = sps.picHeightInLumaSamples;
+        this.ctbLog2Size = sps.getCtbLog2SizeY();
         this.chromaCount = sps.getChromaArrayType() != 0 ? 3 : 1;
-        this.subWidthC = sps.getSubWidthC() & 0xFF;
-        this.subHeightC = sps.getSubHeightC() & 0xFF;
+        this.subWidthC = sps.getSubWidthC();
+        this.subHeightC = sps.getSubHeightC();
+        this.highColorRange = picture.highColorRange;
         this.pixels = picture.pixels;
         this.pixelsHighColorRange = picture.pixelsHighColorRange;
     }
 
     static void apply(HeicPicture picture) {
-        if (picture.blockFlags == null || picture.getSliceHeaders().isEmpty()) return;
-
         LoopFilter filter = new LoopFilter(picture);
 
         boolean deblock = false;
-        boolean Sao = false;
-        for (SliceSegmentHeader header : picture.getSliceHeaders().values()) {
-            deblock |= !header.sliceDeblockingFilterDisabledFlag;
-            Sao |= header.sliceSaoLumaFlag || header.sliceSaoChromaFlag;
+        boolean sampleAdaptiveOffset = false;
+        for (SliceSegmentHeader header : picture.getSliceSegmentHeaders()) {
+            deblock |= !header.slice.sliceDeblockingFilterDisabledFlag();
+            sampleAdaptiveOffset |= header.slice.sliceSaoLumaFlag() || header.slice.sliceSaoChromaFlag();
         }
 
         if (deblock) {
             filter.deblock(true);
             filter.deblock(false);
         }
-
-        if (Sao && picture.sps.sampleAdaptiveOffsetEnabledFlag) filter.sampleAdaptiveOffset();
+        if (sampleAdaptiveOffset) {
+            filter.sampleAdaptiveOffset();
+        }
     }
 
     // 8.7.2 Deblocking filter process: all vertical edges of the picture, then all horizontal ones
@@ -101,29 +102,34 @@ final class LoopFilter {
         byte edgeFlag = vertical ? VERTICAL_EDGE : HORIZONTAL_EDGE;
         int nx = vertical ? 1 : 0;
         int ny = vertical ? 0 : 1;
-        int qpBdOffsetY = sps.getQpBdOffsetY() & 0xFF;
 
         // Luma: edges on the 8x8 grid, in segments of four lines
         for (int y = vertical ? 0 : 8; y < height; y += vertical ? 4 : 8) {
             for (int x = vertical ? 8 : 0; x < width; x += vertical ? 8 : 4) {
-                if ((picture.blockFlags[x >> 2][y >> 2] & edgeFlag) == 0) continue;
+                if ((picture.blockFlags[x >> 2][y >> 2] & edgeFlag) == 0) {
+                    continue;
+                }
 
                 int xp = x - nx;
                 int yp = y - ny;
-                SliceSegmentHeader header = sliceHeaderAt(x, y);
-                if (!filterEdge(header, x, y, xp, yp)) continue;
+                SliceHeader header = sliceHeaderAt(x, y);
+                if (!filterEdge(header, x, y, xp, yp)) {
+                    continue;
+                }
 
-                int qpL = ((picture.qpY.get(x, y) - qpBdOffsetY) + (picture.qpY.get(xp, yp) - qpBdOffsetY) + 1) >> 1;
+                int qpL = (picture.qpY.get(x, y) + picture.qpY.get(xp, yp) + 1) >> 1;
                 filterLumaEdge(x, y, nx, ny, qpL, header, noFilter(xp, yp), noFilter(x, y));
             }
         }
 
-        if (chromaCount == 1) return;
+        if (chromaCount == 1) {
+            return;
+        }
 
         // Chroma: edges on the 8x8 chroma sample grid, filtered line by line
         int widthC = width / subWidthC;
         int heightC = height / subHeightC;
-        int bitDepthC = sps.getBitDepthC() & 0xFF;
+        int bitDepthC = sps.getBitDepthC();
 
         for (int cIdx = 1; cIdx < chromaCount; cIdx++) {
             int cQpPicOffset = cIdx == 1 ? pps.ppsCbQpOffset : pps.ppsCrQpOffset;
@@ -132,18 +138,20 @@ final class LoopFilter {
                 for (int xc = vertical ? 8 : 0; xc < widthC; xc += vertical ? 8 : 1) {
                     int x = xc * subWidthC;
                     int y = yc * subHeightC;
-                    if ((picture.blockFlags[x >> 2][y >> 2] & edgeFlag) == 0) continue;
+                    if ((picture.blockFlags[x >> 2][y >> 2] & edgeFlag) == 0) {
+                        continue;
+                    }
 
                     int xp = x - nx;
                     int yp = y - ny;
-                    SliceSegmentHeader header = sliceHeaderAt(x, y);
-                    if (!filterEdge(header, x, y, xp, yp)) continue;
+                    SliceHeader header = sliceHeaderAt(x, y);
+                    if (!filterEdge(header, x, y, xp, yp)) {
+                        continue;
+                    }
 
-                    int qpi =
-                            (((picture.qpY.get(x, y) - qpBdOffsetY) + (picture.qpY.get(xp, yp) - qpBdOffsetY) + 1) >> 1)
-                                    + cQpPicOffset;
+                    int qpi = ((picture.qpY.get(x, y) + picture.qpY.get(xp, yp) + 1) >> 1) + cQpPicOffset;
                     int qpC = sps.getChromaArrayType() == 1 ? chromaQp(qpi) : Math.min(qpi, 51);
-                    int q = MathExtra.clip3(0, 53, qpC + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2 << 1));
+                    int q = MathExtra.clip3(0, 53, qpC + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2() << 1));
                     int tc = TC_TABLE[q] * (1 << (bitDepthC - 8));
 
                     filterChromaLine(cIdx, xc, yc, nx, ny, tc, bitDepthC, noFilter(xp, yp), noFilter(x, y));
@@ -153,24 +161,29 @@ final class LoopFilter {
     }
 
     // filterEdgeFlag (8.7.2.3): picture borders are never reached by the loops above
-    private boolean filterEdge(SliceSegmentHeader header, int xq, int yq, int xp, int yp) {
-        if (header.sliceDeblockingFilterDisabledFlag) return false;
+    private boolean filterEdge(SliceHeader header, int xq, int yq, int xp, int yp) {
+        if (header.sliceDeblockingFilterDisabledFlag()) {
+            return false;
+        }
 
         int ctbQ = ctbAddrRs(xq, yq);
         int ctbP = ctbAddrRs(xp, yp);
-        if (ctbQ == ctbP) return true;
-
-        if (!pps.loopFilterAcrossTilesEnabledFlag && tileId(ctbQ) != tileId(ctbP)) return false;
-
-        return header.sliceLoopFilterAcrossSlicesEnabledFlag || sliceAddr(xq, yq) == sliceAddr(xp, yp);
+        if (ctbQ == ctbP) {
+            return true;
+        }
+        if (!pps.loopFilterAcrossTilesEnabledFlag && tileId(ctbQ) != tileId(ctbP)) {
+            return false;
+        }
+        return header.sliceLoopFilterAcrossSlicesEnabledFlag() || sliceAddr(xq, yq) == sliceAddr(xp, yp);
     }
 
     // 8.7.2.5.3 Decision process for luma block edges, 8.7.2.5.7 luma sample filtering
     private void filterLumaEdge(
-            int x, int y, int nx, int ny, int qpL, SliceSegmentHeader header, boolean noFilterP, boolean noFilterQ) {
-        int bitDepth = sps.getBitDepthY() & 0xFF;
-        int beta = BETA_TABLE[MathExtra.clip3(0, 51, qpL + (header.sliceBetaOffsetDiv2 << 1))] * (1 << (bitDepth - 8));
-        int tc = TC_TABLE[MathExtra.clip3(0, 53, qpL + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2 << 1))]
+            int x, int y, int nx, int ny, int qpL, SliceHeader header, boolean noFilterP, boolean noFilterQ) {
+        int bitDepth = sps.getBitDepthY();
+        int beta =
+                BETA_TABLE[MathExtra.clip3(0, 51, qpL + (header.sliceBetaOffsetDiv2() << 1))] * (1 << (bitDepth - 8));
+        int tc = TC_TABLE[MathExtra.clip3(0, 53, qpL + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2() << 1))]
                 * (1 << (bitDepth - 8));
 
         // along the edge: perpendicular to the normal
@@ -196,7 +209,9 @@ final class LoopFilter {
         int dq = dq0 + dq3;
         int d = dpq0 + dpq3;
 
-        if (d >= beta) return;
+        if (d >= beta) {
+            return;
+        }
 
         boolean strong =
                 strongDecision(p[0], q[0], 2 * dpq0, beta, tc) && strongDecision(p[3], q[3], 2 * dpq3, beta, tc);
@@ -227,7 +242,9 @@ final class LoopFilter {
                 nq[2] = MathExtra.clip3(q2 - 2 * tc, q2 + 2 * tc, (p0 + q0 + q1 + 3 * q2 + 2 * q3 + 4) >> 3);
             } else {
                 int delta = (9 * (q0 - p0) - 3 * (q1 - p1) + 8) >> 4;
-                if (Math.abs(delta) >= tc * 10) continue;
+                if (Math.abs(delta) >= tc * 10) {
+                    continue;
+                }
 
                 delta = MathExtra.clip3(-tc, tc, delta);
                 np[0] = MathExtra.clip3(0, maxValue, p0 + delta);
@@ -245,8 +262,12 @@ final class LoopFilter {
             }
 
             for (int i = 0; i < 3; i++) {
-                if (!noFilterP) set(0, x - (i + 1) * nx + k * ax, y - (i + 1) * ny + k * ay, np[i]);
-                if (!noFilterQ) set(0, x + i * nx + k * ax, y + i * ny + k * ay, nq[i]);
+                if (!noFilterP) {
+                    set(0, x - (i + 1) * nx + k * ax, y - (i + 1) * ny + k * ay, np[i]);
+                }
+                if (!noFilterQ) {
+                    set(0, x + i * nx + k * ax, y + i * ny + k * ay, nq[i]);
+                }
             }
         }
     }
@@ -269,69 +290,94 @@ final class LoopFilter {
         int delta = MathExtra.clip3(-tc, tc, ((((q0 - p0) << 2) + p1 - q1 + 4) >> 3));
         int maxValue = (1 << bitDepth) - 1;
 
-        if (!noFilterP) set(cIdx, xc - nx, yc - ny, MathExtra.clip3(0, maxValue, p0 + delta));
-        if (!noFilterQ) set(cIdx, xc, yc, MathExtra.clip3(0, maxValue, q0 - delta));
+        if (!noFilterP) {
+            set(cIdx, xc - nx, yc - ny, MathExtra.clip3(0, maxValue, p0 + delta));
+        }
+        if (!noFilterQ) {
+            set(cIdx, xc, yc, MathExtra.clip3(0, maxValue, q0 - delta));
+        }
     }
 
     private static int chromaQp(int qpi) {
-        if (qpi < 30) return qpi;
-        if (qpi > 43) return qpi - 6;
-        return CHROMA_QP_TABLE[qpi - 30];
+        if (qpi < 30) {
+            return qpi;
+        }
+        return qpi > 43 ? qpi - 6 : CHROMA_QP_TABLE[qpi - 30];
     }
 
     // 8.7.3 Sample adaptive offset process, reading the deblocked picture
 
     private void sampleAdaptiveOffset() {
-        byte[][][] deblocked = null;
-        int[][][] deblockedHighColorRange = null;
-        if (pixels != null) {
-            deblocked = new byte[chromaCount][][];
-            for (int c = 0; c < chromaCount; c++) {
-                deblocked[c] = new byte[pixels[c].length][];
-                for (int x = 0; x < pixels[c].length; x++) deblocked[c][x] = pixels[c][x].clone();
-            }
-        } else {
-            deblockedHighColorRange = new int[chromaCount][][];
-            for (int c = 0; c < chromaCount; c++) {
-                deblockedHighColorRange[c] = new int[pixelsHighColorRange[c].length][];
-                for (int x = 0; x < pixelsHighColorRange[c].length; x++)
-                    deblockedHighColorRange[c][x] = pixelsHighColorRange[c][x].clone();
-            }
-        }
-
-        byte[][][] output = pixels;
-        int[][][] outputHighColorRange = pixelsHighColorRange;
-        // reads go to the deblocked copy, writes to the picture
-        pixels = deblocked;
-        pixelsHighColorRange = deblockedHighColorRange;
-
-        int widthInCtbs = (int) sps.getPicWidthInCtbsY();
-        int heightInCtbs = (int) sps.getPicHeightInCtbsY();
-
-        for (int ry = 0; ry < heightInCtbs; ry++) {
-            for (int rx = 0; rx < widthInCtbs; rx++) {
-                SliceSegmentHeader header = sliceHeaderAt(rx << ctbLog2Size, ry << ctbLog2Size);
-
-                for (int cIdx = 0; cIdx < chromaCount; cIdx++) {
-                    if (!(cIdx == 0 ? header.sliceSaoLumaFlag : header.sliceSaoChromaFlag)) continue;
-
+        int widthInCtbs = sps.getPicWidthInCtbsY();
+        int heightInCtbs = sps.getPicHeightInCtbsY();
+        for (int cIdx = 0; cIdx < chromaCount; cIdx++) {
+            DeblockedBand band = new DeblockedBand(cIdx);
+            for (int ry = 0; ry < heightInCtbs; ry++) {
+                band.load(ry);
+                for (int rx = 0; rx < widthInCtbs; rx++) {
+                    SliceHeader header = sliceHeaderAt(rx << ctbLog2Size, ry << ctbLog2Size);
+                    boolean enabled = cIdx == 0 ? header.sliceSaoLumaFlag() : header.sliceSaoChromaFlag();
                     int saoType = picture.saoTypeIdx[cIdx][rx][ry];
-                    if (saoType == 0) continue;
-
-                    saoCtb(rx, ry, cIdx, saoType, output, outputHighColorRange);
+                    if (enabled && saoType != 0) {
+                        saoCtb(rx, ry, cIdx, saoType, band);
+                    }
                 }
             }
         }
+    }
 
-        pixels = output;
-        pixelsHighColorRange = outputHighColorRange;
+    /**
+     * The deblocked samples of a row of coding tree blocks of one component, with the line above and the line below:
+     * sample adaptive offset reads deblocked samples while it modifies the picture in place, a row at a time.
+     */
+    private final class DeblockedBand {
+        private final int cIdx;
+        private final int componentWidth;
+        private final int componentHeight;
+        private final int ctbHeight;
+        private final int bandHeight;
+        // [x * bandHeight + y - firstLine]
+        private final int[] samples;
+        // the deblocked last line of the previous row, which sample adaptive offset has modified since
+        private final int[] lineAbove;
+        private int firstLine;
+
+        DeblockedBand(int cIdx) {
+            this.cIdx = cIdx;
+            componentWidth = width / (cIdx == 0 ? 1 : subWidthC);
+            componentHeight = height / (cIdx == 0 ? 1 : subHeightC);
+            ctbHeight = (1 << ctbLog2Size) / (cIdx == 0 ? 1 : subHeightC);
+            bandHeight = ctbHeight + 2;
+            samples = new int[componentWidth * bandHeight];
+            lineAbove = new int[componentWidth];
+        }
+
+        // before the row ry is modified
+        void load(int ry) {
+            int yCtb = ry * ctbHeight;
+            firstLine = yCtb - 1;
+            int lastLine = Math.min(yCtb + ctbHeight, componentHeight - 1);
+            int rowLastLine = Math.min(yCtb + ctbHeight - 1, componentHeight - 1);
+            for (int x = 0; x < componentWidth; x++) {
+                int columnStart = x * bandHeight;
+                samples[columnStart] = lineAbove[x];
+                for (int y = yCtb; y <= lastLine; y++) {
+                    samples[columnStart + y - firstLine] = get(cIdx, x, y);
+                }
+                lineAbove[x] = samples[columnStart + rowLastLine - firstLine];
+            }
+        }
+
+        int sample(int x, int y) {
+            return samples[x * bandHeight + y - firstLine];
+        }
     }
 
     // 8.7.3.2 CTB modification process
-    private void saoCtb(int rx, int ry, int cIdx, int saoType, byte[][][] output, int[][][] outputHighColorRange) {
+    private void saoCtb(int rx, int ry, int cIdx, int saoType, DeblockedBand deblocked) {
         int subW = cIdx == 0 ? 1 : subWidthC;
         int subH = cIdx == 0 ? 1 : subHeightC;
-        int bitDepth = (cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC()) & 0xFF;
+        int bitDepth = cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC();
         int maxValue = (1 << bitDepth) - 1;
         int compWidth = width / subW;
         int compHeight = height / subH;
@@ -342,16 +388,16 @@ final class LoopFilter {
         int xEnd = Math.min(xCtb + ctbWidth, compWidth);
         int yEnd = Math.min(yCtb + ctbHeight, compHeight);
 
-        int log2OffsetScale = 0;
-        if (pps.ppsRangeExt != null) {
-            log2OffsetScale = (int)
-                    (cIdx == 0 ? pps.ppsRangeExt.log2SaoOffsetScaleLuma : pps.ppsRangeExt.log2SaoOffsetScaleChroma);
-        }
+        int log2OffsetScale =
+                (int) (cIdx == 0 ? pps.ppsRangeExt.log2SaoOffsetScaleLuma : pps.ppsRangeExt.log2SaoOffsetScaleChroma);
 
+        // SaoOffsetVal (7.4.9.3)
         int[] offsetAbs = picture.saoOffsetAbs[cIdx][rx][ry];
         int[] offsetSign = picture.saoOffsetSign[cIdx][rx][ry];
         int[] offsetVal = new int[5];
-        for (int i = 0; i < 4; i++) offsetVal[i + 1] = ((1 - 2 * offsetSign[i]) * offsetAbs[i]) << log2OffsetScale;
+        for (int i = 0; i < 4; i++) {
+            offsetVal[i + 1] = ((1 - 2 * offsetSign[i]) * offsetAbs[i]) << log2OffsetScale;
+        }
 
         int[] bandTable = null;
         int bandShift = bitDepth - 5;
@@ -359,16 +405,20 @@ final class LoopFilter {
         if (saoType == 1) {
             bandTable = new int[32];
             int bandPosition = picture.saoBandPosition[cIdx][rx][ry];
-            for (int k = 0; k < 4; k++) bandTable[(k + bandPosition) & 31] = k + 1;
+            for (int k = 0; k < 4; k++) {
+                bandTable[(k + bandPosition) & 31] = k + 1;
+            }
         }
 
         int currentCtb = ctbAddrRs(rx << ctbLog2Size, ry << ctbLog2Size);
 
         for (int ys = yCtb; ys < yEnd; ys++) {
             for (int xs = xCtb; xs < xEnd; xs++) {
-                if (noFilter(xs * subW, ys * subH)) continue;
+                if (noFilter(xs * subW, ys * subH)) {
+                    continue;
+                }
 
-                int sample = get(cIdx, xs, ys);
+                int sample = deblocked.sample(xs, ys);
                 int offset;
 
                 if (saoType == 1) {
@@ -387,21 +437,24 @@ final class LoopFilter {
                             skip = true;
                             break;
                         }
-                        edgeIdx += Integer.signum(sample - get(cIdx, xn, yn));
+                        edgeIdx += Integer.signum(sample - deblocked.sample(xn, yn));
                     }
 
-                    if (skip) continue;
-
-                    if (edgeIdx <= 2) edgeIdx = edgeIdx == 2 ? 0 : edgeIdx + 1;
+                    if (skip) {
+                        continue;
+                    }
+                    if (edgeIdx <= 2) {
+                        edgeIdx = edgeIdx == 2 ? 0 : edgeIdx + 1;
+                    }
 
                     offset = offsetVal[edgeIdx];
                 }
 
-                if (offset == 0) continue;
+                if (offset == 0) {
+                    continue;
+                }
 
-                int value = MathExtra.clip3(0, maxValue, sample + offset);
-                if (output != null) output[cIdx][xs][ys] = (byte) value;
-                else outputHighColorRange[cIdx][xs][ys] = value;
+                set(cIdx, xs, ys, MathExtra.clip3(0, maxValue, sample + offset));
             }
         }
     }
@@ -409,21 +462,26 @@ final class LoopFilter {
     // A neighbouring sample across a slice or tile boundary that filtering may not cross leaves the sample unmodified
     private boolean saoNeighbourUsable(int currentCtb, int xn, int yn) {
         int neighbourCtb = ctbAddrRs(xn, yn);
-        if (neighbourCtb == currentCtb) return true;
-
-        if (!pps.loopFilterAcrossTilesEnabledFlag && tileId(neighbourCtb) != tileId(currentCtb)) return false;
+        if (neighbourCtb == currentCtb) {
+            return true;
+        }
+        if (!pps.loopFilterAcrossTilesEnabledFlag && tileId(neighbourCtb) != tileId(currentCtb)) {
+            return false;
+        }
 
         int currentSlice = sliceAddrOfCtb(currentCtb);
         int neighbourSlice = sliceAddrOfCtb(neighbourCtb);
-        if (currentSlice == neighbourSlice) return true;
+        if (currentSlice == neighbourSlice) {
+            return true;
+        }
 
         // the later slice in decoding order owns the boundary between the two
         boolean neighbourFirst = pps.getCtbAddrRsToTs()[neighbourSlice] < pps.getCtbAddrRsToTs()[currentSlice];
-        int widthInCtbs = (int) sps.getPicWidthInCtbsY();
+        int widthInCtbs = sps.getPicWidthInCtbsY();
         int laterCtb = neighbourFirst ? currentCtb : neighbourCtb;
-        SliceSegmentHeader later =
+        SliceHeader later =
                 sliceHeaderAt((laterCtb % widthInCtbs) << ctbLog2Size, (laterCtb / widthInCtbs) << ctbLog2Size);
-        return later.sliceLoopFilterAcrossSlicesEnabledFlag;
+        return later.sliceLoopFilterAcrossSlicesEnabledFlag();
     }
 
     private boolean noFilter(int x, int y) {
@@ -431,18 +489,16 @@ final class LoopFilter {
                 || (sps.pcmLoopFilterDisabledFlag && picture.pcmFlag.get(x, y));
     }
 
-    private SliceSegmentHeader sliceHeaderAt(int x, int y) {
-        int xCtb = (x >> ctbLog2Size) << ctbLog2Size;
-        int yCtb = (y >> ctbLog2Size) << ctbLog2Size;
-        return picture.getSliceHeaders().get(picture.sliceHeaderIndex.get(xCtb, yCtb));
+    private SliceHeader sliceHeaderAt(int x, int y) {
+        return picture.getSliceSegmentHeader(picture.sliceHeaderIndex.get(x, y)).slice;
     }
 
     private int ctbAddrRs(int x, int y) {
-        return (y >> ctbLog2Size) * (int) sps.getPicWidthInCtbsY() + (x >> ctbLog2Size);
+        return (y >> ctbLog2Size) * sps.getPicWidthInCtbsY() + (x >> ctbLog2Size);
     }
 
     private int tileId(int ctbAddrRs) {
-        return (int) pps.getTileIdByCtbAddrTs()[(int) pps.getCtbAddrRsToTs()[ctbAddrRs]];
+        return pps.getTileIdByCtbAddrTs()[pps.getCtbAddrRsToTs()[ctbAddrRs]];
     }
 
     private int sliceAddr(int x, int y) {
@@ -450,16 +506,19 @@ final class LoopFilter {
     }
 
     private int sliceAddrOfCtb(int ctbAddrRs) {
-        int widthInCtbs = (int) sps.getPicWidthInCtbsY();
+        int widthInCtbs = sps.getPicWidthInCtbsY();
         return picture.sliceAddrRs[ctbAddrRs % widthInCtbs][ctbAddrRs / widthInCtbs];
     }
 
     private int get(int cIdx, int x, int y) {
-        return pixels != null ? pixels[cIdx][x][y] & 0xFF : pixelsHighColorRange[cIdx][x][y];
+        return highColorRange ? pixelsHighColorRange[cIdx][x][y] : pixels[cIdx][x][y] & 0xFF;
     }
 
     private void set(int cIdx, int x, int y, int value) {
-        if (pixels != null) pixels[cIdx][x][y] = (byte) value;
-        else pixelsHighColorRange[cIdx][x][y] = value;
+        if (highColorRange) {
+            pixelsHighColorRange[cIdx][x][y] = value;
+        } else {
+            pixels[cIdx][x][y] = (byte) value;
+        }
     }
 }

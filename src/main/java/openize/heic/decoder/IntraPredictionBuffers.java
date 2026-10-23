@@ -19,7 +19,8 @@ final class IntraPredictionBuffers {
 
     final NeighbouringSamples neighbouringSamples = new NeighbouringSamples(MAX_BLOCK_SIZE);
     final NeighbouringSamples filteredSamples = new NeighbouringSamples(MAX_BLOCK_SIZE);
-    final NeighbouringSamplesAvailability availability = new NeighbouringSamplesAvailability(MAX_BLOCK_SIZE);
+    // which neighbouring samples are available, indexed like the samples
+    final boolean[] availability = new boolean[NeighbouringSamples.sampleCount(MAX_BLOCK_SIZE)];
     // predSamples[x][y], valid for x, y below the current block size
     final int[][] predictedSamples = new int[MAX_BLOCK_SIZE][MAX_BLOCK_SIZE];
     final int[] angularReference = new int[3 * MAX_BLOCK_SIZE + 1];

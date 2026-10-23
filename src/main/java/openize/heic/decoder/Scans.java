@@ -10,122 +10,78 @@
 
 package openize.heic.decoder;
 
+/**
+ * The scan orders of square blocks (6.5.3 to 6.5.5): ScanOrder[log2BlockSize][scanIdx][sPos][sComp], for blocks of 1
+ * to 8 samples, scanIdx 0 up-right diagonal, 1 horizontal and 2 vertical, sComp 0 for x and 1 for y.
+ */
 final class Scans {
-    // scanOrder[log2BlockSize][scanIdx][sPos][sComp] (6.5.3 to 6.5.5), built once with the class
+    private static final int MAX_LOG2_BLOCK_SIZE = 3;
     private static final byte[][][][] SCAN_ORDER = createScanOrder();
 
     private Scans() {}
 
-    public static byte[][][][] getScanOrder() {
+    static byte[][][][] getScanOrder() {
         return SCAN_ORDER;
     }
 
     private static byte[][][][] createScanOrder() {
-        byte[][][][] scanOrder = new byte[6][][][];
-        for (int log2BlockSize = 0; log2BlockSize < 6; log2BlockSize++) {
-            scanOrder[log2BlockSize] = new byte[4][][];
-
-            if (log2BlockSize < 4) {
-                scanOrder[log2BlockSize][0] = diagonalScanInitialize((byte) (1 << log2BlockSize));
-                scanOrder[log2BlockSize][1] = horizontalScanInitialize((byte) (1 << log2BlockSize));
-                scanOrder[log2BlockSize][2] = verticalScanInitialize((byte) (1 << log2BlockSize));
-            }
-
-            if (log2BlockSize > 1) scanOrder[log2BlockSize][3] = traverseScanInitialize((byte) (1 << log2BlockSize));
+        byte[][][][] scanOrder = new byte[MAX_LOG2_BLOCK_SIZE + 1][][][];
+        for (int log2BlockSize = 0; log2BlockSize <= MAX_LOG2_BLOCK_SIZE; log2BlockSize++) {
+            int blockSize = 1 << log2BlockSize;
+            scanOrder[log2BlockSize] =
+                    new byte[][][] {diagonalScan(blockSize), horizontalScan(blockSize), verticalScan(blockSize)};
         }
         return scanOrder;
     }
 
     // 6.5.3 Up-right diagonal scan order array initialization process
-    // Up-right diagonal scan order array [ sPos ][ sComp ].
-    // The array index sPos specify the scan position ranging from 0 to(blkSize* blkSize) − 1.
-    // The array index sComp equal to 0 specifies the horizontal component and
-    // the array index sComp equal to 1 specifies the vertical component.
-    static byte[][] diagonalScanInitialize(byte blkSize) {
-        byte[][] diagScan = new byte[(blkSize & 0xFF) * (blkSize & 0xFF)][];
+    private static byte[][] diagonalScan(int blockSize) {
+        byte[][] diagScan = new byte[blockSize * blockSize][];
         int i = 0;
         int x = 0;
         int y = 0;
-        boolean stopLoop = false;
-
-        while (!stopLoop) {
+        while (i < blockSize * blockSize) {
             while (y >= 0) {
-                if (x < (blkSize & 0xFF) && y < (blkSize & 0xFF)) {
-                    diagScan[i] = new byte[2];
-                    diagScan[i][0] = (byte) x;
-                    diagScan[i][1] = (byte) y;
+                if (x < blockSize && y < blockSize) {
+                    diagScan[i] = position(x, y);
                     i++;
                 }
                 y--;
                 x++;
             }
-
             y = x;
             x = 0;
-
-            if (i >= (blkSize & 0xFF) * (blkSize & 0xFF)) stopLoop = true;
         }
-
         return diagScan;
     }
 
     // 6.5.4 Horizontal scan order array initialization process
-    static byte[][] horizontalScanInitialize(byte blkSize) {
-        byte[][] horScan = new byte[(blkSize & 0xFF) * (blkSize & 0xFF)][];
-
+    private static byte[][] horizontalScan(int blockSize) {
+        byte[][] horScan = new byte[blockSize * blockSize][];
         int i = 0;
-        for (byte y = 0; (y & 0xFF) < (blkSize & 0xFF); y++) {
-            for (byte x = 0; (x & 0xFF) < (blkSize & 0xFF); x++) {
-                horScan[i] = new byte[2];
-                horScan[i][0] = x;
-                horScan[i][1] = y;
+        for (int y = 0; y < blockSize; y++) {
+            for (int x = 0; x < blockSize; x++) {
+                horScan[i] = position(x, y);
                 i++;
             }
         }
-
         return horScan;
     }
 
     // 6.5.5 Vertical scan order array initialization process
-    static byte[][] verticalScanInitialize(byte blkSize) {
-        byte[][] verScan = new byte[(blkSize & 0xFF) * (blkSize & 0xFF)][];
-
+    private static byte[][] verticalScan(int blockSize) {
+        byte[][] verScan = new byte[blockSize * blockSize][];
         int i = 0;
-        for (byte x = 0; (x & 0xFF) < (blkSize & 0xFF); x++) {
-            for (byte y = 0; (y & 0xFF) < (blkSize & 0xFF); y++) {
-                verScan[i] = new byte[2];
-                verScan[i][0] = x;
-                verScan[i][1] = y;
+        for (int x = 0; x < blockSize; x++) {
+            for (int y = 0; y < blockSize; y++) {
+                verScan[i] = position(x, y);
                 i++;
             }
         }
-
         return verScan;
     }
 
-    // 6.5.6 Traverse scan order array initialization process
-    static byte[][] traverseScanInitialize(byte blkSize) {
-        byte[][] travScan = new byte[(blkSize & 0xFF) * (blkSize & 0xFF)][];
-
-        int i = 0;
-        for (byte y = 0; (y & 0xFF) < (blkSize & 0xFF); y++) {
-            if ((y & 0xFF) % 2 == 0) {
-                for (byte x = 0; (x & 0xFF) < (blkSize & 0xFF); x++) {
-                    travScan[i] = new byte[2];
-                    travScan[i][0] = x;
-                    travScan[i][1] = y;
-                    i++;
-                }
-            } else {
-                for (int x = (blkSize & 0xFF) - 1; x >= 0; x--) {
-                    travScan[i] = new byte[2];
-                    travScan[i][0] = (byte) x;
-                    travScan[i][1] = y;
-                    i++;
-                }
-            }
-        }
-
-        return travScan;
+    private static byte[] position(int x, int y) {
+        return new byte[] {(byte) x, (byte) y};
     }
 }
