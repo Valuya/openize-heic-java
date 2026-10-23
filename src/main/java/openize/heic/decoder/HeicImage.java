@@ -10,13 +10,15 @@
 
 package openize.heic.decoder;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
-import openize.io.IOException;
-import openize.io.IOStream;
 import openize.isobmff.Box;
 import openize.isobmff.BoxType;
 import openize.isobmff.EntityToGroupBox;
@@ -54,26 +56,37 @@ public class HeicImage {
     }
 
     /**
-     * <p>
-     * Reads the file metadata and creates a class object for further decoding of the file contents.
-     * </p>
-     * <p>
-     * This operation does not decode pixels.
-     * Use the default frame methods GetByteArray or GetInt32Array afterward in order to decode pixels.
-     * </p>
+     * Reads a HEIC file. This reads metadata only: pixels are decoded when a frame's pixels are requested.
      *
-     * @param stream File stream.
-     * @return Returns a HEIC image object with metadata read.
+     * @throws IOException if the file cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
      */
-    public static HeicImage load(IOStream stream) {
-        if (!canLoad(stream)) {
-            throw new IOException("Not a HEIC image.");
+    public static HeicImage load(Path heicFile) throws IOException {
+        return load(Files.readAllBytes(heicFile));
+    }
+
+    /**
+     * Reads a HEIC image from a stream, which is read to its end but not closed.
+     *
+     * @throws IOException if the stream cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(InputStream heicStream) throws IOException {
+        return load(heicStream.readAllBytes());
+    }
+
+    /**
+     * Reads a HEIC image held in memory. The array is not copied and must not change afterwards.
+     *
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(byte[] heicData) {
+        if (!canLoad(heicData)) {
+            throw new HeicFormatException("Not a HEIC image.");
         }
 
-        BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(stream, 4096);
-        bitstream.setBytePosition(0);
+        BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(heicData);
 
-        /*UInt64*/
         Box.setExternalConstructor(BoxType.hvcC, (str, size) -> {
             if (!(str instanceof BitStreamWithNalSupport)) {
                 throw new UnsupportedOperationException("Stream dedication logic error.");
@@ -90,37 +103,19 @@ public class HeicImage {
             }
         }
 
-        throw new UnsupportedOperationException("Meta box not found.");
+        throw new HeicFormatException("Meta box not found.");
     }
 
     /**
-     * <p>
-     * Checks if the stream can be read as a heic image.
-     * </p>
-     *
-     * @param stream File stream.
-     * @return True if file header contains HEIC signature, false otherwise.
+     * Whether the data starts with a file type box listing the HEIC brand.
      */
-    public static boolean canLoad(IOStream stream) {
+    public static boolean canLoad(byte[] heicData) {
         try {
-            BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(stream);
-
+            BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(heicData);
             Box box = Box.parseBox(bitstream);
 
-            if (!(box instanceof FileTypeBox)) {
-                return false;
-            }
-
-            FileTypeBox filetype = (FileTypeBox) box;
-            if (!filetype.isBrandSupported(1751476579)) // heic (ASCII)
-            {
-                return false;
-            }
-
-            bitstream.setBytePosition(0);
-
-            return true;
-        } catch (Exception ignored) {
+            return box instanceof FileTypeBox fileTypeBox && fileTypeBox.isBrandSupported(1751476579); // "heic"
+        } catch (RuntimeException exception) {
             return false;
         }
     }

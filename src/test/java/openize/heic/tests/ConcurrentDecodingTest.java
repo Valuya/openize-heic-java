@@ -10,6 +10,7 @@
 
 package openize.heic.tests;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -17,8 +18,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import openize.heic.decoder.HeicImage;
 import openize.heic.decoder.PixelFormat;
-import openize.io.IOFileStream;
-import openize.io.IOMode;
 import org.junit.jupiter.api.Test;
 
 /** Several images decoded at the same time must decode exactly as they do alone. */
@@ -44,10 +43,8 @@ class ConcurrentDecodingTest {
         }
     }
 
-    private static byte[] decode(String sampleName) {
-        try (IOFileStream heicStream = new IOFileStream(TestSamples.samplePath(sampleName), IOMode.READ)) {
-            HeicImage heicImage = HeicImage.load(heicStream);
-            return heicImage.getByteArray(PixelFormat.Argb32);
-        }
+    private static byte[] decode(String sampleName) throws IOException {
+        HeicImage heicImage = HeicImage.load(TestSamples.samplePath(sampleName));
+        return heicImage.getByteArray(PixelFormat.Argb32);
     }
 }

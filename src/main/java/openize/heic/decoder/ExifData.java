@@ -160,7 +160,7 @@ public class ExifData {
                     .filter(x -> !(x instanceof FileTypeDirectory))
                     .collect(Collectors.toList());
         } catch (ImageProcessingException | IOException e) {
-            throw new openize.io.IOException(e.getMessage(), e);
+            throw new HeicFormatException("Unreadable EXIF metadata: " + e.getMessage(), e);
         }
     }
 

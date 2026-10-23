@@ -27,8 +27,6 @@ import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import openize.heic.decoder.HeicImage;
 import openize.heic.decoder.PixelFormat;
-import openize.io.IOFileStream;
-import openize.io.IOMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.opentest4j.TestAbortedException;
@@ -63,29 +61,27 @@ class LibheifComparisonTest {
                 .orElseThrow(() -> new TestAbortedException("libheif's heif-dec / heif-convert is not installed"));
         List<BufferedImage> libheifImages = decodeWithLibheif(libheifDecoder, heicFile);
 
-        try (IOFileStream heicStream = new IOFileStream(heicFile, IOMode.READ)) {
-            HeicImage heicImage = HeicImage.load(heicStream);
-            int width = (int) heicImage.getWidth();
-            int height = (int) heicImage.getHeight();
-            int[] openizePixels = heicImage.getInt32Array(PixelFormat.Argb32);
+        HeicImage heicImage = HeicImage.load(heicFile);
+        int width = (int) heicImage.getWidth();
+        int height = (int) heicImage.getHeight();
+        int[] openizePixels = heicImage.getInt32Array(PixelFormat.Argb32);
 
-            // libheif writes every top-level image; the primary one has to be among them
-            List<BufferedImage> sameSizeLibheifImages = libheifImages.stream()
-                    .filter(libheifImage -> libheifImage.getWidth() == width && libheifImage.getHeight() == height)
-                    .toList();
-            assertThat(sameSizeLibheifImages)
-                    .as("libheif images of %s with Openize.HEIC's size %dx%d", heicFile.getFileName(), width, height)
-                    .isNotEmpty();
+        // libheif writes every top-level image; the primary one has to be among them
+        List<BufferedImage> sameSizeLibheifImages = libheifImages.stream()
+                .filter(libheifImage -> libheifImage.getWidth() == width && libheifImage.getHeight() == height)
+                .toList();
+        assertThat(sameSizeLibheifImages)
+                .as("libheif images of %s with Openize.HEIC's size %dx%d", heicFile.getFileName(), width, height)
+                .isNotEmpty();
 
-            int smallestDifference = sameSizeLibheifImages.stream()
-                    .mapToInt(libheifImage -> maxChannelDifference(
-                            openizePixels, libheifImage.getRGB(0, 0, width, height, null, 0, width)))
-                    .min()
-                    .orElseThrow();
-            assertThat(smallestDifference)
-                    .as("largest per-channel difference from libheif on %s", heicFile.getFileName())
-                    .isLessThanOrEqualTo(MAX_CHANNEL_DIFFERENCE);
-        }
+        int smallestDifference = sameSizeLibheifImages.stream()
+                .mapToInt(libheifImage ->
+                        maxChannelDifference(openizePixels, libheifImage.getRGB(0, 0, width, height, null, 0, width)))
+                .min()
+                .orElseThrow();
+        assertThat(smallestDifference)
+                .as("largest per-channel difference from libheif on %s", heicFile.getFileName())
+                .isLessThanOrEqualTo(MAX_CHANNEL_DIFFERENCE);
     }
 
     private static Optional<String> findLibheifDecoderOptional() {
