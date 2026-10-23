@@ -10,131 +10,46 @@
 
 package openize.heic.decoder;
 
-
 /**
- * <p>
- * Type of image frame.
- * </p>
+ * The type of an item of a HEIF file, by its four-character code (ISO/IEC 23008-12).
  */
-public enum ImageFrameType /*: uint*/
-{
-    unknown(0L),
-
-    /**
-     * <p>
-     * HEVC coded image frame.
-     * </p>
-     */
-    hvc1(0x68766331L),
-
-    /**
-     * <p>
-     * Identity transformation.
-     * Cropping and/or rotation by 90, 180, or 270 degrees, imposed through the respective transformative properties.
-     * </p>
-     */
-    iden(0x6964656eL),
-
-    /**
-     * <p>
-     * Image Overlay.
-     * Overlaying any number of input images in indicated order and locations onto the canvas of the output image.
-     * </p>
-     */
-    iovl(0x696f766cL),
-
-    /**
-     * <p>
-     * Image Grid.
-     * Reconstructing a grid of input images of the same width and height.
-     * </p>
-     */
-    grid(0x67726964L),
-
-    /**
-     * <p>
-     * Exif metadata.
-     * Exchangeable image file format metadata.
-     * </p>
-     */
-    Exif(0x45786966L),
-
-    /**
-     * <p>
-     * MIME metadata.
-     * Resource Description Framework metadata.
-     * </p>
-     */
-    mime(0x6d696d65L),
-
-    /**
-     * <p>
-     * Tone map.
-     * HDR metadata.
-     * </p>
-     */
+public enum ImageFrameType {
+    /** An item of a type this decoder does not know. */
+    unknown(0),
+    /** An HEVC coded image. */
+    hvc1(0x68766331),
+    /** An identity derivation: one input image, cropped, rotated or mirrored by its properties. */
+    iden(0x6964656e),
+    /** An overlay of input images onto a canvas. */
+    iovl(0x696f766c),
+    /** A grid of input images of the same size. */
+    grid(0x67726964),
+    /** Exif metadata. */
+    exif(0x45786966),
+    /** Metadata of a MIME type, such as XMP. */
+    mime(0x6d696d65),
+    /** A tone map derivation, for high dynamic range rendering. */
     tmap(0x746d6170),
-
-    /**
-     * <p>
-     * Uri.
-     * </p>
-     */
+    /** Metadata identified by a URI. */
     uri(0x75726920);
 
-    /**
-     * <p>
-     * The code of the image frame type.
-     * </p>
-     */
-    private final long code;
+    private final int code;
 
-    /**
-     * <p>
-     * The image frame type.
-     * </p>
-     *
-     * @param code The code of the image frame type.
-     */
-    ImageFrameType(long code)
-    {
+    ImageFrameType(int code) {
         this.code = code;
     }
 
-    /**
-     * <p>
-     *     Returns the ImageFrameType with the given {@code code} or {@link ImageFrameType#unknown}.
-     * </p>
-     * @param code The code of the box type.
-     * @return The BoxType value.
-     */
-    public static ImageFrameType codeToType(long code)
-    {
-        for (ImageFrameType type : _values)
-        {
-            if (type.code == code)
-            {
+    static ImageFrameType codeToType(long code) {
+        for (ImageFrameType type : values()) {
+            if (type.code == code) {
                 return type;
             }
         }
-
         return unknown;
     }
 
-    /**
-     * <p>
-     *     Returns the code of frame type.
-     * </p>
-     */
-    public long getCode()
-    {
+    /** The four-character code. */
+    public int getCode() {
         return code;
     }
-
-    /**
-     * <p>
-     *     The cached values.
-     * </p>
-     */
-    private static final ImageFrameType[] _values = ImageFrameType.values();
 }

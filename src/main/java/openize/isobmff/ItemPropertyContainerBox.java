@@ -10,90 +10,34 @@
 
 package openize.isobmff;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import openize.isobmff.io.BitStreamReader;
 
-import java.util.HashMap;
-
-
 /**
- * <p>
- * Contains an implicitly indexed list of item properties.
- * </p>
+ * The properties that items are associated with by index (ISO/IEC 23008-12, 9.3).
  */
-public class ItemPropertyContainerBox extends Box
-{
-    /**
-     * <p>
-     * Dictionary of properties.
-     * </p>
-     */
-    public final HashMap<Integer, Box> items;
-    private ObservableCollection<Box> children;
+final class ItemPropertyContainerBox extends Box {
+    private final List<Box> properties;
 
-    /**
-     * <p>
-     * Create the box object from the bitstream and start position.
-     * </p>
-     *
-     * @param stream   File stream.
-     * @param startPos Start position in bits.
-     */
-    public ItemPropertyContainerBox(BitStreamReader stream, /*UInt64*/long startPos)
-    {
-        super(stream, BoxType.ipco);
+    ItemPropertyContainerBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
-        items = new HashMap<>();
-        int i = 1;
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
-            items.put(i, Box.parseBox(stream));
-            i++;
+        List<Box> readProperties = new ArrayList<>();
+        while (hasMoreData(stream)) {
+            readProperties.add(parseBox(stream));
         }
-
-        setChildren(new ObservableCollection<>(items.values()));
+        properties = List.copyOf(readProperties);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The property with this index, counted from 1.
      */
-    @Override
-    public String toString()
-    {
-        return this.type.name();
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final ObservableCollection<Box> getChildren()
-    {
-        return children;
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<Box> value)
-    {
-        children = value;
-    }
-
-    /**
-     * <p>
-     * Returns property by index.
-     * </p>
-     *
-     * @param id Property index.
-     * @return Box with property data.
-     */
-    public final Box getPropertyByIndex(int id)
-    {
-        return items.get(id);
+    Optional<Box> findPropertyOptional(int index) {
+        if (index < 1 || index > properties.size()) {
+            return Optional.empty();
+        }
+        return Optional.of(properties.get(index - 1));
     }
 }

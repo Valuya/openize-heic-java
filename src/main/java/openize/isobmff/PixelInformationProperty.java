@@ -12,62 +12,27 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * The PixelInformationProperty descriptive item property indicates the number and bit depth of
- * colour components in the reconstructed image of the associated image item.
- * </p>
+ * The number of channels of an image and the bit depth of each (ISO/IEC 23008-12, 6.5.6).
  */
-public class PixelInformationProperty extends FullBox
-{
-    /**
-     * <p>
-     * This field signals the number of channels by each pixel of the reconstructed image ofthe associated image item.
-     * </p>
-     */
-    public final byte num_channels;
+public class PixelInformationProperty extends FullBox {
+    private final byte[] bitsPerChannel;
 
-    /**
-     * <p>
-     * This field indicates the bits per channel for the pixels of the reconstructed image of the associated image item.
-     * </p>
-     */
-    public final byte[] bits_per_channel;
+    PixelInformationProperty(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
+        int channelCount = stream.read(8);
+        requireEntriesFit(channelCount, 1);
+        bitsPerChannel = stream.readBytes(channelCount);
+    }
 
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public PixelInformationProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(stream, BoxType.pixi, size);
-
-        num_channels = (byte) stream.read(8);
-        bits_per_channel = new byte[num_channels & 0xFF];
-        for (int i = 0; i < (num_channels & 0xFF); i++)
-            bits_per_channel[i] = (byte) stream.read(8);
+    public final int getChannelCount() {
+        return bitsPerChannel.length;
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The bit depth of each channel, an unsigned byte; a copy.
      */
-    @Override
-    public String toString()
-    {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%s ch: %d bits:", type, num_channels));
-        for (byte b : bits_per_channel)
-        {
-            sb.append(' ').append(String.format("%x", b));
-        }
-        return sb.toString();
+    public final byte[] getBitsPerChannel() {
+        return bitsPerChannel.clone();
     }
 }
-

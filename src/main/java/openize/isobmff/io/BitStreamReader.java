@@ -10,468 +10,178 @@
 
 package openize.isobmff.io;
 
-import openize.io.IOSeekMode;
-import openize.io.IOStream;
-
-import java.util.Arrays;
-import java.util.Objects;
-
+import openize.isobmff.IsoBmffFormatException;
 
 /**
- * <p>
- * The BitStreamReader class is designed to read bits from a specified stream.
- * It reads a minimal amount of bytes from the stream into an intermediate buffer
- * and then reads the bits from the buffer, returning the read value.
- * If there is still enough data in the buffer, the data is read from it.
- * </p>
+ * Reads bits, most significant first, from a file held in memory.
+ *
+ * <p>A reader is cheap: several of them can read the same array independently, which lets the images of a file be
+ * decoded concurrently. Reading past the end of the data throws {@link IsoBmffFormatException}.
  */
-public class BitStreamReader
-{
-    /**
-     * <p>
-     * File stream.
-     * </p>
-     */
-    protected final IOStream stream;
+public class BitStreamReader {
+    private static final int BITS_PER_BYTE = 8;
 
-    /**
-     * <p>
-     * Bit reader state.
-     * </p>
-     */
-    protected final BitReaderState state = new BitReaderState();
+    private final byte[] data;
 
-    public BitStreamReader(IOStream stream)
-    {
-        this(stream, 4);
+    // The byte being read and how many of its bits are consumed; 8 means the next read moves to the next byte.
+    private int bytePosition;
+    private int bitIndex;
+
+    public BitStreamReader(byte[] data) {
+        this.data = data;
+    }
+
+    public final long getBitPosition() {
+        return (long) bytePosition * BITS_PER_BYTE + bitIndex;
+    }
+
+    public final void setBytePosition(long bytePosition) {
+        if (bytePosition < 0 || bytePosition > data.length) {
+            throw new IsoBmffFormatException(
+                    "Position %d is outside the %d-byte data".formatted(bytePosition, data.length));
+        }
+        this.bytePosition = (int) bytePosition;
+        bitIndex = 0;
+    }
+
+    public final long getLength() {
+        return data.length;
+    }
+
+    public final boolean notByteAligned() {
+        return bitIndex != 0 && bitIndex != BITS_PER_BYTE;
+    }
+
+    public final boolean moreData() {
+        return getBitPosition() < (long) data.length * BITS_PER_BYTE;
     }
 
     /**
-     * <p>
-     * The constructor takes a Stream object and an optional buffer size as parameters.
-     * </p>
-     *
-     * @param stream     The source stream.
-     * @param bufferSize The buffer size.
+     * Reads up to 32 bits.
      */
-    public BitStreamReader(IOStream stream, int bufferSize)
-    {
-        if (stream == null)
-        {
-            throw new NullPointerException("stream");
+    public int read(int bitCount) {
+        if (bitCount < 0 || bitCount > 32) {
+            throw new IsoBmffFormatException("Cannot read %d bits as one value".formatted(bitCount));
         }
 
-        if (bufferSize <= 0)
-        {
-            throw new IndexOutOfBoundsException("bufferSize");
-        }
-
-        this.stream = stream;
-        state.buffer = new byte[bufferSize];
-        state.bufferActiveLength = bufferSize;
-        state.bufferPosition = -1;
-    }
-
-    /**
-     * <p>
-     * Gets the current position within the bitstream.
-     * </p>
-     * <p>The bitstream position is x8 of stream position, adjusted according to the number of bits read from the latest byte.</p>
-     *
-     * @return Unsigned long value.
-     */
-    public final /*UInt64*/long getBitPosition()
-    {
-        if (stream.getPosition() == 0 && state.getBufferPosition() == -1)
-            return 0;
-        return ((stream.getPosition() - state.bufferActiveLength + state.bufferPosition) * 8L + state.bitIndex);
-    }
-
-    /**
-     * <p>
-     * Sets the current position within the bitstream.
-     * </p>
-     *
-     * @param bytePosition The new byte position within the bitstream.
-     */
-    public final void setBytePosition(long bytePosition)
-    {
-        stream.setPosition(bytePosition);
-        state.reset();
-    }
-
-    /**
-     * <p>
-     * Indicates if the current position in the bitstream is on a byte boundary.
-     * </p>
-     *
-     * @return Returns true if the current position in the bitstream is on a byte boundary, false otherwise.
-     */
-    public final boolean notByteAligned()
-    {
-        return state.bitIndex != 0 && state.bitIndex != 8;
-    }
-
-    /**
-     * <p>
-     * Indicates if there are more data in the bitstream.
-     * </p>
-     *
-     * @return True if there are more data in the bitstream, false otherwise.
-     */
-    public final boolean moreData()
-    {
-        return (state.bufferPosition >= 0 && state.bitIndex < 8) ||
-                (stream.getPosition() < stream.getLength());
-    }
-
-    /**
-     * <p>
-     * Fill reader buffer with data from stream.
-     * </p>
-     *
-     * @return The total amount of bytes read into the buffer.
-     */
-    protected final int fillBufferFromStream()
-    {
-        final long streamPosition = stream.getPosition();
-        final long streamLength = stream.getLength();
-        state.bufferActiveLength = Math.min((int) (streamLength - streamPosition), state.buffer.length);
-        state.bufferPosition = 0;
-        return stream.read(state.buffer, 0, state.bufferActiveLength);
-    }
-
-    /**
-     * <p>
-     * Reads the specified number of bits from the stream.
-     * </p>
-     *
-     * @param bitCount The required number of bits to read.
-     * @return The integer value.
-     */
-    public int read(int bitCount)
-    {
-        if (bitCount <= 0 || bitCount > 32)
-        {
-            if (bitCount == 0)
-            {
-                return 0;
-            }
-
-            throw new IndexOutOfBoundsException("bitCount");
+        // bits from the middle of a byte already being read: no byte boundary to handle
+        if (bitIndex > 0 && bitCount <= BITS_PER_BYTE - bitIndex) {
+            int availableBits = BITS_PER_BYTE - bitIndex;
+            bitIndex += bitCount;
+            return (currentByte() >> (availableBits - bitCount)) & ((1 << bitCount) - 1);
         }
 
         int value = 0;
         int remainingBits = bitCount;
-
-        if (state.bufferPosition < 0)
-        {
-            fillBufferFromStream();
-        }
-
-        while (remainingBits > 0)
-        {
-            if (state.bitIndex == 8)
-            {
-                state.bitIndex = 0;
-                state.bufferPosition++;
-
-                if (state.bufferPosition == state.bufferActiveLength)
-                {
-                    fillBufferFromStream();
-                }
+        while (remainingBits > 0) {
+            if (bitIndex == BITS_PER_BYTE) {
+                moveToNextByte();
             }
+            beforeReadingCurrentByte();
 
-            int bitsToRead = Math.min(remainingBits, 8 - state.bitIndex);
+            int availableBits = BITS_PER_BYTE - bitIndex;
+            int bitsToRead = Math.min(remainingBits, availableBits);
             int mask = (1 << bitsToRead) - 1;
 
-            value <<= bitsToRead;
-            value |= ((state.buffer[state.bufferPosition] & 0xFF) >> (8 - state.bitIndex - bitsToRead)) & mask;
+            value = (value << bitsToRead) | ((currentByte() >> (availableBits - bitsToRead)) & mask);
 
-            state.bitIndex += bitsToRead;
+            bitIndex += bitsToRead;
             remainingBits -= bitsToRead;
         }
-
         return value;
     }
 
     /**
-     * <p>
-     * Reads bytes as ASCII characters until '\0'.
-     * </p>
-     *
-     * @return The string value.
+     * Reads up to 64 bits as an unsigned value (a 64-bit value can come out negative).
      */
-    public String readString()
-    {
-        StringBuilder output = new StringBuilder(50);
-        int b;
-
-        do
-        {
-            b = read(8);
-            //if (b < 127 && b > 31)
-            output.append((char) b);
-        } while (b != 0);
-
-        return output.toString();
+    public final long readLong(int bitCount) {
+        if (bitCount < 0 || bitCount > 64) {
+            throw new IsoBmffFormatException("Cannot read %d bits as one value".formatted(bitCount));
+        }
+        int highBitCount = Math.max(0, bitCount - 32);
+        long highBits = Integer.toUnsignedLong(read(highBitCount));
+        long lowBits = Integer.toUnsignedLong(read(bitCount - highBitCount));
+        return (highBits << (bitCount - highBitCount)) | lowBits;
     }
 
-    /**
-     * <p>
-     * Reads one bit and returns true if it is 1, otherwise false.
-     * </p>
-     *
-     * @return The boolean value.
-     */
-    public final boolean readFlag()
-    {
+    public final boolean readFlag() {
         return read(1) == 1;
     }
 
     /**
-     * <p>
-     * Peeks the specified number of bits from the stream.
-     * This method does not change the position of the underlying stream, state of the reader remains unchanged.
-     * </p>
-     *
-     * @param bitCount The required number of bits to read.
-     * @return The integer value.
+     * Reads {@code byteCount} bytes, which must be within the data.
      */
-    public final int peek(int bitCount)
-    {
-        BitReaderState previousState = state.copy();
-        previousState.lastStreamPosition = this.stream.getPosition();
+    public final byte[] readBytes(int byteCount) {
+        if (byteCount < 0 || getBitPosition() + (long) byteCount * BITS_PER_BYTE > (long) data.length * BITS_PER_BYTE) {
+            throw new IsoBmffFormatException("Cannot read %d bytes at bit %d of the %d-byte data"
+                    .formatted(byteCount, getBitPosition(), data.length));
+        }
+        byte[] bytes = new byte[byteCount];
+        for (int i = 0; i < byteCount; i++) {
+            bytes[i] = (byte) read(8);
+        }
+        return bytes;
+    }
+
+    /**
+     * Reads a zero-terminated string; the terminating {@code '\0'} is part of the returned string.
+     */
+    public final String readString() {
+        StringBuilder output = new StringBuilder(50);
+        int character;
+        do {
+            character = read(8);
+            output.append((char) character);
+        } while (character != 0);
+        return output.toString();
+    }
+
+    public final int peek(int bitCount) {
+        int savedBytePosition = bytePosition;
+        int savedBitIndex = bitIndex;
 
         int value = read(bitCount);
 
-        this.stream.setPosition(previousState.lastStreamPosition);
-        previousState.cloneTo(state);
+        bytePosition = savedBytePosition;
+        bitIndex = savedBitIndex;
         return value;
     }
 
-    /**
-     * <p>
-     * Skip the specified number of bits in the stream.
-     * </p>
-     *
-     * @param bitsNumber Number of bits to skip.
-     */
-    public void skipBits(int bitsNumber)
-    {
-        int remainingBits = bitsNumber;
-
-        int bitsInBuffer = Math.min(remainingBits, (state.bufferActiveLength - state.bufferPosition) * 8 - state.bitIndex);
-
-        int bitsToRead = Math.min(remainingBits, bitsInBuffer);
-        read(bitsToRead);
-        remainingBits -= bitsToRead;
-
-        if (remainingBits == 0)
-        {
-            return;
+    public void skipBits(int bitCount) {
+        long targetBitPosition = getBitPosition() + bitCount;
+        if (bitCount < 0 || targetBitPosition > (long) data.length * BITS_PER_BYTE) {
+            throw new IsoBmffFormatException(
+                    "Skipping %d bits leaves the %d-byte data".formatted(bitCount, data.length));
         }
-
-        stream.seek(remainingBits / 8, IOSeekMode.CURRENT);
-        remainingBits = remainingBits % 8;
-
-        state.bufferPosition = 0;
-        state.bitIndex = 0;
-
-        if (stream.getPosition() < stream.getLength())
-        {
-            final byte[] buffer = state.buffer;
-            stream.read(buffer, 0, state.bufferActiveLength);
-        }
-        else
-        {
-            state.bufferPosition = -1;
-        }
-
-        if (remainingBits == 0)
-        {
-            return;
-        }
-
-        read(remainingBits);
+        bytePosition = (int) (targetBitPosition / BITS_PER_BYTE);
+        bitIndex = (int) (targetBitPosition % BITS_PER_BYTE);
     }
 
     /**
-     * <p>
-     * Reads a bit at the specified position.
-     * This method does not change the position of the underlying stream, state of the reader remains unchanged.
-     * This method is approximately 50% slower than the Read method.
-     * </p>
-     * @param position The started position for reading.
-     * @return A read bit.
+     * Moves to the next byte once every bit of the current one is consumed.
      */
-    public final int getBit(long position)
-    {
-        BitReaderState previousState = state.copy();
-        previousState.lastStreamPosition = this.stream.getPosition();
-        this.state.reset();
-
-        long bytePosition = position / 8;
-        long bitPosition = position % 8;
-        this.stream.setPosition(bytePosition);
-        int value = 0;
-        for (int i = 0; i <= bitPosition; i++)
-        {
-            value = this.read(1);
-        }
-
-        this.stream.setPosition(previousState.lastStreamPosition);
-        previousState.cloneTo(state);
-        return value;
+    protected void moveToNextByte() {
+        bytePosition++;
+        bitIndex = 0;
     }
 
     /**
-     * <p>
-     * Supporting reader structure that contains buffer with read data, position of cursor and other supporting data.
-     * </p>
+     * Called before bits of the current byte are read, so a subclass can skip bytes that carry no payload.
      */
-    protected static class BitReaderState
-    {
-        private  byte[] buffer;
-        private int bufferActiveLength;
-        private int bufferPosition;
-        private int bitIndex;
-        private long lastStreamPosition;
+    protected void beforeReadingCurrentByte() {}
 
-        /**
-         * <p>
-         * Buffer data read from stream.
-         * </p>
-         * @return The buffer data read from stream.
-         */
-        public final byte[] getBuffer()
-        {
-            return buffer;
+    protected final int currentByte() {
+        if (bytePosition < 0 || bytePosition >= data.length) {
+            throw new IsoBmffFormatException(
+                    "Read at byte %d, outside the %d-byte data".formatted(bytePosition, data.length));
         }
+        return data[bytePosition] & 0xFF;
+    }
 
-        /**
-         * <p>
-         * Tracks the current byte position in the buffer.
-         * </p>
-         * @return the current byte position in the buffer.
-         */
-        public final int getBufferPosition()
-        {
-            return bufferPosition;
-        }
-
-        /**
-         * <p>
-         * Tracks the current byte position in the buffer.
-         * </p>
-         * @param value a new byte position in the buffer
-         */
-        public final void setBufferPosition(int value)
-        {
-            bufferPosition = value;
-        }
-
-        /**
-         * <p>
-         * Tracks the current bit position in the buffer.
-         * </p>
-         * @return the current bit position in the buffer.
-         */
-        public final int getBitIndex()
-        {
-            return bitIndex;
-        }
-
-        /**
-         * <p>
-         * Tracks the current bit position in the buffer.
-         * </p>
-         * @param value a new bit position in the buffer.
-         */
-        public final void setBitIndex(int value)
-        {
-            bitIndex = value;
-        }
-
-        public int getBufferActiveLength()
-        {
-            return bufferActiveLength;
-        }
-
-        /**
-         * <p>
-         * Resets buffer to empty state.
-         * </p>
-         */
-        public final void reset()
-        {
-            bitIndex = 0;
-            bufferPosition = -1;
-            Arrays.fill(buffer, (byte) 0);
-        }
-
-        /**
-         * <p>
-         * Returns buffer content in hex notation.
-         * </p>
-         */
-        @Override
-        public final /*new*/ String toString()
-        {
-            StringBuilder sb = new StringBuilder(bufferActiveLength*2+1);
-            int count = bufferActiveLength;
-            if (count > 0)
-            {
-                for (byte b : buffer)
-                {
-                    sb.append(String.format("%02x", b))
-                      .append(' ');
-                    if (--count <= 0) break;
-                }
-                sb.setLength(sb.length()-1);
-            }
-            return sb.toString();
-        }
-
-        public void cloneTo(BitReaderState that)
-        {
-            that.buffer = buffer;
-            that.bufferActiveLength = bufferActiveLength;
-            that.bufferPosition = bufferPosition;
-            that.bitIndex = bitIndex;
-            that.lastStreamPosition = lastStreamPosition;
-        }
-
-        public BitReaderState copy()
-        {
-            BitReaderState struct = new BitReaderState();
-            cloneTo(struct);
-            return struct;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o)
-            {
-                return true;
-            }
-            if (!(o instanceof BitReaderState))
-            {
-                return false;
-            }
-            BitReaderState that = (BitReaderState) o;
-            return bufferActiveLength == that.bufferActiveLength && bufferPosition == that.bufferPosition
-                    && bitIndex == that.bitIndex && lastStreamPosition == that.lastStreamPosition
-                    && buffer == that.buffer;
-        }
-
-        @SuppressWarnings("ArrayHashCode")
-        @Override
-        public int hashCode()
-        {
-            final int code = buffer.hashCode();
-            return Objects.hash(code, bufferActiveLength, bufferPosition, bitIndex, lastStreamPosition);
-        }
+    /**
+     * Skips the current byte entirely.
+     */
+    protected final void skipCurrentByte() {
+        bytePosition++;
     }
 }

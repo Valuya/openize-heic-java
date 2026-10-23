@@ -12,54 +12,30 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * The ImageSpatialExtentsProperty documents the width and height of the associated image item.
- * Every image item shall be associated with one property of this type, prior to the association of all
- * transformative properties.
- * </p>
+ * The width and height of an image, before any transformative property applies (ISO/IEC 23008-12, 6.5.3).
  */
-public class ImageSpatialExtentsProperty extends FullBox
-{
-    /**
-     * <p>
-     * The width of the reconstructed image in pixels.
-     * </p>
-     */
-    public final /*UInt32*/ long image_width;
+public class ImageSpatialExtentsProperty extends FullBox {
+    private final long width;
+    private final long height;
 
-    /**
-     * <p>
-     * The height of the reconstructed image in pixels.
-     * </p>
-     */
-    public final /*UInt32*/ long image_height;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public ImageSpatialExtentsProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(stream, BoxType.ispe, size);
-
-        image_width = stream.read(32) & 0xFFFFFFFFL;
-        image_height = stream.read(32) & 0xFFFFFFFFL;
+    ImageSpatialExtentsProperty(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
+        width = stream.readLong(32);
+        height = stream.readLong(32);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The width in pixels.
      */
-    @Override
-    public String toString()
-    {
-        return String.format("%s width: %d height: %d", this.type, image_width, image_height);
+    public final long getWidth() {
+        return width;
+    }
+
+    /**
+     * The height in pixels.
+     */
+    public final long getHeight() {
+        return height;
     }
 }

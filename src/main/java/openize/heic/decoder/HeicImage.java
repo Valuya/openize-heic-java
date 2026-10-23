@@ -10,370 +10,285 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-import openize.io.IOException;
-import openize.io.IOStream;
-import openize.isobmff.*;
-
-import java.util.HashMap;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
+import java.util.Optional;
+import openize.isobmff.Box;
+import openize.isobmff.BoxType;
+import openize.isobmff.EntityToGroupBox;
+import openize.isobmff.FileTypeBox;
+import openize.isobmff.IsoBmffFormatException;
+import openize.isobmff.ItemInfoEntry;
+import openize.isobmff.MetaBox;
 
 /**
- * <p>
- * Heic image class.
- * </p>
+ * A HEIF file of HEVC coded images, such as a HEIC photo: its items, and its primary image.
+ *
+ * <p>Loading reads the metadata only: an image is decoded when its pixels are asked for, as often as they are.
+ * Instances can be shared between threads.
  */
-public class HeicImage
-{
-    /**
-     * <p>
-     * Dictionary of Heic image frames.
-     * </p>
-     */
-    private final HashMap<Long, HeicImageFrame> _frames;
+public final class HeicImage {
+    // HEVC image brands of ISO/IEC 23008-12, and the generic image and sequence brands
+    private static final List<Long> HEVC_CAPABLE_BRANDS =
+            List.of("heic", "heix", "heim", "heis", "hevc", "hevx", "hevm", "hevs", "mif1", "mif2", "msf1").stream()
+                    .map(HeicImage::fourCharacterCode)
+                    .toList();
+
     private final HeicHeader header;
+    private final byte[] heicData;
+    private final HeicDecodingOptions decodingOptions;
+    private final Map<Long, HeicImageFrame> framesById = new LinkedHashMap<>();
+    private final HeicImageFrame primaryFrame;
 
-    /**
-     * <p>
-     * Create heic image object.
-     * </p>
-     *
-     * @param header File header.
-     * @param stream File stream.
-     */
-    private HeicImage(HeicHeader header, BitStreamWithNalSupport stream)
-    {
+    private HeicImage(HeicHeader header, byte[] heicData, HeicDecodingOptions decodingOptions) {
         this.header = header;
-        _frames = new HashMap<>();
-        readFramesMeta(stream);
+        this.heicData = heicData;
+        this.decodingOptions = decodingOptions;
+        readFrames();
+        primaryFrame = Optional.ofNullable(framesById.get(header.getPrimaryItemId()))
+                .orElseThrow(() -> new HeicFormatException("No primary image"));
     }
 
     /**
-     * <p>
-     * Reads the file metadata and creates a class object for further decoding of the file contents.
-     * </p>
-     * <p>
-     * This operation does not decode pixels.
-     * Use the default frame methods GetByteArray or GetInt32Array afterward in order to decode pixels.
-     * </p>
+     * Reads a HEIC file.
      *
-     * @param stream File stream.
-     * @return Returns a HEIC image object with metadata read.
+     * @throws IOException if the file cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
      */
-    public static HeicImage load(IOStream stream)
-    {
-        if (!canLoad(stream))
-        {
-            throw new IOException("Not a HEIC image.");
-        }
-
-        BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(stream, 4096);
-        bitstream.setBytePosition(0);
-
-        /*UInt64*/
-        Box.setExternalConstructor(BoxType.hvcC, (str, size) -> {
-            if (!(str instanceof BitStreamWithNalSupport))
-            {
-                throw new UnsupportedOperationException("Stream dedication logic error.");
-            }
-            BitStreamWithNalSupport nalStream = (BitStreamWithNalSupport) str;
-            return new HEVCConfigurationBox(nalStream, size);
-        });
-
-        while (bitstream.moreData())
-        {
-            Box box = Box.parseBox(bitstream);
-
-            if (box.type == BoxType.meta)
-            {
-                return new HeicImage(new HeicHeader((MetaBox) box), bitstream);
-            }
-        }
-
-        throw new UnsupportedOperationException("Meta box not found.");
+    public static HeicImage load(Path heicFile) throws IOException {
+        return load(heicFile, HeicDecodingOptions.DEFAULT);
     }
 
     /**
-     * <p>
-     * Checks if the stream can be read as a heic image.
-     * </p>
+     * Reads a HEIC file, to be decoded with the given options.
      *
-     * @param stream File stream.
-     * @return True if file header contains HEIC signature, false otherwise.
+     * @throws IOException if the file cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
      */
-    public static boolean canLoad(IOStream stream)
-    {
-        try
-        {
-            BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(stream);
+    public static HeicImage load(Path heicFile, HeicDecodingOptions decodingOptions) throws IOException {
+        return load(Files.readAllBytes(heicFile), decodingOptions);
+    }
 
-            Box box = Box.parseBox(bitstream);
+    /**
+     * Reads a HEIC image from a stream, which is read to its end but not closed.
+     *
+     * @throws IOException if the stream cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(InputStream heicStream) throws IOException {
+        return load(heicStream, HeicDecodingOptions.DEFAULT);
+    }
 
-            if (!(box instanceof FileTypeBox))
-            {
-                return false;
-            }
+    /**
+     * Reads a HEIC image from a stream, which is read to its end but not closed, to be decoded with the given options.
+     *
+     * @throws IOException if the stream cannot be read
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(InputStream heicStream, HeicDecodingOptions decodingOptions) throws IOException {
+        return load(heicStream.readAllBytes(), decodingOptions);
+    }
 
-            FileTypeBox filetype = (FileTypeBox) box;
-            if (!filetype.isBrandSupported(1751476579)) // heic (ASCII)
-            {
-                return false;
-            }
+    /**
+     * Reads a HEIC image held in memory. The array is not copied and must not change afterwards.
+     *
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(byte[] heicData) {
+        return load(heicData, HeicDecodingOptions.DEFAULT);
+    }
 
-            bitstream.setBytePosition(0);
-
-            return true;
+    /**
+     * Reads a HEIC image held in memory, to be decoded with the given options. The array is not copied and must not
+     * change afterwards.
+     *
+     * @throws HeicFormatException if it is not a HEIC image this decoder can read
+     */
+    public static HeicImage load(byte[] heicData, HeicDecodingOptions decodingOptions) {
+        if (!canLoad(heicData)) {
+            throw new HeicFormatException("Not a HEIC image");
         }
-        catch (Exception ignored)
-        {
+        try {
+            return new HeicImage(readHeader(heicData), heicData, decodingOptions);
+        } catch (IsoBmffFormatException exception) {
+            throw new HeicFormatException("Malformed HEIF container: " + exception.getMessage(), exception);
+        }
+    }
+
+    private static HeicHeader readHeader(byte[] heicData) {
+        BitStreamWithNalSupport stream = new BitStreamWithNalSupport(heicData);
+        while (stream.moreData()) {
+            Box box = Box.parseBox(stream);
+            if (box.getType() == BoxType.meta) {
+                return new HeicHeader((MetaBox) box);
+            }
+        }
+        throw new HeicFormatException("Meta box not found");
+    }
+
+    /**
+     * Whether the data starts with a file type box listing a brand of HEIF images that may be coded in HEVC. Whether
+     * the image actually is HEVC shows when it is decoded: AVIF also uses the generic {@code mif1} brand.
+     */
+    public static boolean canLoad(byte[] heicData) {
+        try {
+            Box box = Box.parseBox(new BitStreamWithNalSupport(heicData));
+            return box instanceof FileTypeBox fileTypeBox
+                    && HEVC_CAPABLE_BRANDS.stream().anyMatch(fileTypeBox::isBrandSupported);
+        } catch (IsoBmffFormatException exception) {
             return false;
         }
     }
 
-    /**
-     * <p>
-     * Get pixel data of the default image frame in the format of byte array.
-     * </p>
-     * <p>Each three or four bytes (the count depends on the pixel format) refer to one pixel left to right top to bottom line by line.</p>
-     *
-     * @param pixelFormat     Pixel format that defines the order of colors and the presence of alpha byte.
-     * @return Byte array, null if frame does not contain image data.
-     */
-    public final /*Byte*/byte[] getByteArray(PixelFormat pixelFormat)
-    {
-        return getByteArray(pixelFormat, new Rectangle(), null);
+    private static long fourCharacterCode(String code) {
+        long value = 0;
+        for (int i = 0; i < code.length(); i++) {
+            value = (value << 8) | code.charAt(i);
+        }
+        return value;
+    }
+
+    /** The primary image of the file, the one to show. */
+    public HeicImageFrame getPrimaryFrame() {
+        return primaryFrame;
+    }
+
+    /** The width of the primary image as displayed. */
+    public int getWidth() {
+        return primaryFrame.getWidth();
+    }
+
+    /** The height of the primary image as displayed. */
+    public int getHeight() {
+        return primaryFrame.getHeight();
     }
 
     /**
-     * <p>
-     * Get pixel data of the default image frame in the format of byte array.
-     * </p>
-     * <p>Each three or four bytes (the count depends on the pixel format) refer to one pixel left to right top to bottom line by line.</p>
+     * Decodes the primary image to 0xAARRGGBB pixels, row by row.
      *
-     * @param pixelFormat     Pixel format that defines the order of colors and the presence of alpha byte.
-     * @param dstArray        Byte array for storing the pixel values. If {@code null} or its length is less than
-     *                        necessary the new array will be allocated and returned.
-     * @return Byte array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
+     * @throws HeicFormatException if the image is not one this decoder can decode
+     * @throws HeicImageTooLargeException if it has more pixels than the decoding options allow
      */
-    public final /*Byte*/byte[] getByteArray(PixelFormat pixelFormat, byte[] dstArray)
-    {
-        return getDefaultFrame().getByteArray(pixelFormat, new Rectangle(), dstArray);
+    public int[] decodeArgb() {
+        return primaryFrame.decodeArgb();
     }
 
     /**
-     * <p>
-     * Get pixel data of the default image frame in the format of byte array.
-     * </p>
-     * <p>Each three or four bytes (the count depends on the pixel format) refer to one pixel left to right top to bottom line by line.</p>
+     * Decodes {@code region} of the primary image to 0xAARRGGBB pixels, row by row.
      *
-     * @param pixelFormat     Pixel format that defines the order of colors and the presence of alpha byte.
-     * @param boundsRectangle Bounds of the requested area.
-     * @param dstArray        Byte array for storing the pixel values. If {@code null} or its length is less than
-     *                        necessary the new array will be allocated and returned.
-     * @return Byte array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
+     * @see HeicImageFrame#decodeArgb(PixelRegion)
      */
-    public final /*Byte*/byte[] getByteArray(PixelFormat pixelFormat, Rectangle boundsRectangle, byte[] dstArray)
-    {
-        return getDefaultFrame().getByteArray(pixelFormat, boundsRectangle, dstArray);
+    public int[] decodeArgb(PixelRegion region) {
+        return primaryFrame.decodeArgb(region);
     }
 
     /**
-     * <p>
-     * Get pixel data of the default image frame in the format of integer array.
-     * </p>
-     * <p>Each int value refers to one pixel left to right top to bottom line by line.</p>
+     * Decodes {@code region} of the primary image to 0xAARRGGBB pixels in {@code destination}.
      *
-     * @param pixelFormat     Pixel format that defines the order of colors.
-     * @return Integer array, null if frame does not contain image data.
+     * @see HeicImageFrame#decodeArgb(PixelRegion, int[], int, int)
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat)
-    {
-        return getInt32Array(pixelFormat, new Rectangle(), null);
+    public void decodeArgb(PixelRegion region, int[] destination, int offset, int scanlineStride) {
+        primaryFrame.decodeArgb(region, destination, offset, scanlineStride);
     }
 
     /**
-     * <p>
-     * Get pixel data of the default image frame in the format of integer array.
-     * </p>
-     * <p>Each int value refers to one pixel left to right top to bottom line by line.</p>
+     * Decodes the primary image to pixels of {@code pixelFormat}, row by row.
      *
-     * @param pixelFormat     Pixel format that defines the order of colors.
-     * @param dstArray        Integer array for storing the ARGB values. If {@code null} or its length is less than
-     *                        necessary the new array will be allocated and returned.
-     * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
+     * @see HeicImageFrame#decodeBytes(PixelFormat)
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat, int[] dstArray)
-    {
-        return getInt32Array(pixelFormat, new Rectangle(), dstArray);
+    public byte[] decodeBytes(PixelFormat pixelFormat) {
+        return primaryFrame.decodeBytes(pixelFormat);
     }
 
     /**
-     * <p>
-     * Get pixel data of the default image frame in the format of integer array.
-     * </p>
-     * <p>Each int value refers to one pixel left to right top to bottom line by line.</p>
+     * Decodes {@code region} of the primary image to pixels of {@code pixelFormat}, row by row.
      *
-     * @param pixelFormat     Pixel format that defines the order of colors.
-     * @param boundsRectangle Bounds of the requested area.
-     * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
+     * @see HeicImageFrame#decodeBytes(PixelFormat, PixelRegion)
      */
-    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle)
-    {
-        return getDefaultFrame().getInt32Array(pixelFormat, boundsRectangle, null);
-    }
-    /**
-     * <p>
-     * Get pixel data of the default image frame in the format of integer array.
-     * </p>
-     * <p>Each int value refers to one pixel left to right top to bottom line by line.</p>
-     *
-     * @param pixelFormat     Pixel format that defines the order of colors.
-     * @param boundsRectangle Bounds of the requested area.
-     * @param dstArray        Integer array for storing the ARGB values. If {@code null} or its length is less than
-     *                        necessary the new array will be allocated and returned.
-     * @return Integer array, null if frame does not contain image data. In general, it equals to {@code dstArray}.
-     */
-    public final int[] getInt32Array(PixelFormat pixelFormat, Rectangle boundsRectangle, int[] dstArray)
-    {
-        return getDefaultFrame().getInt32Array(pixelFormat, boundsRectangle, dstArray);
+    public byte[] decodeBytes(PixelFormat pixelFormat, PixelRegion region) {
+        return primaryFrame.decodeBytes(pixelFormat, region);
     }
 
     /**
-     * <p>
-     * HEIC image header. Grants convenient access to {@link openize.isobmff} container metadata.
-     * </p>
-     * @return The HEIC image header.
+     * The Exif metadata of the primary image, if the file has any.
+     *
+     * @throws HeicFormatException if the Exif item is malformed
      */
-    public final HeicHeader getHeader()
-    {
+    public Optional<ExifData> getExifOptional() {
+        return primaryFrame.getExifOptional();
+    }
+
+    /** The metadata of the file, as ISO base media file format boxes. */
+    public HeicHeader getHeader() {
         return header;
     }
 
     /**
-     * <p>
-     * Dictionary of public HEIC image frames with access by identifier.
-     * </p>
-     * @return The dictionary of public HEIC image frames with access by identifier.
+     * The images of the file meant to be shown, by item id: neither hidden, nor thumbnails, nor tone map
+     * derivations, and only the first available of a group of alternatives.
      */
-    public final Map<Long, HeicImageFrame> getFrames()
-    {
-        Map<Long, HeicImageFrame> frames = _frames.entrySet().stream().filter((f) ->
-                !f.getValue().isHidden()
-                && f.getValue().getDerivativeType() != BoxType.thmb
-                &&  f.getValue().getImageType() != ImageFrameType.tmap)
-                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    public Map<Long, HeicImageFrame> getTopLevelFrames() {
+        Map<Long, HeicImageFrame> topLevelFramesById = new LinkedHashMap<>();
+        framesById.forEach((frameId, frame) -> {
+            boolean thumbnail = frame.getDerivativeTypeOptional()
+                    .filter(BoxType.thmb::equals)
+                    .isPresent();
+            if (!frame.isHidden() && !thumbnail && frame.getImageType() != ImageFrameType.tmap) {
+                topLevelFramesById.put(frameId, frame);
+            }
+        });
 
-        List<EntityToGroupBox> groups = this.getHeader().getGroupsIfPresent();
-        if (groups == null)
-            return frames;
-
-        for (EntityToGroupBox grp : groups)
-        {
-            if (grp.type == BoxType.altr)
-            {
-                /*UInt32*/long[] entities = grp.entities;
+        // ISO/IEC 14496-12, 8.18.3.2: of alternatives, the first one in the group is preferred
+        for (EntityToGroupBox group : header.getEntityGroups()) {
+            if (group.getType() == BoxType.altr) {
                 boolean selected = false;
-
-                for (long entity : entities)
-                {
-                    if (frames.containsKey(entity))
-                    {
-                        if (!selected) selected = true;
-                        else frames.remove(entity);
+                for (long entityId : group.getEntityIds()) {
+                    if (topLevelFramesById.containsKey(entityId)) {
+                        if (selected) {
+                            topLevelFramesById.remove(entityId);
+                        }
+                        selected = true;
                     }
                 }
             }
         }
-
-        return frames;
+        return Collections.unmodifiableMap(topLevelFramesById);
     }
 
-    /**
-     * <p>
-     * Dictionary of all HEIC image frames with access by identifier.
-     * </p>
-     * @return The dictionary of all HEIC image frames with access by identifier.
-     */
-    public final Map<Long, HeicImageFrame> getAllFrames()
-    {
-        return _frames;
+    /** Every item of the file, images and metadata, by item id. */
+    public Map<Long, HeicImageFrame> getAllFrames() {
+        return Collections.unmodifiableMap(framesById);
     }
 
-    /**
-     * <p>
-     * Returns the default image frame, which is specified in metadata.
-     * </p>
-     * @return the default image frame, which is specified in metadata.
-     */
-    public final HeicImageFrame getDefaultFrame()
-    {
-        return _frames.get(getHeader().getDefaultFrameId());
+    // The whole file: frames read their coded data from it when they decode
+    byte[] getHeicData() {
+        return heicData;
     }
 
-    /**
-     * <p>
-     * Width of the default image frame in pixels.
-     * </p>
-     * @return The width of the default image frame in pixels.
-     */
-    public final /*UInt32*/long getWidth()
-    {
-        return getDefaultFrame().getWidth();
+    HeicDecodingOptions getDecodingOptions() {
+        return decodingOptions;
     }
 
-    /**
-     * <p>
-     * Height of the default image frame in pixels.
-     * </p>
-     * @return The height of the default image frame in pixels.
-     */
-    public final /*UInt32*/long getHeight()
-    {
-        return getDefaultFrame().getHeight();
-    }
-
-    /**
-     * <p>
-     * Exchangeable image metadata of the default image frame.
-     * </p>
-     */
-    public final ExifData getExif() { return getDefaultFrame().Exif; }
-
-    /**
-     * <p>
-     * Fill frames dictionary with read metadata.
-     * </p>
-     *
-     * @param stream File stream.
-     */
-    private void readFramesMeta(BitStreamWithNalSupport stream)
-    {
-        Map<Long, List<Box>> rawProperties = getHeader().getProperties();
-
-        for (IlocItem item : getHeader().getMeta().getiloc().items)
-        {
-            long id = item.item_ID;
-            _frames.put(id, new HeicImageFrame(stream, this, id));
+    // Every item, including derived images that have no data of their own, then their properties: properties link
+    // items to each other, so every item exists first
+    private void readFrames() {
+        for (ItemInfoEntry itemInfo : header.getItemInfoEntries()) {
+            framesById.put(itemInfo.getItemId(), new HeicImageFrame(this, itemInfo.getItemId()));
         }
 
-        for (Map.Entry<Long, HeicImageFrame> frame : _frames.entrySet())
-        {
-            HeicImageFrame frameValue = frame.getValue();
-            long frameValueID = frameValue.getID();
-            if (rawProperties.containsKey(frameValueID))
-                frameValue.loadProperties(stream, rawProperties.get(frameValueID));
-
-            if (frameValue.getImageType() == ImageFrameType.Exif)
-            {
-                /*UInt32*/long[] derived = getHeader().getDerivedList(frameValueID);
-                ExifData exif = new ExifData(stream, this, frameValue);
-
-                for (/*UInt32*/long derivedId : derived)
-                {
-                    _frames.get(derivedId).Exif = exif;
+        Map<Long, List<Box>> propertiesByItemId = header.getProperties();
+        for (HeicImageFrame frame : framesById.values()) {
+            Optional.ofNullable(propertiesByItemId.get(frame.getId())).ifPresent(frame::loadProperties);
+            if (frame.getImageType() == ImageFrameType.exif) {
+                for (long describedId : header.getDerivedList(frame.getId())) {
+                    Optional.ofNullable(framesById.get(describedId))
+                            .ifPresent(describedFrame -> describedFrame.setExifItem(frame));
                 }
             }
         }

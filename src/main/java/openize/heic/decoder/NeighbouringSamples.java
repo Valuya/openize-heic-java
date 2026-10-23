@@ -12,31 +12,43 @@ package openize.heic.decoder;
 
 import java.util.Arrays;
 
+/**
+ * The neighbouring samples p[x][y] of a transform block of size nTbS (8.4.4.2.1): the row above with its corner,
+ * x = -1..2 * nTbS - 1 at y = -1, and the column left, y = 0..2 * nTbS - 1 at x = -1.
+ */
+final class NeighbouringSamples {
+    private final int[] samples;
+    private int size;
 
-class NeighbouringSamples extends NeighbouringSamplesTemplate
-{
-    private final short[] data;
-
-    public NeighbouringSamples(int nTbS)
-    {
-        super(nTbS);
-        data = new short[4 * nTbS + 1];
+    NeighbouringSamples(int maximumSize) {
+        samples = new int[sampleCount(maximumSize)];
     }
 
-    public final int get(int x, int y)
-    {
-        return data[getIndex(x, y)];
+    static int sampleCount(int nTbS) {
+        return 4 * nTbS + 1;
     }
 
-    public final void set(int x, int y, int value)
-    {
-        data[getIndex(x, y)] = (short) value;
+    /**
+     * Sets up for a transform block of {@code nTbS} samples.
+     */
+    void prepare(int nTbS) {
+        size = nTbS;
     }
 
-    public final void reset(int bitDepth)
-    {
-        int value = 1 << (bitDepth - 1);
-        Arrays.fill(data, (short)(value & 0xFFFF));
+    int get(int x, int y) {
+        return samples[index(x, y)];
+    }
+
+    void set(int x, int y, int value) {
+        samples[index(x, y)] = value;
+    }
+
+    // 8.4.4.2.2: the value of every neighbour when none is available
+    void fill(int value) {
+        Arrays.fill(samples, 0, sampleCount(size), value);
+    }
+
+    int index(int x, int y) {
+        return y == -1 ? x + 1 : 2 * size + y + 1;
     }
 }
-

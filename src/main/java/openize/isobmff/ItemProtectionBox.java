@@ -12,55 +12,19 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * The item protection box provides an array of item protection information, for use by the Item Information Box.
- * </p>
+ * The protection schemes that items can refer to (ISO/IEC 14496-12, 8.11.5).
  */
-public class ItemProtectionBox extends FullBox
-{
-    /**
-     * <p>
-     * Count of protection information schemas.
-     * </p>
-     */
-    private final /*UInt16*/ int protection_count;
+public class ItemProtectionBox extends FullBox {
+    private final int protectionSchemeCount;
 
-    /**
-     * <p>
-     * Array of protection information schemas.
-     * </p>
-     */
-    private final ProtectionSchemeInfoBox[] protection_information;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public ItemProtectionBox(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(stream, BoxType.ipro, size);
-
-        protection_count = stream.read(16) & 0xFFFF;
-        protection_information = new ProtectionSchemeInfoBox[protection_count & 0xFFFF];
-
-        for (int i = 1; i <= (protection_count & 0xFFFF); i++)
-            protection_information[i - 1] = new ProtectionSchemeInfoBox(stream);
+    ItemProtectionBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
+        // the protection scheme boxes that follow are skipped: protected items are not decoded
+        protectionSchemeCount = stream.read(16);
     }
 
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString()
-    {
-        return type.name();
+    public final int getProtectionSchemeCount() {
+        return protectionSchemeCount;
     }
 }

@@ -10,139 +10,57 @@
 
 package openize.isobmff;
 
-import openize.isobmff.io.BitStreamReader;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * The ItemPropertiesBox enables the association of any item with an ordered set of item properties.
- * Item properties are small data records.
- * </p>
+ * The properties of items (ISO/IEC 23008-12, 9.3): an indexed list of properties, and the properties each item is
+ * associated with.
  */
-public class ItemPropertiesBox extends Box
-{
-    /**
-     * <p>
-     * Contains an implicitly indexed list of item properties.
-     * </p>
-     */
-    private final ItemPropertyContainerBox property_container;
+public class ItemPropertiesBox extends Box {
+    private final ItemPropertyContainerBox propertyContainer;
+    private final List<ItemPropertyAssociation> associations;
 
-    /**
-     * <p>
-     * Associates items with item properties.
-     * </p>
-     */
-    private final List<ItemPropertyAssociation> association;
-    private ObservableCollection<Box> children;
+    ItemPropertiesBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
-    /**
-     * <p>
-     * Create the box object from the bitstream, box size and start position.
-     * </p>
-     *
-     * @param stream   File stream.
-     * @param size     Box size in bytes.
-     * @param startPos Start position in bits.
-     */
-    public ItemPropertiesBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
-        super(BoxType.iprp, size);
-
-        property_container = new ItemPropertyContainerBox(stream, stream.getBitPosition());
-        ObservableCollection<Box> tmp0 = new ObservableCollection<>();
-        tmp0.add(property_container);
-
-        setChildren(tmp0);
-
-        association = new ArrayList<>();
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
-            ItemPropertyAssociation impa = new ItemPropertyAssociation(stream);
-            association.add(impa);
-            getChildren().add(impa);
+        propertyContainer = parseBox(stream, BoxType.ipco, ItemPropertyContainerBox::new);
+        List<ItemPropertyAssociation> readAssociations = new ArrayList<>();
+        while (hasMoreData(stream)) {
+            readAssociations.add(parseBox(stream, BoxType.ipma, ItemPropertyAssociation::new));
         }
+        associations = List.copyOf(readAssociations);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The properties of each item, by item id, in the order they apply.
      */
-    @Override
-    public String toString()
-    {
-        return this.type.name();
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final ObservableCollection<Box> getChildren()
-    {
-        return children;
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<Box> value)
-    {
-        children = value;
-    }
-
-    /**
-     * <p>
-     * Returns properties in a convinient form factor.
-     * </p>
-     *
-     * @return Dictionary with Lists of boxes that can be accessed by item id.
-     */
-    public final Map<Long, List<Box>> getProperties()
-    {
-        HashMap<Long, List<Box>> properties = new HashMap<>();
-//        HashMap<Long, List<Box>> essentialProperties = new HashMap<>();
-//        HashMap<Long, List<Box>> nonEssentialProperties = new HashMap<>();
-
-        //foreach to while statements conversion
-        for (ItemPropertyAssociation item : association)
-        {
-
-            for (ItemPropertyAssociation.ItemPropertyEntry itemProperty : item.entries)
-            {
-                List<Box> all = new ArrayList<>();
-//                List<Box> essential = new ArrayList<>();
-//                List<Box> nonEssential = new ArrayList<>();
-
-                for (ItemPropertyAssociation.ItemPropertyEntryAssociation prop : itemProperty.associations)
-                {
-                    all.add(property_container.getPropertyByIndex(prop.property_index & 0xFFFF));
-//                    if (prop.essential)
-//                    {
-//                        essential.add(property_container.getPropertyByIndex(prop.property_index & 0xFFFF));
-//                    }
-//                    else
-//                    {
-//                        nonEssential.add(property_container.getPropertyByIndex(prop.property_index & 0xFFFF));
-//                    }
-                }
-
-                properties.put(itemProperty.item_ID, all);
-            //    essentialProperties.put(itemProperty.item_ID, essential);
-                //nonEssentialProperties.put(itemProperty.item_ID, nonEssential);
+    public final Map<Long, List<Box>> getProperties() {
+        Map<Long, List<Box>> propertiesByItemId = new HashMap<>();
+        for (ItemPropertyAssociation association : associations) {
+            for (ItemPropertyAssociation.Entry entry : association.getEntries()) {
+                // a later association of the item replaces an earlier one
+                propertiesByItemId.put(entry.itemId(), getProperties(entry));
             }
         }
+        return Map.copyOf(propertiesByItemId);
+    }
 
-        return properties;
+    private List<Box> getProperties(ItemPropertyAssociation.Entry entry) {
+        List<Box> properties = new ArrayList<>();
+        for (int propertyIndex : entry.propertyIndices()) {
+            // index 0 associates no property
+            if (propertyIndex != 0) {
+                properties.add(propertyContainer
+                        .findPropertyOptional(propertyIndex)
+                        .orElseThrow(() -> new IsoBmffFormatException(
+                                "Item %d is associated with property %d, which does not exist"
+                                        .formatted(entry.itemId(), propertyIndex))));
+            }
+        }
+        return List.copyOf(properties);
     }
 }
-

@@ -10,164 +10,80 @@
 
 package openize.isobmff;
 
+import java.util.ArrayList;
+import java.util.List;
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * The item location box provides a directory of resources in this or other files, by locating their container,
- * their offset within that container, and their length.
- * </p>
+ * Where the data of each item is (ISO/IEC 14496-12, 8.11.3): its extents, in this file or in the item data box.
  */
-public class ItemLocationBox extends FullBox
-{
-    /**
-     * <p>
-     * Indicates the length in bytes of the offset field.
-     * </p>
-     */
-    public final byte offset_size;
+public class ItemLocationBox extends FullBox {
+    private final List<IlocItem> items;
 
-    /**
-     * <p>
-     * Indicates the length in bytes of the length field.
-     * </p>
-     */
-    public final byte length_size;
+    ItemLocationBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
-    /**
-     * <p>
-     * Indicates the length in bytes of the base_offset field.
-     * </p>
-     */
-    public final byte base_offset_size;
-
-    /**
-     * <p>
-     * Indicates the length in bytes of the extent.index field.
-     * </p>
-     */
-    public byte index_size;
-
-    /**
-     * <p>
-     * Counts the number of items in the location item array.
-     * </p>
-     */
-    public /*UInt32*/ long item_count;
-
-    /**
-     * <p>
-     * Array of the location items.
-     * </p>
-     */
-    public final IlocItem[] items;
-    private ObservableCollection<IlocItem> children;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public ItemLocationBox(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(stream, BoxType.iloc, size);
-
-        offset_size = (byte) stream.read(4);
-        length_size = (byte) stream.read(4);
-        base_offset_size = (byte) stream.read(4);
-
-        if (((version & 0xFF) == 1) || ((version & 0xFF) == 2))
-        {
-            index_size = (byte) stream.read(4);
+        // the sizes, in bytes, of the fields that follow
+        int offsetSize = stream.read(4);
+        int lengthSize = stream.read(4);
+        int baseOffsetSize = stream.read(4);
+        int indexSize = 0;
+        if (hasConstructionMethod()) {
+            indexSize = stream.read(4);
+        } else {
+            stream.skipBits(4); // reserved
         }
-        else
-        {
-            stream.skipBits(4);
+        ItemFieldSizes fieldSizes = new ItemFieldSizes(offsetSize, lengthSize, baseOffsetSize, indexSize);
+
+        // a version after 2 is not understood: it lists no item
+        long itemCount = switch (getVersion()) {
+            case 0, 1 -> stream.readLong(16);
+            case 2 -> stream.readLong(32);
+            default -> 0;
+        };
+        // an item takes at least 6 bytes (id, data reference index, extent count): bounds the count before allocating
+        requireEntriesFit(itemCount, 6);
+        List<IlocItem> readItems = new ArrayList<>((int) itemCount);
+        for (long i = 0; i < itemCount; i++) {
+            readItems.add(readItem(stream, fieldSizes));
         }
-
-        if ((version & 0xFF) < 2)
-        {
-            item_count = stream.read(16) & 0xFFFFFFFFL;
-        }
-        else if ((version & 0xFF) == 2)
-        {
-            item_count = stream.read(32) & 0xFFFFFFFFL;
-        }
-
-        items = new IlocItem[(int) (item_count & 0xFFFFFFFFL)];
-
-        for (int i = 0; i < (item_count & 0xFFFFFFFFL); i++)
-        {
-            items[i] = new IlocItem();
-            if ((version & 0xFF) < 2)
-            {
-                items[i].item_ID = stream.read(16) & 0xFFFFFFFFL;
-            }
-            else if ((version & 0xFF) == 2)
-            {
-                items[i].item_ID = stream.read(32) & 0xFFFFFFFFL;
-            }
-
-            if (((version & 0xFF) == 1) || ((version & 0xFF) == 2))
-            {
-                stream.skipBits(12); //0x000
-                items[i].construction_method = (byte) stream.read(4);
-            }
-
-            items[i].data_reference_index = stream.read(16) & 0xFFFFFFFFL;
-            items[i].base_offset = stream.read((base_offset_size & 0xFF) * 8) & 0xFFFFFFFFL;
-            items[i].extent_count = stream.read(16) & 0xFFFFFFFFL;
-            items[i].extents = new IlocItemExtent[(int) (items[i].extent_count)];
-
-            for (int j = 0; j < (items[i].extent_count & 0xFFFFFFFFL); j++)
-            {
-                items[i].extents[j] = new IlocItemExtent();
-
-                if ((((version & 0xFF) == 1) || ((version & 0xFF) == 2)) && ((index_size & 0xFF) > 0))
-                {
-                    items[i].extents[j].index = stream.read((index_size & 0xFF) * 8) & 0xFFFFFFFFL;
-                }
-
-                items[i].extents[j].offset = stream.read((offset_size & 0xFF) * 8) & 0xFFFFFFFFL;
-                items[i].extents[j].length = stream.read((length_size & 0xFF) * 8) & 0xFFFFFFFFL;
-            }
-        }
-
-        setChildren(new ObservableCollection<>(items));
+        items = List.copyOf(readItems);
     }
 
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString()
-    {
-        return String.format("%s count: %d", this.type, item_count);
+    public final List<IlocItem> getItems() {
+        return items;
     }
 
-    /**
-     * <p>
-     * Observable collection of the location items.
-     * </p>
-     */
-    public final ObservableCollection<IlocItem> getChildren()
-    {
-        return children;
+    private IlocItem readItem(BitStreamReader stream, ItemFieldSizes fieldSizes) {
+        long itemId = stream.readLong(getVersion() < 2 ? 16 : 32);
+        int constructionMethod = 0;
+        if (hasConstructionMethod()) {
+            stream.skipBits(12); // reserved
+            constructionMethod = stream.read(4);
+        }
+        stream.skipBits(16); // data_reference_index
+        long baseOffset = stream.readLong(fieldSizes.baseOffsetSize() * 8);
+
+        int extentCount = stream.read(16);
+        requireEntriesFit(extentCount, Math.max(1, fieldSizes.extentSize()));
+        List<IlocItemExtent> extents = new ArrayList<>(extentCount);
+        for (int i = 0; i < extentCount; i++) {
+            stream.skipBits(fieldSizes.indexSize() * 8); // extent_index
+            long offset = stream.readLong(fieldSizes.offsetSize() * 8);
+            long length = stream.readLong(fieldSizes.lengthSize() * 8);
+            extents.add(new IlocItemExtent(offset, length));
+        }
+        return new IlocItem(itemId, constructionMethod, baseOffset, extents);
     }
 
-    /**
-     * <p>
-     * Observable collection of the location items.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<IlocItem> value)
-    {
-        children = value;
+    // versions 1 and 2 add the construction method, and the index size it may need
+    private boolean hasConstructionMethod() {
+        return getVersion() == 1 || getVersion() == 2;
+    }
+
+    private record ItemFieldSizes(int offsetSize, int lengthSize, int baseOffsetSize, int indexSize) {
+        int extentSize() {
+            return offsetSize + lengthSize + indexSize;
+        }
     }
 }

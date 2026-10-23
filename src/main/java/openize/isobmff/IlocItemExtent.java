@@ -10,46 +10,10 @@
 
 package openize.isobmff;
 
-
 /**
- * <p>
- * Data class for organized storage on location data extents.
- * </p>
+ * A piece of the data of an item (ISO/IEC 14496-12, 8.11.3).
+ *
+ * @param offset where the piece starts, in bytes, from the base offset of the item
+ * @param length the length of the piece in bytes; 0 for the whole container
  */
-public class IlocItemExtent
-{
-    /**
-     * <p>
-     * An index as defined for the construction method.
-     * </p>
-     */
-    public /*UInt32*/ long index;
-
-    /**
-     * <p>
-     * The absolute offset, in bytes from the data origin of the container, of this extent data.
-     * If offset_size is 0, extent_offset takes the value 0.
-     * </p>
-     */
-    public /*UInt32*/ long offset;
-
-    /**
-     * <p>
-     * The absolute length in bytes of this metadata item extent.
-     * If length_size is 0, extent_length takes the value 0.
-     * If the value is 0, then length of the extent is the length of the entire referenced container.
-     * </p>
-     */
-    public /*UInt32*/ long length;
-
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString()
-    {
-        return String.format("extent:: index: %d offset: %d length: %d", index, offset, length);
-    }
-}
+public record IlocItemExtent(long offset, long length) {}

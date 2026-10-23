@@ -12,58 +12,23 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * AuxiliaryTypeProperty box includes a URN identifying the type of the auxiliary image.
- * AuxiliaryTypeProperty may additionally include other fields, as required by the URN.
- * </p>
+ * The type of an auxiliary image, such as an alpha plane or a depth map (ISO/IEC 23008-12, 6.5.8).
  */
-public class AuxiliaryTypeProperty extends FullBox
-{
-    /**
-     * <p>
-     * A null-terminated UTF-8 character string of the Uniform Resource Name (URN) used to identify the type of the associated auxiliary image item.
-     * </p>
-     */
-    public final String aux_type;
+public class AuxiliaryTypeProperty extends FullBox {
+    private final String auxType;
 
-    /**
-     * <p>
-     * Zero or more bytes until the end of the box. The semantics of these bytes depend on the value of aux_type.
-     * </p>
-     */
-    public final byte[] aux_subtype;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public AuxiliaryTypeProperty(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(stream, BoxType.auxC, size);
-
-        aux_type = stream.readString();
-
-        /*UInt64*/
-        long count = size - (long) aux_type.length() - 12;
-        aux_subtype = new byte[(int) (count)];
-        for (/*UInt64*/long i = 0; i < count; i++)
-            aux_subtype[(int) (i)] = (byte) stream.read(8);
+    AuxiliaryTypeProperty(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
+        // aux_subtype, whose meaning depends on the type, fills the rest of the box
+        auxType = stream.readString();
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The URN of the type, such as {@code urn:mpeg:hevc:2015:auxid:1} for an alpha plane, with its terminating
+     * {@code '\0'}.
      */
-    @Override
-    public String toString()
-    {
-        return String.format("%s type: %s", this.type, aux_type);
+    public final String getAuxType() {
+        return auxType;
     }
 }

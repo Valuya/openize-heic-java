@@ -12,101 +12,70 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * The clean aperture transformative item property defines a cropping transformation of the input image.
- * </p>
+ * A crop of an image (ISO/IEC 14496-12, 12.1.4): the width and height of the area kept, and the offset of its centre
+ * from the centre of the image, each a fraction.
  */
-public class CleanApertureBox extends Box
-{
-    /**
-     * <p>
-     * A numerator of the fractional number which defines the exact clean aperture width, in counted pixels, of the image.
-     * </p>
-     */
-    public final /*UInt32*/ long cleanApertureWidthN;
+public class CleanApertureBox extends Box {
+    private final long widthNumerator;
+    private final long widthDenominator;
+    private final long heightNumerator;
+    private final long heightDenominator;
+    private final int horizontalOffsetNumerator;
+    private final long horizontalOffsetDenominator;
+    private final int verticalOffsetNumerator;
+    private final long verticalOffsetDenominator;
 
-    /**
-     * <p>
-     * A denominator of the fractional number which defines the exact clean aperture width, in counted pixels, of the image.
-     * </p>
-     */
-    public final /*UInt32*/ long cleanApertureWidthD;
+    CleanApertureBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
+        widthNumerator = stream.readLong(32);
+        widthDenominator = stream.readLong(32);
+        heightNumerator = stream.readLong(32);
+        heightDenominator = stream.readLong(32);
+        // the offsets are signed
+        horizontalOffsetNumerator = stream.read(32);
+        horizontalOffsetDenominator = stream.readLong(32);
+        verticalOffsetNumerator = stream.read(32);
+        verticalOffsetDenominator = stream.readLong(32);
+    }
 
-    /**
-     * <p>
-     * A numerator of the fractional number which defines the exact clean aperture height, in counted pixels, of the image.
-     * </p>
-     */
-    public final /*UInt32*/ long cleanApertureHeightN;
+    public final long getWidthNumerator() {
+        return widthNumerator;
+    }
 
-    /**
-     * <p>
-     * A denominator of the fractional number which defines the exact clean aperture height, in counted pixels, of the image.
-     * </p>
-     */
-    public final /*UInt32*/ long cleanApertureHeightD;
+    public final long getWidthDenominator() {
+        return widthDenominator;
+    }
 
-    /**
-     * <p>
-     * A numerator of the fractional number which defines the horizontal offset of clean aperture centre minus(width‐1)/2. Typically 0.
-     * </p>
-     */
-    public final int horizOffN;
+    public final long getHeightNumerator() {
+        return heightNumerator;
+    }
 
-    /**
-     * <p>
-     * A denominator of the fractional number which defines the horizontal offset of clean aperture centre minus(width‐1)/2. Typically 0.
-     * </p>
-     */
-    public final /*UInt32*/ long horizOffD;
-
-    /**
-     * <p>
-     * A numerator of the fractional number which defines the vertical offset of clean aperture centre minus(height‐1)/2. Typically 0.
-     * </p>
-     */
-    public final int vertOffN;
-
-    /**
-     * <p>
-     * A denominator of the fractional number which defines the vertical offset of clean aperture centre minus(height‐1)/2. Typically 0.
-     * </p>
-     */
-    public final /*UInt32*/ long vertOffD;
-
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public CleanApertureBox(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(BoxType.clap, size);
-
-        cleanApertureWidthN = stream.read(32) & 0xFFFFFFFFL;
-        cleanApertureWidthD = stream.read(32) & 0xFFFFFFFFL;
-        cleanApertureHeightN = stream.read(32) & 0xFFFFFFFFL;
-        cleanApertureHeightD = stream.read(32) & 0xFFFFFFFFL;
-        horizOffN = stream.read(32);
-        horizOffD = stream.read(32) & 0xFFFFFFFFL;
-        vertOffN = stream.read(32);
-        vertOffD = stream.read(32) & 0xFFFFFFFFL;
+    public final long getHeightDenominator() {
+        return heightDenominator;
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The numerator of the horizontal offset of the centre of the clean aperture from the centre of the image,
+     * {@code (width - 1) / 2}; typically 0.
      */
-    @Override
-    public String toString()
-    {
-        return String.format("%s size: %d", this.type, size);
+    public final int getHorizontalOffsetNumerator() {
+        return horizontalOffsetNumerator;
+    }
+
+    public final long getHorizontalOffsetDenominator() {
+        return horizontalOffsetDenominator;
+    }
+
+    /**
+     * The numerator of the vertical offset of the centre of the clean aperture from the centre of the image,
+     * {@code (height - 1) / 2}; typically 0.
+     */
+    public final int getVerticalOffsetNumerator() {
+        return verticalOffsetNumerator;
+    }
+
+    public final long getVerticalOffsetDenominator() {
+        return verticalOffsetDenominator;
     }
 }
-

@@ -12,45 +12,22 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * The image mirroring item property mirrors the image about either a vertical or horizontal axis.
- * </p>
+ * A mirroring of an image about a vertical or a horizontal axis (ISO/IEC 23008-12, 6.5.12).
  */
-public class ImageMirror extends Box
-{
-    /**
-     * <p>
-     * Specifies a vertical (axis = 0) or horizontal (axis = 1) axis for the mirroring operation.
-     * </p>
-     */
-    public final byte axis;
+public class ImageMirror extends Box {
+    private final int axis;
 
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public ImageMirror(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(BoxType.imir, size);
-
-        stream.skipBits(7);
-        axis = (byte) stream.read(1);
+    ImageMirror(BitStreamReader stream, BoxHeader header) {
+        super(header);
+        stream.skipBits(7); // reserved
+        axis = stream.read(1);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * 0 to mirror about a vertical axis, swapping left and right; 1 about a horizontal axis, swapping top and bottom.
      */
-    @Override
-    public String toString()
-    {
-        return this.type.name() + ((axis & 0xFF) == 0 ? "vertically" : "horizontal") + " mirrored";
+    public final int getAxis() {
+        return axis;
     }
 }

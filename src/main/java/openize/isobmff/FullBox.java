@@ -12,101 +12,30 @@ package openize.isobmff;
 
 import openize.isobmff.io.BitStreamReader;
 
-import java.util.BitSet;
-
-
 /**
- * <p>
- * Structure for storing data in IsoBmff files with specified box version and flags.
- * </p>
+ * A box whose header is followed by a version and flags (ISO/IEC 14496-12, 4.2).
  */
-public class FullBox extends Box
-{
-    /**
-     * <p>
-     * An integer that specifies the version of this format of the box.
-     * </p>
-     */
-    protected final byte version;
+public class FullBox extends Box {
+    private final int version;
+    private final int flags;
 
-    /**
-     * <p>
-     * A map of flags.
-     * </p>
-     */
-    protected BitSet flags = new BitSet(24);
-
-    /**
-     * <p>
-     * Create the box object from the bitstream.
-     * </p>
-     *
-     * @param stream File stream.
-     */
-    public FullBox(BitStreamReader stream)
-    {
-        super(stream);
-
-        version = (byte) stream.read(8);
-
-        for (int i = 0; i < 24; i++)
-            flags.set(i, stream.readFlag());
+    FullBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
+        version = stream.read(8);
+        flags = stream.read(24);
     }
 
     /**
-     * <p>
-     * Create the box object from the bitstream and box type.
-     * </p>
-     *
-     * @param stream  File stream.
-     * @param boxtype Box type integer.
+     * The version of the format of the box.
      */
-    public FullBox(BitStreamReader stream, BoxType boxtype)
-    {
-        super(stream, boxtype);
-
-        version = (byte) stream.read(8);
-
-        for (int i = 0; i < 24; i++)
-            flags.set(i, stream.readFlag());
+    final int getVersion() {
+        return version;
     }
 
     /**
-     * <p>
-     * Create the box object from the bitstream, box type and size.
-     * </p>
-     *
-     * @param stream  File stream.
-     * @param boxtype Box type integer.
-     * @param size    Box size in bytes.
+     * The 24 flag bits, whose meaning depends on the box type.
      */
-    public FullBox(BitStreamReader stream, BoxType boxtype, /*UInt64*/long size)
-    {
-        super(boxtype, size);
-
-        version = (byte) stream.read(8);
-
-        for (int i = 0; i < 24; i++)
-            flags.set(i, stream.readFlag());
-    }
-
-    /**
-     * <p>
-     * Create the box object from the box type, size, version and flags.
-     * This constructor doesn't read data from the stream.
-     * </p>
-     *
-     * @param boxtype Box type integer.
-     * @param size    Box size in bytes.
-     * @param version The version of this format of the box.
-     * @param flags   The map of flags.
-     */
-    public FullBox(BoxType boxtype, /*UInt64*/long size, byte version, int flags)
-    {
-        super(boxtype, size);
-
-        this.version = version;
-        this.flags = BitSet.valueOf(new long[]{flags});
+    final int getFlags() {
+        return flags;
     }
 }
-

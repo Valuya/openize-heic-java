@@ -10,174 +10,63 @@
 
 package openize.isobmff;
 
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.Optional;
 import openize.isobmff.io.BitStreamReader;
 
-import java.util.HashMap;
-
-
 /**
- * <p>
- * A common base structure that contains general metadata.
- * </p>
+ * The metadata of a file (ISO/IEC 14496-12, 8.11.1): for a HEIF image, its items, and the boxes that locate,
+ * describe and relate them.
  */
-public class MetaBox extends FullBox
-{
-    /**
-     * <p>
-     * Dictionary of nested boxes.
-     * </p>
-     */
-    private final HashMap<BoxType, Box> boxes;
-    private ObservableCollection<Box> children;
+public class MetaBox extends FullBox {
+    private final Map<BoxType, Box> boxesByType = new EnumMap<>(BoxType.class);
 
-    /**
-     * <p>
-     * Create the box object from the bitstream, box size and start position.
-     * </p>
-     *
-     * @param stream   File stream.
-     * @param size     Box size in bytes.
-     * @param startPos Start position in bits.
-     */
-    public MetaBox(BitStreamReader stream, /*UInt64*/long size, /*UInt64*/long startPos)
-    {
-        super(stream, BoxType.meta, size);
+    MetaBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
-        boxes = new HashMap<>();
-
-        boxes.put(BoxType.hdlr, new HandlerBox(stream));
-
-        while (stream.getBitPosition() < startPos + size * 8)
-        {
-            Box box = Box.parseBox(stream);
-            boxes.put(box.type, box);
+        // the handler box comes first; nothing reads the type of metadata it declares
+        parseBox(stream, BoxType.hdlr, (handlerStream, handlerHeader) -> new Box(handlerHeader));
+        while (hasMoreData(stream)) {
+            Box box = parseBox(stream);
+            // a later box of a type replaces an earlier one
+            boxesByType.put(box.getType(), box);
         }
-
-        setChildren(new ObservableCollection<>(boxes.values()));
     }
 
-    /**
-     * <p>
-     * Handler box.
-     * </p>
-     */
-    public final HandlerBox gethdlr()
-    {
-        return (HandlerBox) tryGetBox(BoxType.hdlr);
+    public final Optional<PrimaryItemBox> getPrimaryItemBoxOptional() {
+        return findBoxOptional(BoxType.pitm, PrimaryItemBox.class);
     }
 
-    /**
-     * <p>
-     * Primary item box.
-     * </p>
-     */
-    public final PrimaryItemBox getpitm()
-    {
-        return (PrimaryItemBox) tryGetBox(BoxType.pitm);
+    public final Optional<ItemProtectionBox> getItemProtectionBoxOptional() {
+        return findBoxOptional(BoxType.ipro, ItemProtectionBox.class);
     }
 
-    /**
-     * <p>
-     * Item location box.
-     * </p>
-     */
-    public final ItemLocationBox getiloc()
-    {
-        return (ItemLocationBox) tryGetBox(BoxType.iloc);
+    public final Optional<ItemLocationBox> getItemLocationBoxOptional() {
+        return findBoxOptional(BoxType.iloc, ItemLocationBox.class);
     }
 
-    /**
-     * <p>
-     * Item info box.
-     * </p>
-     */
-    public final ItemInfoBox getiinf()
-    {
-        return (ItemInfoBox) tryGetBox(BoxType.iinf);
+    public final Optional<ItemInfoBox> getItemInfoBoxOptional() {
+        return findBoxOptional(BoxType.iinf, ItemInfoBox.class);
     }
 
-    /**
-     * <p>
-     * Item properties box.
-     * </p>
-     */
-    public final ItemPropertiesBox getiprp()
-    {
-        return (ItemPropertiesBox) tryGetBox(BoxType.iprp);
+    public final Optional<ItemPropertiesBox> getItemPropertiesBoxOptional() {
+        return findBoxOptional(BoxType.iprp, ItemPropertiesBox.class);
     }
 
-    /**
-     * <p>
-     * Item reference box.
-     * </p>
-     */
-    public final ItemReferenceBox getiref()
-    {
-        return (ItemReferenceBox) tryGetBox(BoxType.iref);
+    public final Optional<ItemReferenceBox> getItemReferenceBoxOptional() {
+        return findBoxOptional(BoxType.iref, ItemReferenceBox.class);
     }
 
-    /**
-     * <p>
-     * Item data box.
-     * </p>
-     */
-    public final ItemDataBox getidat()
-    {
-        return (ItemDataBox) tryGetBox(BoxType.idat);
+    public final Optional<ItemDataBox> getItemDataBoxOptional() {
+        return findBoxOptional(BoxType.idat, ItemDataBox.class);
     }
 
-    /**
-     * <p>
-     * Item group box.
-     * </p>
-     */
-    public final GroupsListBox getgrpl()
-    {
-        return (GroupsListBox) tryGetBox(BoxType.grpl);
+    public final Optional<GroupsListBox> getGroupsListBoxOptional() {
+        return findBoxOptional(BoxType.grpl, GroupsListBox.class);
     }
 
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
-    @Override
-    public String toString()
-    {
-        return this.type.name();
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final ObservableCollection<Box> getChildren()
-    {
-        return children;
-    }
-
-    /**
-     * <p>
-     * Observable collection of the nested boxes.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<Box> value)
-    {
-        children = value;
-    }
-
-    /**
-     * <p>
-     * Try to get specified box. Return null if required box not available.
-     * </p>
-     *
-     * @param type Box type.
-     * @return Box.
-     */
-    private Box tryGetBox(BoxType type)
-    {
-        return boxes.get(type);
+    private <T extends Box> Optional<T> findBoxOptional(BoxType type, Class<T> boxClass) {
+        return Optional.ofNullable(boxesByType.get(type)).map(boxClass::cast);
     }
 }
-

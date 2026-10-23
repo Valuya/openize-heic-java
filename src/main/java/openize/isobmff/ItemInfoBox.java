@@ -10,81 +10,33 @@
 
 package openize.isobmff;
 
+import java.util.ArrayList;
+import java.util.List;
 import openize.isobmff.io.BitStreamReader;
 
-
 /**
- * <p>
- * The item information box provides extra information about file entries.
- * </p>
+ * Information on each item of the file (ISO/IEC 14496-12, 8.11.6).
  */
-public class ItemInfoBox extends FullBox
-{
-    /**
-     * <p>
-     * A count of the number of entries in the info entry array.
-     * </p>
-     */
-    public final /*UInt32*/ long entry_count;
+public class ItemInfoBox extends FullBox {
+    private final List<ItemInfoEntry> entries;
 
-    /**
-     * <p>
-     * Array of entries of extra information, each entry is formatted as a box.
-     * This array is sorted by increasing item_ID in the entry records.
-     * </p>
-     */
-    public final ItemInfoEntry[] item_infos;
-    private ObservableCollection<ItemInfoEntry> children;
+    ItemInfoBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
-    /**
-     * <p>
-     * Create the box object from the bitstream and box size.
-     * </p>
-     *
-     * @param stream File stream.
-     * @param size   Box size in bytes.
-     */
-    public ItemInfoBox(BitStreamReader stream, /*UInt64*/long size)
-    {
-        super(stream, BoxType.iinf, size);
-
-        entry_count = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
-
-        item_infos = new ItemInfoEntry[(int) (entry_count & 0xFFFFFFFFL)];
-        for (int i = 0; i < (entry_count & 0xFFFFFFFFL); i++)
-            item_infos[i] = new ItemInfoEntry(stream);
-
-        setChildren(new ObservableCollection<>(item_infos));
+        long entryCount = stream.readLong(getVersion() == 0 ? 16 : 32);
+        // an entry is a box of at least 12 bytes
+        requireEntriesFit(entryCount, 12);
+        List<ItemInfoEntry> readEntries = new ArrayList<>((int) entryCount);
+        for (long i = 0; i < entryCount; i++) {
+            readEntries.add(parseBox(stream, BoxType.infe, ItemInfoEntry::new));
+        }
+        entries = List.copyOf(readEntries);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The entries, by increasing item id.
      */
-    @Override
-    public String toString()
-    {
-        return String.format("%s count: %d", this.type, entry_count);
-    }
-
-    /**
-     * <p>
-     * Observable collection of entries of extra information.
-     * </p>
-     */
-    public final ObservableCollection<ItemInfoEntry> getChildren()
-    {
-        return children;
-    }
-
-    /**
-     * <p>
-     * Observable collection of entries of extra information.
-     * </p>
-     */
-    public final void setChildren(ObservableCollection<ItemInfoEntry> value)
-    {
-        children = value;
+    public final List<ItemInfoEntry> getEntries() {
+        return entries;
     }
 }
