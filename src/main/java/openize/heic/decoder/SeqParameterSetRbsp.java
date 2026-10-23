@@ -11,115 +11,181 @@
 package openize.heic.decoder;
 
 import java.util.HashMap;
+import java.util.Map;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
+import org.jspecify.annotations.Nullable;
 
+/**
+ * seq_parameter_set_rbsp( ) (7.3.2.2) and the variables derived from it (7.4.3.2).
+ */
 public class SeqParameterSetRbsp extends NalUnit {
-    public final VideoParameterSetRbsp vps;
+    // 7.4.3.2.1
+    private static final int MAX_SPS_ID = 15;
+    private static final int MAX_BIT_DEPTH_MINUS8 = 8;
+    private static final int MAX_LOG2_MAX_PIC_ORDER_CNT_LSB_MINUS4 = 12;
+    private static final int MAX_NUM_SHORT_TERM_REF_PIC_SETS = 64;
+    private static final int MAX_NUM_LONG_TERM_REF_PICS_SPS = 32;
+    // far beyond the 16888 samples of any HEVC level, and small enough for int arithmetic on sample counts
     private static final int MAX_PICTURE_DIMENSION = 65536;
+    // PCM coding blocks are at most 32x32 (7.4.3.2.1)
+    private static final int MAX_LOG2_IPCM_CB_SIZE = 5;
 
-    final byte spsVideoParameterSetId;
-    final byte spsMaxSubLayersMinus1;
-    final boolean spsTemporalIdNestingFlag;
-    final byte spsSeqParameterSetId; // max - 16
+    final @Nullable VideoParameterSetRbsp vps;
+    final int spsSeqParameterSetId;
     final int chromaFormatIdc;
+    final boolean separateColourPlaneFlag;
     final int picWidthInLumaSamples;
     final int picHeightInLumaSamples;
-    final boolean conformanceWindowFlag;
-    final int bitDepthLumaMinus8;
-    final int bitDepthChromaMinus8;
+    private final int bitDepthLumaMinus8;
+    private final int bitDepthChromaMinus8;
     final int log2MaxPicOrderCntLsbMinus4;
-    final boolean spsSubLayerOrderingInfoPresentFlag;
-    final int log2MinLumaCodingBlockSizeMinus3;
-    final int log2DiffMaxMinLumaCodingBlockSize;
-    final int log2MinLumaTransformBlockSizeMinus2;
-    final int log2DiffMaxMinLumaTransformBlockSize;
+    private final int log2MinLumaCodingBlockSizeMinus3;
+    private final int log2DiffMaxMinLumaCodingBlockSize;
+    private final int log2MinLumaTransformBlockSizeMinus2;
+    private final int log2DiffMaxMinLumaTransformBlockSize;
     final int maxTransformHierarchyDepthInter;
     final int maxTransformHierarchyDepthIntra;
     final boolean scalingListEnabledFlag;
+    final boolean spsScalingListDataPresentFlag;
+    // null unless sps_scaling_list_data_present_flag
+    final @Nullable ScalingListData ScalingListData;
     final boolean ampEnabledFlag;
     final boolean sampleAdaptiveOffsetEnabledFlag;
     final boolean pcmEnabledFlag;
+    // PcmBitDepthY and PcmBitDepthC
+    final int pcmSampleBitDepthLuma;
+    final int pcmSampleBitDepthChroma;
+    private final int log2MinPcmLumaCodingBlockSizeMinus3;
+    private final int log2DiffMaxMinPcmLumaCodingBlockSize;
+    final boolean pcmLoopFilterDisabledFlag;
     final int numShortTermRefPicSets;
-    final HashMap<Integer, StRefPicSet> stRefPicSets;
+    final Map<Integer, StRefPicSet> stRefPicSets = new HashMap<>();
     final boolean longTermRefPicsPresentFlag;
-    int numLongTermRefPicsSps;
-    int[] ltRefPicPocLsbSps;
-    boolean[] usedByCurrPicLtSpsFlag;
+    final int numLongTermRefPicsSps;
+    final int[] ltRefPicPocLsbSps;
+    final boolean[] usedByCurrPicLtSpsFlag;
     final boolean spsTemporalMvpEnabledFlag;
     final boolean strongIntraSmoothingEnabledFlag;
-    final boolean vuiParametersPresentFlag;
-    final boolean spsExtensionPresentFlag;
-    boolean spsRangeExtensionFlag;
-    boolean spsMultilayerExtensionFlag;
-    boolean sps3dExtensionFlag;
-    boolean spsSccExtensionFlag;
-    byte spsExtension4bits;
-    final SpsRangeExtension spsRangeExt;
-    SpsMultilayerExtension spsMultilayerExt;
-    Sps3dExtension sps3dExt;
-    final SpsSccExtension spsSccExt;
     final VuiParameters VuiParameters;
-    boolean separateColourPlaneFlag;
-    int confWinLeftOffset;
-    int confWinRightOffset;
-    int confWinTopOffset;
-    int confWinBottomOffset;
-    boolean spsScalingListDataPresentFlag;
-    ScalingListData ScalingListData;
-    byte pcmSampleBitDepthLuma;
-    byte pcmSampleBitDepthChroma;
-    byte log2MinPcmLumaCodingBlockSizeMinus3;
-    byte log2DiffMaxMinPcmLumaCodingBlockSize;
-    boolean pcmLoopFilterDisabledFlag;
+    final SpsRangeExtension spsRangeExt;
+    final SpsSccExtension spsSccExt;
 
-    public SeqParameterSetRbsp(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
+    SeqParameterSetRbsp(BitStreamWithNalSupport stream, long startPosition, int size) {
         super(stream, startPosition, size);
 
-        spsVideoParameterSetId = (byte) stream.read(4); // u(4)
-
-        vps = stream.getContext().getVPS().get(spsVideoParameterSetId & 0xFF);
-
-        spsMaxSubLayersMinus1 = (byte) stream.read(3); // u(3)
-        spsTemporalIdNestingFlag = stream.readFlag(); // u(1)
-
+        int spsVideoParameterSetId = stream.read(4);
+        vps = stream.getContext().getVPS().get(spsVideoParameterSetId);
+        int spsMaxSubLayersMinus1 = stream.read(3);
+        stream.skipBits(1); // sps_temporal_id_nesting_flag
         ProfileTierLevel.read(stream, spsMaxSubLayersMinus1);
 
-        spsSeqParameterSetId = (byte) stream.readUev(); // ue(v)
-        chromaFormatIdc = stream.readUevAtMost(3); // ue(v)
-        if (chromaFormatIdc == 3) {
-            separateColourPlaneFlag = stream.readFlag(); // u(1)
-        }
-
-        // far beyond the 16888 samples of any HEVC level, and small enough for int arithmetic on sample counts
-        picWidthInLumaSamples = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
-        picHeightInLumaSamples = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
-        conformanceWindowFlag = stream.readFlag(); // u(1)
+        spsSeqParameterSetId = stream.readUevAtMost(MAX_SPS_ID);
+        chromaFormatIdc = stream.readUevAtMost(3);
+        separateColourPlaneFlag = chromaFormatIdc == 3 && stream.readFlag();
+        picWidthInLumaSamples = stream.readUevAtMost(MAX_PICTURE_DIMENSION);
+        picHeightInLumaSamples = stream.readUevAtMost(MAX_PICTURE_DIMENSION);
+        boolean conformanceWindowFlag = stream.readFlag();
         if (conformanceWindowFlag) {
-            confWinLeftOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
-            confWinRightOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
-            confWinTopOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
-            confWinBottomOffset = stream.readUevAtMost(MAX_PICTURE_DIMENSION); // ue(v)
+            // conf_win_left_offset, conf_win_right_offset, conf_win_top_offset, conf_win_bottom_offset
+            for (int i = 0; i < 4; i++) {
+                stream.readUev();
+            }
         }
 
-        bitDepthLumaMinus8 = stream.readUevAtMost(8); // ue(v)
-        bitDepthChromaMinus8 = stream.readUevAtMost(8); // ue(v)
-        log2MaxPicOrderCntLsbMinus4 = stream.readUevAtMost(12); // ue(v)
-        spsSubLayerOrderingInfoPresentFlag = stream.readFlag(); // u(1)
+        bitDepthLumaMinus8 = stream.readUevAtMost(MAX_BIT_DEPTH_MINUS8);
+        bitDepthChromaMinus8 = stream.readUevAtMost(MAX_BIT_DEPTH_MINUS8);
+        log2MaxPicOrderCntLsbMinus4 = stream.readUevAtMost(MAX_LOG2_MAX_PIC_ORDER_CNT_LSB_MINUS4);
 
-        // sps_max_dec_pic_buffering_minus1, sps_max_num_reorder_pics and sps_max_latency_increase_plus1 per
-        // sub-layer only matter to sequences
-        int firstSubLayer = spsSubLayerOrderingInfoPresentFlag ? 0 : spsMaxSubLayersMinus1 & 0xFF;
-        for (int i = firstSubLayer; i <= (spsMaxSubLayersMinus1 & 0xFF); i++) {
-            stream.readUev(); // ue(v)
-            stream.readUev(); // ue(v)
-            stream.readUev(); // ue(v)
+        boolean spsSubLayerOrderingInfoPresentFlag = stream.readFlag();
+        int firstSubLayer = spsSubLayerOrderingInfoPresentFlag ? 0 : spsMaxSubLayersMinus1;
+        for (int i = firstSubLayer; i <= spsMaxSubLayersMinus1; i++) {
+            stream.readUev(); // sps_max_dec_pic_buffering_minus1
+            stream.readUev(); // sps_max_num_reorder_pics
+            stream.readUev(); // sps_max_latency_increase_plus1
         }
 
         // CTBs of 16 to 64, coding blocks from 8, transform blocks of 4 to 32 no larger than the CTB (7.4.3.2.1)
-        log2MinLumaCodingBlockSizeMinus3 = stream.readUevAtMost(3); // ue(v)
-        log2DiffMaxMinLumaCodingBlockSize = stream.readUevAtMost(3 - log2MinLumaCodingBlockSizeMinus3); // ue(v)
-        log2MinLumaTransformBlockSizeMinus2 = stream.readUevAtMost(3); // ue(v)
-        log2DiffMaxMinLumaTransformBlockSize = stream.readUevAtMost(3 - log2MinLumaTransformBlockSizeMinus2); // ue(v)
+        log2MinLumaCodingBlockSizeMinus3 = stream.readUevAtMost(3);
+        log2DiffMaxMinLumaCodingBlockSize = stream.readUevAtMost(3 - log2MinLumaCodingBlockSizeMinus3);
+        log2MinLumaTransformBlockSizeMinus2 = stream.readUevAtMost(3);
+        log2DiffMaxMinLumaTransformBlockSize = stream.readUevAtMost(3 - log2MinLumaTransformBlockSizeMinus2);
+        checkBlockSizes();
+        maxTransformHierarchyDepthInter = stream.readUevAtMost(getCtbLog2SizeY() - getMinTbLog2SizeY());
+        maxTransformHierarchyDepthIntra = stream.readUevAtMost(getCtbLog2SizeY() - getMinTbLog2SizeY());
+
+        scalingListEnabledFlag = stream.readFlag();
+        spsScalingListDataPresentFlag = scalingListEnabledFlag && stream.readFlag();
+        ScalingListData = spsScalingListDataPresentFlag ? new ScalingListData(stream) : null;
+
+        ampEnabledFlag = stream.readFlag();
+        sampleAdaptiveOffsetEnabledFlag = stream.readFlag();
+
+        pcmEnabledFlag = stream.readFlag();
+        if (pcmEnabledFlag) {
+            pcmSampleBitDepthLuma = stream.read(4) + 1;
+            pcmSampleBitDepthChroma = stream.read(4) + 1;
+            int maxLog2IpcmCbSize = Math.min(getCtbLog2SizeY(), MAX_LOG2_IPCM_CB_SIZE);
+            log2MinPcmLumaCodingBlockSizeMinus3 = stream.readUevAtMost(maxLog2IpcmCbSize - 3);
+            log2DiffMaxMinPcmLumaCodingBlockSize = stream.readUevAtMost(maxLog2IpcmCbSize - getLog2MinIpcmCbSizeY());
+            pcmLoopFilterDisabledFlag = stream.readFlag();
+            if (pcmSampleBitDepthLuma > getBitDepthY() || pcmSampleBitDepthChroma > getBitDepthC()) {
+                throw new HeicFormatException("PCM samples of %d/%d bits, deeper than the %d/%d-bit picture"
+                        .formatted(pcmSampleBitDepthLuma, pcmSampleBitDepthChroma, getBitDepthY(), getBitDepthC()));
+            }
+        } else {
+            pcmSampleBitDepthLuma = 0;
+            pcmSampleBitDepthChroma = 0;
+            log2MinPcmLumaCodingBlockSizeMinus3 = 0;
+            log2DiffMaxMinPcmLumaCodingBlockSize = 0;
+            pcmLoopFilterDisabledFlag = false;
+        }
+
+        numShortTermRefPicSets = stream.readUevAtMost(MAX_NUM_SHORT_TERM_REF_PIC_SETS);
+        for (int i = 0; i < numShortTermRefPicSets; i++) {
+            stRefPicSets.put(i, new StRefPicSet(stream, this, i));
+        }
+
+        longTermRefPicsPresentFlag = stream.readFlag();
+        numLongTermRefPicsSps = longTermRefPicsPresentFlag ? stream.readUevAtMost(MAX_NUM_LONG_TERM_REF_PICS_SPS) : 0;
+        ltRefPicPocLsbSps = new int[numLongTermRefPicsSps];
+        usedByCurrPicLtSpsFlag = new boolean[numLongTermRefPicsSps];
+        for (int i = 0; i < numLongTermRefPicsSps; i++) {
+            ltRefPicPocLsbSps[i] = stream.read(log2MaxPicOrderCntLsbMinus4 + 4);
+            usedByCurrPicLtSpsFlag[i] = stream.readFlag();
+        }
+
+        spsTemporalMvpEnabledFlag = stream.readFlag();
+        strongIntraSmoothingEnabledFlag = stream.readFlag();
+        boolean vuiParametersPresentFlag = stream.readFlag();
+        VuiParameters =
+                vuiParametersPresentFlag ? new VuiParameters(stream, spsMaxSubLayersMinus1) : new VuiParameters();
+
+        boolean spsExtensionPresentFlag = stream.readFlag();
+        boolean spsRangeExtensionFlag = false;
+        boolean spsMultilayerExtensionFlag = false;
+        boolean sps3dExtensionFlag = false;
+        boolean spsSccExtensionFlag = false;
+        if (spsExtensionPresentFlag) {
+            spsRangeExtensionFlag = stream.readFlag();
+            spsMultilayerExtensionFlag = stream.readFlag();
+            sps3dExtensionFlag = stream.readFlag();
+            spsSccExtensionFlag = stream.readFlag();
+            // sps_extension_4bits: the extension data after the extensions below is not read
+            stream.skipBits(4);
+        }
+        spsRangeExt = spsRangeExtensionFlag ? new SpsRangeExtension(stream) : new SpsRangeExtension();
+        if (spsMultilayerExtensionFlag) {
+            stream.skipBits(1); // sps_multilayer_extension( ) (Annex F): inter_view_mv_vert_constraint_flag
+        }
+        // sps_3d_extension( ) (Annex I) only matters to the layers above the base one, but it would have to be parsed
+        // to reach a screen content coding extension
+        if (sps3dExtensionFlag && spsSccExtensionFlag) {
+            throw new HeicFormatException("An SPS with both 3D and screen content coding extensions is not supported");
+        }
+        spsSccExt = spsSccExtensionFlag ? new SpsSccExtension(stream) : new SpsSccExtension();
+    }
+
+    private void checkBlockSizes() {
         if (getCtbLog2SizeY() < 4
                 || getMaxTbLog2SizeY() > getCtbLog2SizeY()
                 || getMinTbLog2SizeY() >= getMinCbLog2SizeY()) {
@@ -131,82 +197,11 @@ public class SeqParameterSetRbsp extends NalUnit {
                             1 << getMaxTbLog2SizeY()));
         }
         // the coded size is a whole number of minimum coding blocks (7.4.3.2.1), which prediction relies on
-        if (picWidthInLumaSamples % getMinCbSizeY() != 0 || picHeightInLumaSamples % getMinCbSizeY() != 0) {
+        int minCbSizeY = 1 << getMinCbLog2SizeY();
+        if (picWidthInLumaSamples % minCbSizeY != 0 || picHeightInLumaSamples % minCbSizeY != 0) {
             throw new HeicFormatException("A %dx%d picture is not made of whole %d-sample coding blocks"
-                    .formatted(picWidthInLumaSamples, picHeightInLumaSamples, getMinCbSizeY()));
+                    .formatted(picWidthInLumaSamples, picHeightInLumaSamples, minCbSizeY));
         }
-        maxTransformHierarchyDepthInter = stream.readUevAtMost(getCtbLog2SizeY() - getMinTbLog2SizeY()); // ue(v)
-        maxTransformHierarchyDepthIntra = stream.readUevAtMost(getCtbLog2SizeY() - getMinTbLog2SizeY()); // ue(v)
-
-        scalingListEnabledFlag = stream.readFlag(); // u(1)
-        if (scalingListEnabledFlag) {
-            spsScalingListDataPresentFlag = stream.readFlag(); // u(1)
-            if (spsScalingListDataPresentFlag) {
-                ScalingListData = new ScalingListData(stream);
-            }
-        }
-
-        ampEnabledFlag = stream.readFlag(); // u(1)
-        sampleAdaptiveOffsetEnabledFlag = stream.readFlag(); // u(1)
-
-        pcmEnabledFlag = stream.readFlag(); // u(1)
-        if (pcmEnabledFlag) {
-            pcmSampleBitDepthLuma = (byte) (stream.read(4) + 1); // u(4)
-            pcmSampleBitDepthChroma = (byte) (stream.read(4) + 1); // u(4)
-            log2MinPcmLumaCodingBlockSizeMinus3 = (byte) stream.readUev(); // ue(v)
-            log2DiffMaxMinPcmLumaCodingBlockSize = (byte) stream.readUev(); // ue(v)
-            pcmLoopFilterDisabledFlag = stream.readFlag(); // u(1)
-        }
-
-        numShortTermRefPicSets = stream.readUevAtMost(64); // ue(v)
-
-        stRefPicSets = new HashMap<>();
-        for (int i = 0; i < numShortTermRefPicSets; i++) {
-            stRefPicSets.put(i, new StRefPicSet(stream, this, i));
-        }
-
-        longTermRefPicsPresentFlag = stream.readFlag(); // u(1)
-        if (longTermRefPicsPresentFlag) {
-            numLongTermRefPicsSps = stream.readUevAtMost(32); // ue(v)
-            ltRefPicPocLsbSps = new int[numLongTermRefPicsSps];
-            usedByCurrPicLtSpsFlag = new boolean[numLongTermRefPicsSps];
-            for (int i = 0; i < numLongTermRefPicsSps; i++) {
-                ltRefPicPocLsbSps[i] = stream.read(log2MaxPicOrderCntLsbMinus4 + 4); // u(v)
-                usedByCurrPicLtSpsFlag[i] = stream.readFlag(); // u(1)
-            }
-        }
-
-        spsTemporalMvpEnabledFlag = stream.readFlag(); // u(1)
-        strongIntraSmoothingEnabledFlag = stream.readFlag(); // u(1)
-        vuiParametersPresentFlag = stream.readFlag(); // u(1)
-        if (vuiParametersPresentFlag) {
-            VuiParameters = new VuiParameters(stream, spsMaxSubLayersMinus1);
-        } else {
-            VuiParameters = new VuiParameters();
-        }
-
-        spsExtensionPresentFlag = stream.readFlag(); // u(1)
-        if (spsExtensionPresentFlag) {
-            spsRangeExtensionFlag = stream.readFlag(); // u(1)
-            spsMultilayerExtensionFlag = stream.readFlag(); // u(1)
-            sps3dExtensionFlag = stream.readFlag(); // u(1)
-            spsSccExtensionFlag = stream.readFlag(); // u(1)
-            spsExtension4bits = (byte) stream.read(4); // u(4)
-        }
-
-        spsRangeExt = spsRangeExtensionFlag ? new SpsRangeExtension(stream) : new SpsRangeExtension();
-
-        if (spsMultilayerExtensionFlag) {
-            spsMultilayerExt = new SpsMultilayerExtension(stream); /* specified in Annex F */
-        }
-
-        if (sps3dExtensionFlag) {
-            sps3dExt = new Sps3dExtension(stream); /* specified in Annex I */
-        }
-
-        spsSccExt = spsSccExtensionFlag
-                ? new SpsSccExtension(stream, chromaFormatIdc, bitDepthLumaMinus8, bitDepthChromaMinus8)
-                : new SpsSccExtension();
     }
 
     @Override
@@ -214,10 +209,11 @@ public class SeqParameterSetRbsp extends NalUnit {
         return "NAL Unit SPS %dx%d, bit depth %d/%d"
                 .formatted(picWidthInLumaSamples, picHeightInLumaSamples, getBitDepthY(), getBitDepthC());
     }
+
     /**
      * 0 for monochrome (or separately coded colour planes), 1 for 4:2:0, 2 for 4:2:2, 3 for 4:4:4.
      */
-    public final int getChromaArrayType() {
+    final int getChromaArrayType() {
         return separateColourPlaneFlag ? 0 : chromaFormatIdc;
     }
 
@@ -237,129 +233,96 @@ public class SeqParameterSetRbsp extends NalUnit {
         return stRefPicSets.get(stRpsIdx).getUsedByCurrPicS1();
     }
 
-    public final int getSubWidthC() {
+    final int getSubWidthC() {
         return chromaFormatIdc == 1 || chromaFormatIdc == 2 ? 2 : 1;
     }
 
-    public final int getSubHeightC() {
+    final int getSubHeightC() {
         return chromaFormatIdc == 1 ? 2 : 1;
     }
 
-    public final int getMinCbLog2SizeY() {
+    final int getMinCbLog2SizeY() {
         return log2MinLumaCodingBlockSizeMinus3 + 3;
     }
 
-    public final int getCtbLog2SizeY() {
-        return getMinCbLog2SizeY() + log2DiffMaxMinLumaCodingBlockSize;
-    }
-
-    public final int getMinCbSizeY() {
+    final int getMinCbSizeY() {
         return 1 << getMinCbLog2SizeY();
     }
 
-    public final int getCtbSizeY() {
+    final int getCtbLog2SizeY() {
+        return getMinCbLog2SizeY() + log2DiffMaxMinLumaCodingBlockSize;
+    }
+
+    final int getCtbSizeY() {
         return 1 << getCtbLog2SizeY();
     }
 
-    public final int getCtbWidthC() {
-        return getChromaArrayType() == 0 ? 0 : getCtbSizeY() / getSubWidthC();
-    }
-
-    public final int getCtbHeightC() {
-        return getChromaArrayType() == 0 ? 0 : getCtbSizeY() / getSubHeightC();
-    }
-
-    public final int getPicWidthInMinCbsY() {
-        return picWidthInLumaSamples / getMinCbSizeY();
-    }
-
-    public final int getPicWidthInCtbsY() {
+    final int getPicWidthInCtbsY() {
         return (picWidthInLumaSamples + getCtbSizeY() - 1) / getCtbSizeY();
     }
 
-    public final int getPicHeightInMinCbsY() {
-        return picHeightInLumaSamples / getMinCbSizeY();
-    }
-
-    public final int getPicHeightInCtbsY() {
+    final int getPicHeightInCtbsY() {
         return (picHeightInLumaSamples + getCtbSizeY() - 1) / getCtbSizeY();
     }
 
-    public final int getPicSizeInMinCbsY() {
-        return getPicWidthInMinCbsY() * getPicHeightInMinCbsY();
-    }
-
-    public final int getPicSizeInCtbsY() {
+    final int getPicSizeInCtbsY() {
         return getPicWidthInCtbsY() * getPicHeightInCtbsY();
     }
 
-    public final long getPicSizeInSamplesY() {
-        return (long) picWidthInLumaSamples * picHeightInLumaSamples;
-    }
-
-    public final int getPicWidthInSamplesC() {
-        return picWidthInLumaSamples / getSubWidthC();
-    }
-
-    public final int getPicHeightInSamplesC() {
-        return picHeightInLumaSamples / getSubHeightC();
-    }
-
-    public final int getBitDepthY() {
+    final int getBitDepthY() {
         return 8 + bitDepthLumaMinus8;
     }
 
-    public final int getQpBdOffsetY() {
+    final int getQpBdOffsetY() {
         return 6 * bitDepthLumaMinus8;
     }
 
-    public final int getBitDepthC() {
+    final int getBitDepthC() {
         return 8 + bitDepthChromaMinus8;
     }
 
-    public final int getQpBdOffsetC() {
+    final int getQpBdOffsetC() {
         return 6 * bitDepthChromaMinus8;
     }
 
-    public final int getMinTbLog2SizeY() {
+    final int getMinTbLog2SizeY() {
         return log2MinLumaTransformBlockSizeMinus2 + 2;
     }
 
-    public final int getMaxTbLog2SizeY() {
+    final int getMaxTbLog2SizeY() {
         return getMinTbLog2SizeY() + log2DiffMaxMinLumaTransformBlockSize;
     }
 
-    public final int getMinTbSizeY() {
-        return 1 << getMinTbLog2SizeY();
-    }
-
-    public final int getMaxPicOrderCntLsb() {
+    final int getMaxPicOrderCntLsb() {
         return 1 << (log2MaxPicOrderCntLsbMinus4 + 4);
     }
 
-    public final int getLog2MinIpcmCbSizeY() {
-        return (log2MinPcmLumaCodingBlockSizeMinus3 & 0xFF) + 3;
+    final int getLog2MinIpcmCbSizeY() {
+        return log2MinPcmLumaCodingBlockSizeMinus3 + 3;
     }
 
-    public final int getLog2MaxIpcmCbSizeY() {
-        return (log2DiffMaxMinPcmLumaCodingBlockSize & 0xFF) + getLog2MinIpcmCbSizeY();
+    final int getLog2MaxIpcmCbSizeY() {
+        return getLog2MinIpcmCbSizeY() + log2DiffMaxMinPcmLumaCodingBlockSize;
     }
 
-    public final int getCoeffMinY() {
-        return -(1 << (spsRangeExt.extendedPrecisionProcessingFlag ? Math.max(15, (getBitDepthY() & 0xFF) + 6) : 15));
+    final int getCoeffMinY() {
+        return -(1 << getCoeffLog2Range(getBitDepthY()));
     }
 
-    public final int getCoeffMinC() {
-        return -(1 << (spsRangeExt.extendedPrecisionProcessingFlag ? Math.max(15, (getBitDepthC() & 0xFF) + 6) : 15));
+    final int getCoeffMinC() {
+        return -(1 << getCoeffLog2Range(getBitDepthC()));
     }
 
-    public final int getCoeffMaxY() {
-        return (1 << (spsRangeExt.extendedPrecisionProcessingFlag ? Math.max(15, (getBitDepthY() & 0xFF) + 6) : 15))
-                - 1;
+    final int getCoeffMaxY() {
+        return (1 << getCoeffLog2Range(getBitDepthY())) - 1;
     }
 
-    public final int getCoeffMaxC() {
-        return (1 << (spsRangeExt.extendedPrecisionProcessingFlag ? Math.max(15, (getBitDepthC() & 0xFF) + 6) : 15))
-                - 1;
+    final int getCoeffMaxC() {
+        return (1 << getCoeffLog2Range(getBitDepthC())) - 1;
+    }
+
+    // CoeffMinY and CoeffMinC are -(1 << this), CoeffMaxY and CoeffMaxC (1 << this) - 1
+    private int getCoeffLog2Range(int bitDepth) {
+        return spsRangeExt.extendedPrecisionProcessingFlag ? Math.max(15, bitDepth + 6) : 15;
     }
 }

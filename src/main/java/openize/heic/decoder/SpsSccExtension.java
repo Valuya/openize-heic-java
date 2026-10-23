@@ -12,38 +12,41 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+/**
+ * sps_scc_extension( ) (7.3.2.2.3); no screen content coding tools for a sequence parameter set without one.
+ */
 class SpsSccExtension {
-    final boolean spsCurrPicRefEnabledFlag;
-    final boolean paletteModeEnabledFlag;
-    int paletteMaxSize;
-    int deltaPaletteMaxPredictorSize;
-    boolean spsPalettePredictorInitializersPresentFlag;
-    byte motionVectorResolutionControlIdc;
-    boolean intraBoundaryFilteringDisabledFlag;
+    // PaletteMaxSize at most 64, PaletteMaxPredictorSize at most 128 (7.4.3.3.8)
+    private static final int MAX_PALETTE_SIZE = 64;
+    private static final int MAX_PALETTE_PREDICTOR_SIZE = 128;
 
-    public SpsSccExtension(
-            BitStreamWithNalSupport stream, int chromaFormatIdc, int bitDepthLumaMinus8, int bitDepthChromaMinus8) {
-        spsCurrPicRefEnabledFlag = stream.readFlag(); // u(1)
-        paletteModeEnabledFlag = stream.readFlag(); // u(1)
+    final boolean paletteModeEnabledFlag;
+    final int paletteMaxSize;
+    final int motionVectorResolutionControlIdc;
+    final boolean intraBoundaryFilteringDisabledFlag;
+
+    SpsSccExtension() {
+        paletteModeEnabledFlag = false;
+        paletteMaxSize = 0;
+        motionVectorResolutionControlIdc = 0;
+        intraBoundaryFilteringDisabledFlag = false;
+    }
+
+    SpsSccExtension(BitStreamWithNalSupport stream) {
+        stream.skipBits(1); // sps_curr_pic_ref_enabled_flag: the PPS flag is the one slices use
+        paletteModeEnabledFlag = stream.readFlag();
         if (paletteModeEnabledFlag) {
-            // PaletteMaxSize at most 64, PaletteMaxPredictorSize at most 128 (7.4.3.3.8)
-            paletteMaxSize = stream.readUevAtMost(64); // ue(v)
-            deltaPaletteMaxPredictorSize = stream.readUevAtMost(128 - paletteMaxSize); // ue(v)
-            spsPalettePredictorInitializersPresentFlag = stream.readFlag(); // u(1)
+            paletteMaxSize = stream.readUevAtMost(MAX_PALETTE_SIZE);
+            stream.readUevAtMost(MAX_PALETTE_PREDICTOR_SIZE - paletteMaxSize); // delta_palette_max_predictor_size
+            boolean spsPalettePredictorInitializersPresentFlag = stream.readFlag();
             if (spsPalettePredictorInitializersPresentFlag) {
                 // they would seed the palette predictor, which this decoder starts empty
                 throw new HeicFormatException("SPS palette predictor initializers are not supported");
             }
+        } else {
+            paletteMaxSize = 0;
         }
-        motionVectorResolutionControlIdc = (byte) stream.read(2); // u(2)
-        intraBoundaryFilteringDisabledFlag = stream.readFlag(); // u(1)
-    }
-
-    /**
-     * The extension of a sequence parameter set without one: no screen content coding tools.
-     */
-    public SpsSccExtension() {
-        spsCurrPicRefEnabledFlag = false;
-        paletteModeEnabledFlag = false;
+        motionVectorResolutionControlIdc = stream.read(2);
+        intraBoundaryFilteringDisabledFlag = stream.readFlag();
     }
 }
