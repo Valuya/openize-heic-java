@@ -10,661 +10,379 @@
 
 package openize.heic.decoder;
 
+import com.drew.metadata.Directory;
+import com.drew.metadata.ErrorDirectory;
+import com.drew.metadata.adobe.AdobeJpegDirectory;
+import com.drew.metadata.avi.AviDirectory;
+import com.drew.metadata.bmp.BmpHeaderDirectory;
+import com.drew.metadata.eps.EpsDirectory;
+import com.drew.metadata.exif.ExifIFD0Directory;
+import com.drew.metadata.exif.ExifImageDirectory;
+import com.drew.metadata.exif.ExifInteropDirectory;
+import com.drew.metadata.exif.ExifSubIFDDirectory;
+import com.drew.metadata.exif.ExifThumbnailDirectory;
+import com.drew.metadata.exif.GpsDirectory;
+import com.drew.metadata.exif.PanasonicRawDistortionDirectory;
+import com.drew.metadata.exif.PanasonicRawIFD0Directory;
+import com.drew.metadata.exif.PanasonicRawWbInfo2Directory;
+import com.drew.metadata.exif.PanasonicRawWbInfoDirectory;
+import com.drew.metadata.exif.PrintIMDirectory;
+import com.drew.metadata.exif.makernotes.AppleMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.CanonMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.CasioType1MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.CasioType2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.FujifilmMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.KodakMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.KyoceraMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.LeicaMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.LeicaType5MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.NikonPictureControl1Directory;
+import com.drew.metadata.exif.makernotes.NikonPictureControl2Directory;
+import com.drew.metadata.exif.makernotes.NikonType1MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.NikonType2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusCameraSettingsMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusEquipmentMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusFocusInfoMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusImageProcessingMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusRawDevelopment2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusRawDevelopmentMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.OlympusRawInfoMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.PanasonicMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.PentaxMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.ReconyxHyperFire2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.ReconyxHyperFireMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.ReconyxUltraFireMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.RicohMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SamsungType2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SanyoMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SigmaMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SonyType1MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.SonyType6MakernoteDirectory;
+import com.drew.metadata.file.FileTypeDirectory;
+import com.drew.metadata.gif.GifAnimationDirectory;
+import com.drew.metadata.gif.GifCommentDirectory;
+import com.drew.metadata.gif.GifControlDirectory;
+import com.drew.metadata.gif.GifHeaderDirectory;
+import com.drew.metadata.gif.GifImageDirectory;
+import com.drew.metadata.icc.IccDirectory;
+import com.drew.metadata.ico.IcoDirectory;
+import com.drew.metadata.iptc.IptcDirectory;
+import com.drew.metadata.jfif.JfifDirectory;
+import com.drew.metadata.jfxx.JfxxDirectory;
+import com.drew.metadata.jpeg.HuffmanTablesDirectory;
+import com.drew.metadata.jpeg.JpegCommentDirectory;
+import com.drew.metadata.jpeg.JpegDirectory;
+import com.drew.metadata.mp3.Mp3Directory;
+import com.drew.metadata.pcx.PcxDirectory;
+import com.drew.metadata.photoshop.DuckyDirectory;
+import com.drew.metadata.photoshop.PhotoshopDirectory;
+import com.drew.metadata.photoshop.PsdHeaderDirectory;
+import com.drew.metadata.png.PngChromaticitiesDirectory;
+import com.drew.metadata.png.PngDirectory;
+import com.drew.metadata.webp.WebpDirectory;
+import com.drew.metadata.xmp.XmpDirectory;
+import java.util.Optional;
+import org.jspecify.annotations.Nullable;
+
 /**
- * <p>
- * Type of an exif directory.
- * </p>
+ * A directory of Exif metadata, as metadata-extractor reads it. A type without a metadata-extractor directory class
+ * cannot be looked up.
  */
 public enum ExifDirectoryType {
-    /**
-     * <p>
-     * IFD0 directory.
-     * </p>
-     */
-    ExifIfd0Directory,
+    /** IFD0 directory. */
+    ExifIfd0Directory(ExifIFD0Directory.class),
 
-    /**
-     * <p>
-     * One of several Exif directories.
-     * Holds information about image IFD's in a chain after the first.
-     * </p>
-     */
-    ExifImageDirectory,
+    /** One of several Exif directories. Holds information about image IFD's in a chain after the first. */
+    ExifImageDirectory(ExifImageDirectory.class),
 
-    /**
-     * <p>
-     * Exif interoperability tags directory.
-     * </p>
-     */
-    ExifInteropDirectory,
+    /** Exif interoperability tags directory. */
+    ExifInteropDirectory(ExifInteropDirectory.class),
 
-    /**
-     * <p>
-     * SubIFD directory.
-     * </p>
-     */
-    ExifSubIfdDirectory,
+    /** SubIFD directory. */
+    ExifSubIfdDirectory(ExifSubIFDDirectory.class),
 
-    /**
-     * <p>
-     * IFD1 directory. Holds information about an embedded thumbnail image.
-     * </p>
-     */
-    ExifThumbnailDirectory,
+    /** IFD1 directory. Holds information about an embedded thumbnail image. */
+    ExifThumbnailDirectory(ExifThumbnailDirectory.class),
 
-    /**
-     * <p>
-     * GPS Exif tags directory.
-     * </p>
-     */
-    GpsDirectory,
+    /** GPS Exif tags directory. */
+    GpsDirectory(GpsDirectory.class),
 
-    /**
-     * <p>
-     * Directory for image encoding information for DCT filters, as stored by Adobe.
-     * </p>
-     */
-    AdobeJpegDirectory,
+    /** Directory for image encoding information for DCT filters, as stored by Adobe. */
+    AdobeJpegDirectory(AdobeJpegDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Apple cameras.
-     * </p>
-     */
-    AppleMakernoteDirectory,
+    /** Directory for tags specific to Apple cameras. */
+    AppleMakernoteDirectory(AppleMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Avi files.
-     * </p>
-     */
-    AviDirectory,
+    /** Directory for basic metadata for Avi files. */
+    AviDirectory(AviDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Bmp files.
-     * </p>
-     */
-    BmpHeaderDirectory,
+    /** Directory for basic metadata for Bmp files. */
+    BmpHeaderDirectory(BmpHeaderDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Canon cameras.
-     * </p>
-     */
-    CanonMakernoteDirectory,
+    /** Directory for tags specific to Canon cameras. */
+    CanonMakernoteDirectory(CanonMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Casio (type 1) cameras.
-     * </p>
-     */
-    CasioType1MakernoteDirectory,
+    /** Directory for tags specific to Casio (type 1) cameras. */
+    CasioType1MakernoteDirectory(CasioType1MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Casio (type 2) cameras.
-     * </p>
-     */
-    CasioType2MakernoteDirectory,
+    /** Directory for tags specific to Casio (type 2) cameras. */
+    CasioType2MakernoteDirectory(CasioType2MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to DJI aircraft cameras.
-     * </p>
-     */
+    /** Directory for tags specific to DJI aircraft cameras. */
     DjiMakernoteDirectory,
 
-    /**
-     * <p>
-     * Directory for tags from Photoshop "ducky" segments.
-     * </p>
-     */
-    DuckyDirectory,
+    /** Directory for tags from Photoshop "ducky" segments. */
+    DuckyDirectory(DuckyDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Eps files.
-     * </p>
-     */
-    EpsDirectory,
+    /** Directory for basic metadata for Eps files. */
+    EpsDirectory(EpsDirectory.class),
 
-    /**
-     * <p>
-     * Directory for the reporting of errors.
-     * </p>
-     */
-    ErrorDirectory,
+    /** Directory for the reporting of errors. */
+    ErrorDirectory(ErrorDirectory.class),
 
-    /**
-     * <p>
-     * Directory for OS tags.
-     * </p>
-     */
+    /** Directory for OS tags. */
     FileMetadataDirectory,
 
-    /**
-     * <p>
-     * Directory for tags derived from filename.
-     * </p>
-     */
-    FileTypeDirectory,
+    /** Directory for tags derived from filename. */
+    FileTypeDirectory(FileTypeDirectory.class),
 
-    /**
-     * <p>
-     * Directory for camera info tags specific to FLIR cameras.
-     * </p>
-     */
+    /** Directory for camera info tags specific to FLIR cameras. */
     FlirCameraInfoDirectory,
 
-    /**
-     * <p>
-     * Directory for header tags specific to FLIR cameras.
-     * </p>
-     */
+    /** Directory for header tags specific to FLIR cameras. */
     FlirHeaderDirectory,
 
-    /**
-     * <p>
-     * Directory for tags specific to FLIR cameras.
-     * </p>
-     */
+    /** Directory for tags specific to FLIR cameras. */
     FlirMakernoteDirectory,
 
-    /**
-     * <p>
-     * Directory for raw tags specific to FLIR cameras.
-     * </p>
-     */
+    /** Directory for raw tags specific to FLIR cameras. */
     FlirRawDataDirectory,
 
-    /**
-     * <p>
-     * Directory for tags specific to Fujifilm cameras.
-     * </p>
-     */
-    FujifilmMakernoteDirectory,
+    /** Directory for tags specific to Fujifilm cameras. */
+    FujifilmMakernoteDirectory(FujifilmMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tiff geo tags.
-     * </p>
-     */
+    /** Directory for tiff geo tags. */
     GeoTiffDirectory,
 
-    /**
-     * <p>
-     * Directory for animation metadata for Gif files.
-     * </p>
-     */
-    GifAnimationDirectory,
+    /** Directory for animation metadata for Gif files. */
+    GifAnimationDirectory(GifAnimationDirectory.class),
 
-    /**
-     * <p>
-     * Directory for comment metadata for Gif files.
-     * </p>
-     */
-    GifCommentDirectory,
+    /** Directory for comment metadata for Gif files. */
+    GifCommentDirectory(GifCommentDirectory.class),
 
-    /**
-     * <p>
-     * Directory for control metadata for Gif files.
-     * </p>
-     */
-    GifControlDirectory,
+    /** Directory for control metadata for Gif files. */
+    GifControlDirectory(GifControlDirectory.class),
 
-    /**
-     * <p>
-     * Directory for header metadata for Gif files.
-     * </p>
-     */
-    GifHeaderDirectory,
+    /** Directory for header metadata for Gif files. */
+    GifHeaderDirectory(GifHeaderDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Gif files.
-     * </p>
-     */
-    GifImageDirectory,
+    /** Directory for basic metadata for Gif files. */
+    GifImageDirectory(GifImageDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Heic files.
-     * </p>
-     */
+    /** Directory for basic metadata for Heic files. */
     HeicImagePropertiesDirectory,
 
-    /**
-     * <p>
-     * Directory for basic metadata for Heic thumbnails.
-     * </p>
-     */
+    /** Directory for basic metadata for Heic thumbnails. */
     HeicThumbnailDirectory,
 
-    /**
-     * <p>
-     * Directory of tables for the DHT (Define Huffman Table(s)) segment.
-     * </p>
-     */
-    HuffmanTablesDirectory,
+    /** Directory of tables for the DHT (Define Huffman Table(s)) segment. */
+    HuffmanTablesDirectory(HuffmanTablesDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Icc files.
-     * </p>
-     */
-    IccDirectory,
+    /** Directory for basic metadata for Icc files. */
+    IccDirectory(IccDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Ico files.
-     * </p>
-     */
-    IcoDirectory,
+    /** Directory for basic metadata for Ico files. */
+    IcoDirectory(IcoDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags used by the International Press Telecommunications Council (IPTC) metadata format.
-     * </p>
-     */
-    IptcDirectory,
+    /** Directory for tags used by the International Press Telecommunications Council (IPTC) metadata format. */
+    IptcDirectory(IptcDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Jfif files.
-     * </p>
-     */
-    JfifDirectory,
+    /** Directory for basic metadata for Jfif files. */
+    JfifDirectory(JfifDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Jfxx files.
-     * </p>
-     */
-    JfxxDirectory,
+    /** Directory for basic metadata for Jfxx files. */
+    JfxxDirectory(JfxxDirectory.class),
 
-    /**
-     * <p>
-     * Directory for comment metadata for Jpeg files.
-     * </p>
-     */
-    JpegCommentDirectory,
+    /** Directory for comment metadata for Jpeg files. */
+    JpegCommentDirectory(JpegCommentDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Jpeg files.
-     * </p>
-     */
-    JpegDirectory,
+    /** Directory for basic metadata for Jpeg files. */
+    JpegDirectory(JpegDirectory.class),
 
-    /**
-     * <p>
-     * Directory for DNL metadata for Jpeg files.
-     * </p>
-     */
+    /** Directory for DNL metadata for Jpeg files. */
     JpegDnlDirectory,
 
-    /**
-     * <p>
-     * Directory for tags specific to Kodak cameras.
-     * </p>
-     */
-    KodakMakernoteDirectory,
+    /** Directory for tags specific to Kodak cameras. */
+    KodakMakernoteDirectory(KodakMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Kyocera cameras.
-     * </p>
-     */
-    KyoceraMakernoteDirectory,
+    /** Directory for tags specific to Kyocera cameras. */
+    KyoceraMakernoteDirectory(KyoceraMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Leica cameras.
-     * </p>
-     */
-    LeicaMakernoteDirectory,
+    /** Directory for tags specific to Leica cameras. */
+    LeicaMakernoteDirectory(LeicaMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Leica (type 5) cameras.
-     * </p>
-     */
-    LeicaType5MakernoteDirectory,
+    /** Directory for tags specific to Leica (type 5) cameras. */
+    LeicaType5MakernoteDirectory(LeicaType5MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Mp3 files.
-     * </p>
-     */
-    Mp3Directory,
+    /** Directory for basic metadata for Mp3 files. */
+    Mp3Directory(Mp3Directory.class),
 
-    /**
-     * <p>
-     * Directory for header metadata for Netpbm files.
-     * </p>
-     */
+    /** Directory for header metadata for Netpbm files. */
     NetpbmHeaderDirectory,
 
-    /**
-     * <p>
-     * Directory for picture control tags specific to Nikon (type 1) cameras.
-     * </p>
-     */
-    NikonPictureControl1Directory,
+    /** Directory for picture control tags specific to Nikon (type 1) cameras. */
+    NikonPictureControl1Directory(NikonPictureControl1Directory.class),
 
-    /**
-     * <p>
-     * Directory for picture control tags specific to Nikon (type 1) cameras.
-     * </p>
-     */
-    NikonPictureControl2Directory,
+    /** Directory for picture control tags specific to Nikon (type 1) cameras. */
+    NikonPictureControl2Directory(NikonPictureControl2Directory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Nikon (type 1) cameras.
-     * </p>
-     */
-    NikonType1MakernoteDirectory,
+    /** Directory for tags specific to Nikon (type 1) cameras. */
+    NikonType1MakernoteDirectory(NikonType1MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Nikon (type 1) cameras.
-     * </p>
-     */
-    NikonType2MakernoteDirectory,
+    /** Directory for tags specific to Nikon (type 1) cameras. */
+    NikonType2MakernoteDirectory(NikonType2MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for camera settings tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusCameraSettingsMakernoteDirectory,
+    /** Directory for camera settings tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusCameraSettingsMakernoteDirectory(OlympusCameraSettingsMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for equipment tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusEquipmentMakernoteDirectory,
+    /** Directory for equipment tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusEquipmentMakernoteDirectory(OlympusEquipmentMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for focus info tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusFocusInfoMakernoteDirectory,
+    /** Directory for focus info tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusFocusInfoMakernoteDirectory(OlympusFocusInfoMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for image processing tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusImageProcessingMakernoteDirectory,
+    /** Directory for image processing tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusImageProcessingMakernoteDirectory(OlympusImageProcessingMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusMakernoteDirectory,
+    /** Directory for tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusMakernoteDirectory(OlympusMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for raw development 2 makernotes specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusRawDevelopment2MakernoteDirectory,
+    /** Directory for raw development 2 makernotes specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusRawDevelopment2MakernoteDirectory(OlympusRawDevelopment2MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for raw development 2 makernotes specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusRawDevelopmentMakernoteDirectory,
+    /** Directory for raw development 2 makernotes specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusRawDevelopmentMakernoteDirectory(OlympusRawDevelopmentMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for raw info makernotes tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...).
-     * </p>
-     */
-    OlympusRawInfoMakernoteDirectory,
+    /** Directory for raw info makernotes tags specific to Olympus cameras (Epson, Konica, Minolta and Agfa...). */
+    OlympusRawInfoMakernoteDirectory(OlympusRawInfoMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Panasonic cameras.
-     * </p>
-     */
-    PanasonicMakernoteDirectory,
+    /** Directory for tags specific to Panasonic cameras. */
+    PanasonicMakernoteDirectory(PanasonicMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for raw distortion tags specific to Panasonic cameras.
-     * </p>
-     */
-    PanasonicRawDistortionDirectory,
+    /** Directory for raw distortion tags specific to Panasonic cameras. */
+    PanasonicRawDistortionDirectory(PanasonicRawDistortionDirectory.class),
 
-    /**
-     * <p>
-     * Directory for raw Ifd0 tags specific to Panasonic cameras.
-     * </p>
-     */
-    PanasonicRawIfd0Directory,
+    /** Directory for raw Ifd0 tags specific to Panasonic cameras. */
+    PanasonicRawIfd0Directory(PanasonicRawIFD0Directory.class),
 
-    /**
-     * <p>
-     * Directory for raw info tags specific to Panasonic cameras.
-     * </p>
-     */
-    PanasonicRawWbInfo2Directory,
+    /** Directory for raw info tags specific to Panasonic cameras. */
+    PanasonicRawWbInfo2Directory(PanasonicRawWbInfo2Directory.class),
 
-    /**
-     * <p>
-     * Directory for raw info tags specific to Panasonic cameras.
-     * </p>
-     */
-    PanasonicRawWbInfoDirectory,
+    /** Directory for raw info tags specific to Panasonic cameras. */
+    PanasonicRawWbInfoDirectory(PanasonicRawWbInfoDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Pcx files.
-     * </p>
-     */
-    PcxDirectory,
+    /** Directory for basic metadata for Pcx files. */
+    PcxDirectory(PcxDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Pentax cameras.
-     * </p>
-     */
-    PentaxMakernoteDirectory,
+    /** Directory for tags specific to Pentax cameras. */
+    PentaxMakernoteDirectory(PentaxMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Pentax (type 2) cameras.
-     * </p>
-     */
+    /** Directory for tags specific to Pentax (type 2) cameras. */
     PentaxType2MakernoteDirectory,
 
-    /**
-     * <p>
-     * Directory for the metadata found in the APPD segment of a JPEG file saved by Photoshop.
-     * </p>
-     */
-    PhotoshopDirectory,
+    /** Directory for the metadata found in the APPD segment of a JPEG file saved by Photoshop. */
+    PhotoshopDirectory(PhotoshopDirectory.class),
 
-    /**
-     * <p>
-     * Directory for chromaticities metadata for Png files.
-     * </p>
-     */
-    PngChromaticitiesDirectory,
+    /** Directory for chromaticities metadata for Png files. */
+    PngChromaticitiesDirectory(PngChromaticitiesDirectory.class),
 
-    /**
-     * <p>
-     * Directory for basic metadata for Png files.
-     * </p>
-     */
-    PngDirectory,
+    /** Directory for basic metadata for Png files. */
+    PngDirectory(PngDirectory.class),
 
-    /**
-     * <p>
-     * Directory for Epson proprietary metadata.
-     * </p>
-     */
-    PrintIMDirectory,
+    /** Directory for Epson proprietary metadata. */
+    PrintIMDirectory(PrintIMDirectory.class),
 
-    /**
-     * <p>
-     * Directory for header metadata for Psd files.
-     * </p>
-     */
-    PsdHeaderDirectory,
+    /** Directory for header metadata for Psd files. */
+    PsdHeaderDirectory(PsdHeaderDirectory.class),
 
-    /**
-     * <p>
-     * Directory for QuickTime file type metadata.
-     * </p>
-     */
+    /** Directory for QuickTime file type metadata. */
     QuickTimeFileTypeDirectory,
 
-    /**
-     * <p>
-     * Directory for QuickTime metadata header tags.
-     * </p>
-     */
+    /** Directory for QuickTime metadata header tags. */
     QuickTimeMetadataHeaderDirectory,
 
-    /**
-     * <p>
-     * Directory for QuickTime movie header tags.
-     * </p>
-     */
+    /** Directory for QuickTime movie header tags. */
     QuickTimeMovieHeaderDirectory,
 
-    /**
-     * <p>
-     * Directory for QuickTime track header metadata.
-     * </p>
-     */
+    /** Directory for QuickTime track header metadata. */
     QuickTimeTrackHeaderDirectory,
 
-    /**
-     * <p>
-     * Directory for tags specific to Reconyx HyperFire 2 cameras.
-     * </p>
-     */
-    ReconyxHyperFire2MakernoteDirectory,
+    /** Directory for tags specific to Reconyx HyperFire 2 cameras. */
+    ReconyxHyperFire2MakernoteDirectory(ReconyxHyperFire2MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Reconyx HyperFire cameras.
-     * </p>
-     */
-    ReconyxHyperFireMakernoteDirectory,
+    /** Directory for tags specific to Reconyx HyperFire cameras. */
+    ReconyxHyperFireMakernoteDirectory(ReconyxHyperFireMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Reconyx UltraFire cameras.
-     * </p>
-     */
-    ReconyxUltraFireMakernoteDirectory,
+    /** Directory for tags specific to Reconyx UltraFire cameras. */
+    ReconyxUltraFireMakernoteDirectory(ReconyxUltraFireMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Ricoh cameras.
-     * </p>
-     */
-    RicohMakernoteDirectory,
+    /** Directory for tags specific to Ricoh cameras. */
+    RicohMakernoteDirectory(RicohMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to certain 'newer' Samsung cameras.
-     * </p>
-     */
-    SamsungType2MakernoteDirectory,
+    /** Directory for tags specific to certain 'newer' Samsung cameras. */
+    SamsungType2MakernoteDirectory(SamsungType2MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Sanyo cameras.
-     * </p>
-     */
-    SanyoMakernoteDirectory,
+    /** Directory for tags specific to Sanyo cameras. */
+    SanyoMakernoteDirectory(SanyoMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Sigma cameras.
-     * </p>
-     */
-    SigmaMakernoteDirectory,
+    /** Directory for tags specific to Sigma cameras. */
+    SigmaMakernoteDirectory(SigmaMakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Sony (type 1) cameras.
-     * </p>
-     */
-    SonyType1MakernoteDirectory,
+    /** Directory for tags specific to Sony (type 1) cameras. */
+    SonyType1MakernoteDirectory(SonyType1MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for tags specific to Sony (type 6) cameras.
-     * </p>
-     */
-    SonyType6MakernoteDirectory,
+    /** Directory for tags specific to Sony (type 6) cameras. */
+    SonyType6MakernoteDirectory(SonyType6MakernoteDirectory.class),
 
-    /**
-     * <p>
-     * Directory for developer metadata for Tga files.
-     * </p>
-     */
+    /** Directory for developer metadata for Tga files. */
     TgaDeveloperDirectory,
 
-    /**
-     * <p>
-     * Directory for extention metadata for Tga files.
-     * </p>
-     */
+    /** Directory for extention metadata for Tga files. */
     TgaExtensionDirectory,
 
-    /**
-     * <p>
-     * Directory for header metadata for Tga files.
-     * </p>
-     */
+    /** Directory for header metadata for Tga files. */
     TgaHeaderDirectory,
 
-    /**
-     * <p>
-     * Directory for fact metadata for Wav files.
-     * </p>
-     */
+    /** Directory for fact metadata for Wav files. */
     WavFactDirectory,
 
-    /**
-     * <p>
-     * Directory for format metadata for Wav files.
-     * </p>
-     */
+    /** Directory for format metadata for Wav files. */
     WavFormatDirectory,
 
-    /**
-     * <p>
-     * Directory for basic metadata for WebP files.
-     * </p>
-     */
-    WebPDirectory,
+    /** Directory for basic metadata for WebP files. */
+    WebPDirectory(WebpDirectory.class),
+
+    /** Directory for basic metadata for Xmp files. */
+    XmpDirectory(XmpDirectory.class),
+
+    /** Undefined directory. */
+    Undefined;
+
+    private final @Nullable Class<? extends Directory> directoryClass;
+
+    ExifDirectoryType() {
+        directoryClass = null;
+    }
+
+    ExifDirectoryType(Class<? extends Directory> directoryClass) {
+        this.directoryClass = directoryClass;
+    }
 
     /**
-     * <p>
-     * Directory for basic metadata for Xmp files.
-     * </p>
+     * The metadata-extractor class of the directory, if there is one.
      */
-    XmpDirectory,
-
-    /**
-     * <p>
-     * Undefined directory.
-     * </p>
-     */
-    Undefined,
+    Optional<Class<? extends Directory>> getDirectoryClassOptional() {
+        return Optional.ofNullable(directoryClass);
+    }
 }

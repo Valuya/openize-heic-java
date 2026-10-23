@@ -28,12 +28,15 @@ class ExifDataTest {
         HeicImage heicImage = HeicImage.load(TestSamples.samplePath("iphone_portrait_photo.heic"));
         ExifData exifData = heicImage.getExifOptional().orElseThrow();
 
-        Object xResolution =
-                exifData.getExifRawData(ExifDirectoryType.ExifIfd0Directory, ExifIFD0Directory.TAG_X_RESOLUTION);
-        Object exposureTime =
-                exifData.getExifRawData(ExifDirectoryType.ExifSubIfdDirectory, ExifSubIFDDirectory.TAG_EXPOSURE_TIME);
-        Object exifImageWidth = exifData.getExifRawData(
-                ExifDirectoryType.ExifSubIfdDirectory, ExifSubIFDDirectory.TAG_EXIF_IMAGE_WIDTH);
+        Object xResolution = exifData.getExifRawDataOptional(
+                        ExifDirectoryType.ExifIfd0Directory, ExifIFD0Directory.TAG_X_RESOLUTION)
+                .orElseThrow();
+        Object exposureTime = exifData.getExifRawDataOptional(
+                        ExifDirectoryType.ExifSubIfdDirectory, ExifSubIFDDirectory.TAG_EXPOSURE_TIME)
+                .orElseThrow();
+        Object exifImageWidth = exifData.getExifRawDataOptional(
+                        ExifDirectoryType.ExifSubIfdDirectory, ExifSubIFDDirectory.TAG_EXIF_IMAGE_WIDTH)
+                .orElseThrow();
 
         assertThat(xResolution).isEqualTo(new Rational(72, 1));
         assertThat(exposureTime).isEqualTo(new Rational(1, 50));
