@@ -19,44 +19,42 @@ import java.util.Arrays;
 final class NeighbouringSamplesGenerator {
     private static final int GROUP_SIZE = 4;
 
-    private final HeicPicture picture;
-    private final int x0;
-    private final int y0;
-    private final int nTbS;
-    private final int cIdx;
-    private final int subWidth;
-    private final int subHeight;
     private final NeighbouringSamples samples;
-    // the minimum transform block address in z-scan order of the current block
-    private final int currentBlockAddress;
 
-    private NeighbouringSamplesGenerator(
-            HeicPicture picture, int x0, int y0, int nTbS, int cIdx, IntraPredictionBuffers buffers) {
-        this.picture = picture;
+    // the block being predicted, and the minimum transform block address in z-scan order of it
+    private int x0;
+    private int y0;
+    private int nTbS;
+    private int cIdx;
+    private int subWidth;
+    private int subHeight;
+    private int currentBlockAddress;
+
+    NeighbouringSamplesGenerator(NeighbouringSamples samples) {
+        this.samples = samples;
+    }
+
+    /**
+     * Fills the neighbouring samples for the {@code nTbS} block of component {@code cIdx} at {@code (x0, y0)}, in
+     * samples of that component. A generator serves the blocks of a workspace one after the other, so that none is
+     * allocated per block.
+     */
+    NeighbouringSamples generate(HeicPicture picture, int x0, int y0, int nTbS, int cIdx) {
         this.x0 = x0;
         this.y0 = y0;
         this.nTbS = nTbS;
         this.cIdx = cIdx;
         subWidth = cIdx == 0 ? 1 : picture.sps.getSubWidthC();
         subHeight = cIdx == 0 ? 1 : picture.sps.getSubHeightC();
-        samples = buffers.neighbouringSamples;
-        currentBlockAddress = minTbAddrZs(x0 * subWidth, y0 * subHeight);
-    }
-
-    /**
-     * Fills {@code buffers.neighbouringSamples} for the {@code nTbS} block of component {@code cIdx} at
-     * {@code (x0, y0)}, in samples of that component.
-     */
-    static NeighbouringSamples generate(
-            HeicPicture picture, int x0, int y0, int nTbS, int cIdx, IntraPredictionBuffers buffers) {
-        new NeighbouringSamplesGenerator(picture, x0, y0, nTbS, cIdx, buffers).gatherAndSubstitute();
-        return buffers.neighbouringSamples;
+        currentBlockAddress = minTbAddrZs(picture, x0 * subWidth, y0 * subHeight);
+        gatherAndSubstitute(picture);
+        return samples;
     }
 
     // Gathers the available neighbours a group at a time, the column left from the bottom up, the corner, then the
     // row above from the left, and gives each unavailable one the value of the one before it in that order: the first
     // available one for the first ones (8.4.4.2.2). The samples of a group are all available or none is.
-    private void gatherAndSubstitute() {
+    private void gatherAndSubstitute(HeicPicture picture) {
         samples.prepare(nTbS);
         int[] p = samples.array();
         int groupCount = 2 * nTbS / GROUP_SIZE;
@@ -75,26 +73,26 @@ final class NeighbouringSamplesGenerator {
         int leftGroups = 0;
         int topGroups = 0;
         boolean cornerAvailable = false;
-        if (isInSameSliceAndTile(xLuma - 1, yLuma)) {
+        if (isInSameSliceAndTile(picture, xLuma - 1, yLuma)) {
             for (int k = 0; k < groupCount && k * GROUP_SIZE < belowCount; k++) {
-                if (isDecoded(-1, k * GROUP_SIZE + GROUP_SIZE - 1)) {
+                if (isDecoded(picture, -1, k * GROUP_SIZE + GROUP_SIZE - 1)) {
                     leftGroups |= 1 << k;
-                    readColumn(p, left + k * GROUP_SIZE, x0 - 1, y0 + k * GROUP_SIZE);
+                    readColumn(picture, p, left + k * GROUP_SIZE, x0 - 1, y0 + k * GROUP_SIZE);
                 }
             }
         }
-        if (isInSameSliceAndTile(xLuma - 1, yLuma - 1) && isDecoded(-1, -1)) {
+        if (isInSameSliceAndTile(picture, xLuma - 1, yLuma - 1) && isDecoded(picture, -1, -1)) {
             cornerAvailable = true;
             p[samples.index(-1, -1)] = picture.getSample(cIdx, x0 - 1, y0 - 1);
         }
-        boolean availableTop = isInSameSliceAndTile(xLuma, yLuma - 1);
-        boolean availableTopRight =
-                xLuma + lumaSize < sps.picWidthInLumaSamples && isInSameSliceAndTile(xLuma + lumaSize, yLuma - 1);
+        boolean availableTop = isInSameSliceAndTile(picture, xLuma, yLuma - 1);
+        boolean availableTopRight = xLuma + lumaSize < sps.picWidthInLumaSamples
+                && isInSameSliceAndTile(picture, xLuma + lumaSize, yLuma - 1);
         for (int k = 0; k < groupCount && k * GROUP_SIZE < rightCount; k++) {
             int x = k * GROUP_SIZE;
-            if ((x < nTbS ? availableTop : availableTopRight) && isDecoded(x, -1)) {
+            if ((x < nTbS ? availableTop : availableTopRight) && isDecoded(picture, x, -1)) {
                 topGroups |= 1 << k;
-                readRow(p, top + x, x0 + x, y0 - 1);
+                readRow(picture, p, top + x, x0 + x, y0 - 1);
             }
         }
 
@@ -141,7 +139,7 @@ final class NeighbouringSamplesGenerator {
     }
 
     // the four samples of the column x from y down, to p[index..index + 3]
-    private void readColumn(int[] p, int index, int x, int y) {
+    private void readColumn(HeicPicture picture, int[] p, int index, int x, int y) {
         int planeWidth = picture.planeWidths[cIdx];
         int planeIndex = y * planeWidth + x;
         for (int i = 0; i < GROUP_SIZE; i++, planeIndex += planeWidth) {
@@ -152,7 +150,7 @@ final class NeighbouringSamplesGenerator {
     }
 
     // the four samples of the row y from x right, to p[index..index + 3]
-    private void readRow(int[] p, int index, int x, int y) {
+    private void readRow(HeicPicture picture, int[] p, int index, int x, int y) {
         int planeIndex = y * picture.planeWidths[cIdx] + x;
         for (int i = 0; i < GROUP_SIZE; i++) {
             p[index + i] = picture.highColorRange
@@ -163,7 +161,7 @@ final class NeighbouringSamplesGenerator {
 
     // Whether the coding tree block covering a luma location outside the current block is inside the picture, in the
     // slice and in the tile of the current coding tree block
-    private boolean isInSameSliceAndTile(int xNbLuma, int yNbLuma) {
+    private boolean isInSameSliceAndTile(HeicPicture picture, int xNbLuma, int yNbLuma) {
         if (xNbLuma < 0 || yNbLuma < 0) {
             return false;
         }
@@ -178,11 +176,11 @@ final class NeighbouringSamplesGenerator {
                 && tileIdFromRs[neighbourCtb] == tileIdFromRs[currentCtb];
     }
 
-    private boolean isDecoded(int x, int y) {
-        return minTbAddrZs((x0 + x) * subWidth, (y0 + y) * subHeight) <= currentBlockAddress;
+    private boolean isDecoded(HeicPicture picture, int x, int y) {
+        return minTbAddrZs(picture, (x0 + x) * subWidth, (y0 + y) * subHeight) <= currentBlockAddress;
     }
 
-    private int minTbAddrZs(int xLuma, int yLuma) {
+    private static int minTbAddrZs(HeicPicture picture, int xLuma, int yLuma) {
         int minTbLog2SizeY = picture.sps.getMinTbLog2SizeY();
         return picture.pps.minTbAddrZs(xLuma >> minTbLog2SizeY, yLuma >> minTbLog2SizeY);
     }
