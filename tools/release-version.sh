@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # The next release of the library, from the Conventional Commits since the last release tag (vX.Y.Z), with git-cliff
-# and cliff.toml. Only the commits that change what is published count: src/main and pom.xml.
+# and cliff.toml. Only the commits that change what is published count: those that change src/main or pom.xml, other
+# than build, chore, ci, docs, style and test commits, unless breaking. A dependency upgrade that users should get is a
+# fix(deps).
 #
 # Usage, in a clone with the tags:
 #
 #   tools/release-version.sh          prints GitHub-output lines:
 #                                       last=vX.Y.Z        the last release tag
-#                                       needed=true|false  whether a commit since then changed the library
+#                                       needed=true|false  whether a commit since then changed what is published
 #                                       version=X.Y.Z      the next version when needed, the last one otherwise
 #   tools/release-version.sh --notes X.Y.Z
 #                                     prints the release notes of version X.Y.Z, made of those commits
@@ -35,7 +37,10 @@ if [[ "${1:-}" == --notes ]]; then
 fi
 
 echo "last=$last"
-if [[ -z "$(git log -1 --format=%H "${last}..HEAD" -- src/main pom.xml)" ]]; then
+changes=$(git log --no-merges --format=%s "${last}..HEAD" -- src/main pom.xml \
+    | grep -vE '^(build|chore|ci|docs|style|test)(\([^)]*\))?: ' || true)
+breaking=$(git log --no-merges --format=%b "${last}..HEAD" -- src/main pom.xml | grep -E '^BREAKING[ -]CHANGE:' || true)
+if [[ -z "$changes" && -z "$breaking" ]]; then
     echo "needed=false"
     echo "version=${last#v}"
     exit 0
