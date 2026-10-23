@@ -45,21 +45,20 @@ public class ItemPropertiesBox extends Box {
      * </p>
      *
      * @param stream   File stream.
-     * @param size     Box size in bytes.
-     * @param startPos Start position in bits.
+     * @param header   Box header.
      */
-    public ItemPropertiesBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
-        super(BoxType.iprp, size);
+    ItemPropertiesBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
-        propertyContainer = new ItemPropertyContainerBox(stream, stream.getBitPosition());
+        propertyContainer = Box.parseBox(stream, BoxType.ipco, ItemPropertyContainerBox::new);
         ObservableCollection<Box> tmp0 = new ObservableCollection<>();
         tmp0.add(propertyContainer);
 
         setChildren(tmp0);
 
         association = new ArrayList<>();
-        while (stream.getBitPosition() < startPos + size * 8) {
-            ItemPropertyAssociation impa = new ItemPropertyAssociation(stream);
+        while (hasMoreData(stream)) {
+            ItemPropertyAssociation impa = Box.parseBox(stream, BoxType.ipma, ItemPropertyAssociation::new);
             association.add(impa);
             getChildren().add(impa);
         }

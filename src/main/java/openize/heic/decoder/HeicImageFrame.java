@@ -569,13 +569,11 @@ public class HeicImageFrame {
         for (Box item : properties) {
             switch (item.type) {
                 case hvcC: // hvcC
-                    HEVCConfigurationBox config = (HEVCConfigurationBox) item;
                     stream.createNewImageContext(id);
                     stream.getContext().setDecodingOptions(parent.getDecodingOptions());
-                    stream.setBytePosition(config.offset);
-                    hvcConfigOffset = config.offset;
+                    stream.setBytePosition(item.getContentOffset());
+                    hvcConfigOffset = item.getContentOffset();
                     hvcConfig = new HEVCDecoderConfigurationRecord(stream);
-                    config.record = hvcConfig; // gui
                     break;
                 case ispe:
                     ImageSpatialExtentsProperty ispe = (ImageSpatialExtentsProperty) item;

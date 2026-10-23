@@ -36,16 +36,18 @@ public class ItemReferenceBox extends FullBox {
      * </p>
      *
      * @param stream   File stream.
-     * @param size     Box size in bytes.
-     * @param startPos Start position in bits.
+     * @param header   Box header.
      */
-    public ItemReferenceBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
-        super(stream, BoxType.iref, size);
+    ItemReferenceBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         references = new ArrayList<>((int) size);
 
-        while (stream.getBitPosition() < startPos + size * 8) {
-            SingleItemTypeReferenceBox box = new SingleItemTypeReferenceBox(stream, (version & 0xFF) == 0 ? 16 : 32);
+        while (hasMoreData(stream)) {
+            SingleItemTypeReferenceBox box = Box.parseBox(
+                    stream,
+                    (referenceStream, referenceHeader) -> new SingleItemTypeReferenceBox(
+                            referenceStream, referenceHeader, (version & 0xFF) == 0 ? 16 : 32));
             references.add(box);
         }
 

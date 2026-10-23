@@ -41,16 +41,15 @@ public class GroupsListBox extends Box {
      * </p>
      *
      * @param stream   File stream.
-     * @param size     Box size in bytes.
-     * @param startPos Start position in bits.
+     * @param header   Box header.
      */
-    public GroupsListBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
-        super(BoxType.grpl, size);
+    GroupsListBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         boxes = new ArrayList<>();
 
-        while (stream.getBitPosition() < startPos + size * 8) {
-            boxes.add(new EntityToGroupBox(stream));
+        while (hasMoreData(stream)) {
+            boxes.add(Box.parseBox(stream, EntityToGroupBox::new));
         }
 
         setChildren(new ObservableCollection<>(boxes));

@@ -69,10 +69,10 @@ public class ItemLocationBox extends FullBox {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public ItemLocationBox(BitStreamReader stream, /*UInt64*/ long size) {
-        super(stream, BoxType.iloc, size);
+    ItemLocationBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         offsetSize = (byte) stream.read(4);
         lengthSize = (byte) stream.read(4);

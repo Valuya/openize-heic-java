@@ -50,14 +50,14 @@ public class FileTypeBox extends Box {
      * @param stream File stream.
      * @param size   Box size in bytes.
      */
-    public FileTypeBox(BitStreamReader stream, /*UInt64*/ long size, long endBitPosition) {
-        super(BoxType.ftyp, size);
+    FileTypeBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         majorBrand = stream.read(32) & 0xFFFFFFFFL;
         minorVersion = stream.read(32) & 0xFFFFFFFFL;
 
         // compatible brands fill the rest of the box, whatever the size of its header
-        long brandCount = (endBitPosition - stream.getBitPosition()) / 32;
+        long brandCount = (getEndOffset() * 8 - stream.getBitPosition()) / 32;
         if (brandCount < 0) {
             throw new IsoBmffFormatException("A ftyp box of %d bytes cannot hold its brands".formatted(size));
         }
@@ -77,9 +77,9 @@ public class FileTypeBox extends Box {
         StringBuilder str = new StringBuilder(50);
         str.append(String.format(
                 "{%s}\nmajor: %s \nminor: %s \ncompatible:",
-                this.type, uintToString(majorBrand), uintToString(minorVersion)));
+                this.type, fourCharacterCodeText(majorBrand), fourCharacterCodeText(minorVersion)));
         for (/*UInt32*/ long b : compatibleBrands) {
-            str.append(' ').append(uintToString(b));
+            str.append(' ').append(fourCharacterCodeText(b));
         }
 
         return str.toString();

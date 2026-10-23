@@ -32,14 +32,13 @@ public class ItemDataBox extends Box {
      * </p>
      *
      * @param stream   File stream.
-     * @param size     Box size in bytes.
-     * @param startPos Start position in bits.
+     * @param header   Box header.
      */
-    public ItemDataBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
-        super(BoxType.idat, size);
+    ItemDataBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         /*UInt64*/
-        long count = size - (stream.getBitPosition() - startPos) / 8;
+        long count = getEndOffset() - stream.getBitPosition() / 8;
         data = new byte[(int) (count)];
         for (
         /*UInt64*/ long i = 0; i < count; i++) data[(int) (i)] = (byte) stream.read(8);

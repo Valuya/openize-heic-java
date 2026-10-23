@@ -31,10 +31,10 @@ public class ImageMirror extends Box {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public ImageMirror(BitStreamReader stream, /*UInt64*/ long size) {
-        super(BoxType.imir, size);
+    ImageMirror(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         stream.skipBits(7);
         axis = (byte) stream.read(1);

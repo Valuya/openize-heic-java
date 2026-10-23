@@ -41,8 +41,8 @@ public class ItemPropertyAssociation extends FullBox {
      *
      * @param stream File stream.
      */
-    public ItemPropertyAssociation(BitStreamReader stream) {
-        super(stream, BoxType.ipma);
+    ItemPropertyAssociation(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         entryCount = stream.read(32) & 0xFFFFFFFFL;
         // an entry takes at least 3 bytes (item id, association count)

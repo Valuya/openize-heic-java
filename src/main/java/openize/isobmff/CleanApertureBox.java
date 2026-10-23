@@ -80,10 +80,10 @@ public class CleanApertureBox extends Box {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public CleanApertureBox(BitStreamReader stream, /*UInt64*/ long size) {
-        super(BoxType.clap, size);
+    CleanApertureBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         cleanApertureWidthN = stream.read(32) & 0xFFFFFFFFL;
         cleanApertureWidthD = stream.read(32) & 0xFFFFFFFFL;

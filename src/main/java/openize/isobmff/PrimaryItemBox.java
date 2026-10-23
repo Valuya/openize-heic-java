@@ -31,10 +31,10 @@ public class PrimaryItemBox extends FullBox {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public PrimaryItemBox(BitStreamReader stream, /*UInt64*/ long size) {
-        super(stream, BoxType.pitm, size);
+    PrimaryItemBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         itemID = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
     }

@@ -10,113 +10,103 @@
 
 package openize.isobmff;
 
-import java.util.HashMap;
 import openize.isobmff.io.BitStreamReader;
 
 /**
- * <p>
- * Structure for storing data in IsoBmff files.
- * </p>
+ * A box, the building block of ISO base media files (ISO/IEC 14496-12, 4.2). Boxes of a type this package does not
+ * parse are read as a plain {@code Box}, whose content starts at {@link #getContentOffset()}.
  */
 public class Box {
     /**
-     * <p>
-     * Dictionary of external box constructors.
-     * </p>
+     * The size of the box in bytes, header included.
      */
-    private static final HashMap<BoxType, ExternalBoxConstructor> externalParsersDictionary = new HashMap<>();
-    /**
-     * <p>
-     * An integer that specifies the number of bytes in this box, including all its fields and
-     * contained boxes; if size is 1 then the actual size is in the field large size; if size is 0, then this
-     * box is the last one in the file, and its contents extend to the end of the file
-     * </p>
-     */
-    public /*UInt64*/ long size;
-    /**
-     * <p>
-     * Identifies the box type; standard boxes use a compact type, which is normally four printable
-     * characters, to permit ease of identification, and is shown so in the boxes below. User extensions
-     * use an extended type; in this case, the type field is set to 'uuid'.
-     * </p>
-     */
-    public BoxType type;
+    public final long size;
 
-    // where a box read with Box(BitStreamReader, BoxType) starts, so it can skip what it does not parse
-    private long startBitPosition = -1;
+    public final BoxType type;
 
-    /**
-     * <p>
-     * Create the box object from the bitstream.
-     * </p>
-     *
-     * @param stream File stream.
-     */
-    public Box(BitStreamReader stream) {
-        startBitPosition = stream.getBitPosition();
-        size = stream.read(32) & 0xFFFFFFFFL;
-        type = BoxType.codeToType(stream.read(32));
+    // where the box starts, in bytes from the start of the file
+    private final long offset;
+    private final int headerSize;
 
-        if (size == 1) {
-            size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
-        }
+    Box(BoxHeader header) {
+        type = header.type();
+        offset = header.offset();
+        size = header.size();
+        headerSize = header.headerSize();
     }
 
     /**
-     * <p>
-     * Create the box object from the box type and box size in bytes.
-     * This constructor doesn't read data from the stream.
-     * </p>
-     *
-     * @param boxtype Box type integer.
-     * @param size    Box size in bytes.
+     * Reads the next box and leaves the stream at its end.
      */
-    public Box(BoxType boxtype, /*UInt64*/ long size) {
-        this.size = size;
-        type = boxtype;
+    public static Box parseBox(BitStreamReader stream) {
+        BoxHeader header = BoxHeader.read(stream);
+        Box box = switch (header.type()) {
+            case ftyp -> new FileTypeBox(stream, header);
+            case meta -> new MetaBox(stream, header);
+            case pitm -> new PrimaryItemBox(stream, header);
+            case iloc -> new ItemLocationBox(stream, header);
+            case ipro -> new ItemProtectionBox(stream, header);
+            case iinf -> new ItemInfoBox(stream, header);
+            case iref -> new ItemReferenceBox(stream, header);
+            case idat -> new ItemDataBox(stream, header);
+            case iprp -> new ItemPropertiesBox(stream, header);
+            case grpl -> new GroupsListBox(stream, header);
+            case ispe -> new ImageSpatialExtentsProperty(stream, header);
+            case pasp -> new PixelAspectRatioBox(stream, header);
+            case colr -> new ColourInformationBox(stream, header);
+            case pixi -> new PixelInformationProperty(stream, header);
+            case auxC -> new AuxiliaryTypeProperty(stream, header);
+            case clap -> new CleanApertureBox(stream, header);
+            case irot -> new ImageRotation(stream, header);
+            case imir -> new ImageMirror(stream, header);
+            default -> new Box(header);
+        };
+        box.skipToEnd(stream);
+        return box;
     }
 
     /**
-     * <p>
-     * Create the box object from the bitstream and box type.
-     * </p>
-     *
-     * @param stream  File stream.
-     * @param boxtype Box type integer.
+     * Reads the next box, which must be of {@code expectedType}, with {@code reader}, and leaves the stream at its
+     * end.
      */
-    public Box(BitStreamReader stream, BoxType boxtype) {
-        startBitPosition = stream.getBitPosition();
-        size = stream.read(32) & 0xFFFFFFFFL;
-        BoxType readType = BoxType.codeToType(stream.read(32));
-
-        if (readType != boxtype) {
-            throw new IsoBmffFormatException("Expected a %s box, found %s".formatted(boxtype, readType));
-        }
-
-        type = readType;
-
-        if (size == 1) {
-            size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
-        }
+    static <T extends Box> T parseBox(BitStreamReader stream, BoxType expectedType, BoxReader<T> reader) {
+        T box = reader.read(stream, BoxHeader.read(stream, expectedType));
+        box.skipToEnd(stream);
+        return box;
     }
 
     /**
-     * Skips to the end of a box read with {@link #Box(BitStreamReader, BoxType)}, past any field it does not parse.
+     * Reads the next box, whatever its type, with {@code reader}, and leaves the stream at its end.
      */
-    protected final void skipToEnd(BitStreamReader stream) {
-        long consumedBits = stream.getBitPosition() - startBitPosition;
-        if (consumedBits > size * 8) {
-            throw new IsoBmffFormatException("The %s box overruns its %d bytes".formatted(type, size));
-        }
-        // boxes end on a byte boundary
-        stream.setBytePosition(startBitPosition / 8 + size);
+    static <T extends Box> T parseBox(BitStreamReader stream, BoxReader<T> reader) {
+        T box = reader.read(stream, BoxHeader.read(stream));
+        box.skipToEnd(stream);
+        return box;
+    }
+
+    /**
+     * Where the content of the box starts, after its header, in bytes from the start of the file.
+     */
+    public final long getContentOffset() {
+        return offset + headerSize;
+    }
+
+    final long getEndOffset() {
+        return offset + size;
+    }
+
+    /**
+     * Whether the stream is still inside this box.
+     */
+    final boolean hasMoreData(BitStreamReader stream) {
+        return stream.getBitPosition() < getEndOffset() * 8;
     }
 
     /**
      * Fails unless {@code count} entries of at least {@code bytesPerEntry} bytes fit in this box: a count read from the
      * file is checked this way before anything is allocated for it.
      */
-    protected final void requireEntriesFit(long count, int bytesPerEntry) {
+    final void requireEntriesFit(long count, int bytesPerEntry) {
         if (count < 0 || count * bytesPerEntry > size) {
             throw new IsoBmffFormatException(
                     "A %s box of %d bytes cannot hold %d entries".formatted(type, size, count));
@@ -124,179 +114,36 @@ public class Box {
     }
 
     /**
-     * Whether a box read with {@link #Box(BitStreamReader, BoxType)} has data left after what was read.
+     * Skips to the end of the box, past any field that was not read.
      */
-    protected final boolean hasMoreData(BitStreamReader stream) {
-        return stream.getBitPosition() < startBitPosition + size * 8;
-    }
-
-    /**
-     * <p>
-     * Read next box from stream.
-     * </p>
-     *
-     * @param stream File stream reader.
-     * @return The parsed box.
-     */
-    public static Box parseBox(BitStreamReader stream) {
-        /*UInt64*/
-        long startPosition = stream.getBitPosition();
-        /*UInt64*/
-        long size = stream.read(32) & 0xFFFFFFFFL;
-        BoxType type = BoxType.codeToType(stream.read(32));
-
-        if (size == 1) {
-            size = (stream.read(32) & 0xFFFFFFFFL) << 32 | (stream.read(32) & 0xFFFFFFFFL);
-        } else if (size == 0) {
-            // the last box of the file, extending to its end
-            size = stream.getLength() - startPosition / 8;
-        }
-
-        long headerSize = (stream.getBitPosition() - startPosition) / 8;
-        if (size < headerSize || startPosition / 8 + size > stream.getLength()) {
-            throw new IsoBmffFormatException("A %s box of %d bytes at byte %d does not fit the %d-byte file"
-                    .formatted(type, size, startPosition / 8, stream.getLength()));
-        }
-
-        Box box;
-        switch (type) {
-            case ftyp:
-                box = new FileTypeBox(stream, size, startPosition + size * 8);
-                break;
-            case meta:
-                box = new MetaBox(stream, size, startPosition);
-                break;
-            case pitm:
-                box = new PrimaryItemBox(stream, size);
-                break;
-            case iloc:
-                box = new ItemLocationBox(stream, size);
-                break;
-            case ipro:
-                box = new ItemProtectionBox(stream, size);
-                break;
-            case iinf:
-                box = new ItemInfoBox(stream, size);
-                break;
-            case iref:
-                box = new ItemReferenceBox(stream, size, startPosition);
-                break;
-            case idat:
-                box = new ItemDataBox(stream, size, startPosition);
-                break;
-            case iprp:
-                box = new ItemPropertiesBox(stream, size, startPosition);
-                break;
-            case grpl:
-                box = new GroupsListBox(stream, size, startPosition);
-                break;
-
-            case ispe:
-                box = new ImageSpatialExtentsProperty(stream, size);
-                break;
-            case pasp:
-                box = new PixelAspectRatioBox(stream, size);
-                break;
-            case colr:
-                box = new ColourInformationBox(stream, size);
-                break;
-            case pixi:
-                box = new PixelInformationProperty(stream, size);
-                break;
-            case auxC:
-                box = new AuxiliaryTypeProperty(stream, size);
-                break;
-            case clap:
-                box = new CleanApertureBox(stream, size);
-                break;
-            case irot:
-                box = new ImageRotation(stream, size);
-                break;
-            case imir:
-                box = new ImageMirror(stream, size);
-                break;
-            case hvcC:
-            case av1C:
-            default:
-                if (externalParsersDictionary.containsKey(type)) {
-                    box = externalParsersDictionary.get(type).invoke(stream, size);
-                } else {
-                    box = new Box(type, size);
-                }
-                break;
-        }
-
-        /*UInt64*/
-        long currentPosition = stream.getBitPosition();
-
-        if (currentPosition - startPosition > size * 8L) {
+    final void skipToEnd(BitStreamReader stream) {
+        if (stream.getBitPosition() > getEndOffset() * 8) {
             throw new IsoBmffFormatException("The %s box overruns its %d bytes".formatted(type, size));
         }
-
-        if (currentPosition - startPosition < size * 8) {
-            stream.skipBits((int) (size * 8 - (currentPosition - startPosition)));
-        }
-
-        return box;
+        stream.setBytePosition(getEndOffset());
     }
 
     /**
-     * <p>
-     * Add external constructor for unimplemented box type.
-     * </p>
-     *
-     * @param type   Box type.
-     * @param parser External box constructor.
+     * The four characters of a four-character code, such as a box type or a brand.
      */
-    public static void setExternalConstructor(BoxType type, ExternalBoxConstructor parser) {
-        synchronized (externalParsersDictionary) {
-            externalParsersDictionary.putIfAbsent(type, parser);
+    static String fourCharacterCodeText(long code) {
+        char[] characters = new char[4];
+        for (int i = 0; i < characters.length; i++) {
+            characters[i] = (char) ((code >> (24 - 8 * i)) & 0xFF);
         }
+        return new String(characters);
     }
 
-    /**
-     * <p>
-     * Convert uint value to string with ASCII coding.
-     * </p>
-     *
-     * @param value Unsigned integer.
-     * @return ASCII string.
-     */
-    protected static String uintToString(/*UInt32*/ long value) {
-        StringBuilder str = new StringBuilder(50);
-
-        for (int i = 24; i >= 0; i -= 8) {
-            /*UInt32*/
-            long b = ((((value & 0xFFFFFFFFL) >> i) & 0xFFFFFFFFL) & 0xFF) & 0xFFFFFFFFL;
-            str.append((char) b);
-        }
-        return str.toString();
-    }
-
-    /**
-     * <p>
-     * Text summary of the box.
-     * </p>
-     */
     @Override
     public String toString() {
-        return String.format("%s size: %d [Box to string]", this.type, size);
+        return "%s box of %d bytes".formatted(type, size);
     }
 
     /**
-     * <p>
-     * External box constructor for unimplemented box types.
-     * </p>
+     * Reads the content of a box whose header was read.
      */
-    public interface ExternalBoxConstructor {
-        /**
-         * <p>
-         * External box constructor for unimplemented box types.
-         * </p>
-         *
-         * @param stream Stream reader.
-         * @param size   Box size in bytes.
-         */
-        Box invoke(BitStreamReader stream, /*UInt64*/ long size);
+    @FunctionalInterface
+    interface BoxReader<T extends Box> {
+        T read(BitStreamReader stream, BoxHeader header);
     }
 }

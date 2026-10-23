@@ -26,10 +26,10 @@ public class ItemProtectionBox extends FullBox {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public ItemProtectionBox(BitStreamReader stream, /*UInt64*/ long size) {
-        super(stream, BoxType.ipro, size);
+    ItemProtectionBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         // the protection scheme boxes that follow are skipped: protected items are not decoded
         protectionSchemeCount = stream.read(16);

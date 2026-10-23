@@ -140,14 +140,6 @@ public class HeicImage {
     private static HeicImage readMetadata(byte[] heicData, HeicDecodingOptions decodingOptions) {
         BitStreamWithNalSupport bitstream = new BitStreamWithNalSupport(heicData);
 
-        Box.setExternalConstructor(BoxType.hvcC, (str, size) -> {
-            if (!(str instanceof BitStreamWithNalSupport)) {
-                throw new UnsupportedOperationException("Stream dedication logic error.");
-            }
-            BitStreamWithNalSupport nalStream = (BitStreamWithNalSupport) str;
-            return new HEVCConfigurationBox(nalStream, size);
-        });
-
         while (bitstream.moreData()) {
             Box box = Box.parseBox(bitstream);
 

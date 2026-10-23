@@ -39,10 +39,10 @@ public class PixelInformationProperty extends FullBox {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public PixelInformationProperty(BitStreamReader stream, /*UInt64*/ long size) {
-        super(stream, BoxType.pixi, size);
+    PixelInformationProperty(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         numChannels = (byte) stream.read(8);
         bitsPerChannel = new byte[numChannels & 0xFF];

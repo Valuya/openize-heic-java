@@ -38,10 +38,10 @@ public class PixelAspectRatioBox extends Box {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public PixelAspectRatioBox(BitStreamReader stream, /*UInt64*/ long size) {
-        super(BoxType.pasp, size);
+    PixelAspectRatioBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         hSpacing = stream.read(32) & 0xFFFFFFFFL;
         vSpacing = stream.read(32) & 0xFFFFFFFFL;

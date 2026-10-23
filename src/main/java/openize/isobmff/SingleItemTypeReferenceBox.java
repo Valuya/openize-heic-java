@@ -47,8 +47,8 @@ public class SingleItemTypeReferenceBox extends Box {
      * @param stream  File stream.
      * @param id_size Item id size in bytes.
      */
-    public SingleItemTypeReferenceBox(BitStreamReader stream, int idSize) {
-        super(stream);
+    SingleItemTypeReferenceBox(BitStreamReader stream, BoxHeader header, int idSize) {
+        super(header);
 
         fromItemID = stream.read(idSize) & 0xFFFFFFFFL;
         referenceCount = stream.read(16) & 0xFFFFFFFFL;

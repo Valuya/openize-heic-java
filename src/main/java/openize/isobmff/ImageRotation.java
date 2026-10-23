@@ -32,10 +32,10 @@ public class ImageRotation extends Box {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public ImageRotation(BitStreamReader stream, /*UInt64*/ long size) {
-        super(BoxType.irot, size);
+    ImageRotation(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         stream.skipBits(6);
         angle = (byte) stream.read(2);

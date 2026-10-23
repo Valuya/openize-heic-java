@@ -40,10 +40,10 @@ public class ImageSpatialExtentsProperty extends FullBox {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public ImageSpatialExtentsProperty(BitStreamReader stream, /*UInt64*/ long size) {
-        super(stream, BoxType.ispe, size);
+    ImageSpatialExtentsProperty(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         imageWidth = stream.read(32) & 0xFFFFFFFFL;
         imageHeight = stream.read(32) & 0xFFFFFFFFL;

@@ -41,17 +41,18 @@ public class ItemInfoBox extends FullBox {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public ItemInfoBox(BitStreamReader stream, /*UInt64*/ long size) {
-        super(stream, BoxType.iinf, size);
+    ItemInfoBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         entryCount = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
 
         // an item info entry is a box of at least 12 bytes
         requireEntriesFit(entryCount, 12);
         itemInfos = new ItemInfoEntry[(int) (entryCount & 0xFFFFFFFFL)];
-        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++) itemInfos[i] = new ItemInfoEntry(stream);
+        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++)
+            itemInfos[i] = Box.parseBox(stream, BoxType.infe, ItemInfoEntry::new);
 
         setChildren(new ObservableCollection<>(itemInfos));
     }

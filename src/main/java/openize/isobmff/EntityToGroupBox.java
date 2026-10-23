@@ -51,8 +51,8 @@ public class EntityToGroupBox extends FullBox {
      *
      * @param stream File stream.
      */
-    public EntityToGroupBox(BitStreamReader stream) {
-        super(stream);
+    EntityToGroupBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         groupId = stream.read(32) & 0xFFFFFFFFL;
         numEntitiesInGroup = stream.read(32) & 0xFFFFFFFFL;
@@ -64,8 +64,6 @@ public class EntityToGroupBox extends FullBox {
         entities = new /*UInt32*/ long[(int) (numEntitiesInGroup & 0xFFFFFFFFL)];
 
         for (int i = 0; i < (numEntitiesInGroup & 0xFFFFFFFFL); i++) entities[i] = stream.read(32) & 0xFFFFFFFFL;
-        // group types may add fields of their own
-        skipToEnd(stream);
     }
 
     /**

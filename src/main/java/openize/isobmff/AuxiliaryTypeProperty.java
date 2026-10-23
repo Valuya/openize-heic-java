@@ -39,15 +39,15 @@ public class AuxiliaryTypeProperty extends FullBox {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public AuxiliaryTypeProperty(BitStreamReader stream, /*UInt64*/ long size) {
-        super(stream, BoxType.auxC, size);
+    AuxiliaryTypeProperty(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         auxType = stream.readString();
 
         /*UInt64*/
-        long count = size - (long) auxType.length() - 12;
+        long count = getEndOffset() - stream.getBitPosition() / 8;
         if (count < 0) {
             throw new IsoBmffFormatException(
                     "An auxC box of %d bytes cannot hold its type %s".formatted(size, auxType));

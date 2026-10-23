@@ -34,18 +34,17 @@ public class MetaBox extends FullBox {
      * </p>
      *
      * @param stream   File stream.
-     * @param size     Box size in bytes.
-     * @param startPos Start position in bits.
+     * @param header   Box header.
      */
-    public MetaBox(BitStreamReader stream, /*UInt64*/ long size, /*UInt64*/ long startPos) {
-        super(stream, BoxType.meta, size);
+    MetaBox(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         boxes = new HashMap<>();
 
         // the handler box comes first (ISO/IEC 14496-12, 8.11.1); nothing reads what it declares
-        new Box(stream, BoxType.hdlr).skipToEnd(stream);
+        Box.parseBox(stream, BoxType.hdlr, (handlerStream, handlerHeader) -> new Box(handlerHeader));
 
-        while (stream.getBitPosition() < startPos + size * 8) {
+        while (hasMoreData(stream)) {
             Box box = Box.parseBox(stream);
             boxes.put(box.type, box);
         }

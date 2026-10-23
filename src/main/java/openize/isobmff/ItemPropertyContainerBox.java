@@ -34,14 +34,14 @@ public class ItemPropertyContainerBox extends Box {
      * </p>
      *
      * @param stream   File stream.
-     * @param startPos Start position in bits.
+     * @param header   Box header.
      */
-    public ItemPropertyContainerBox(BitStreamReader stream, /*UInt64*/ long startPos) {
-        super(stream, BoxType.ipco);
+    ItemPropertyContainerBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         items = new HashMap<>();
         int i = 1;
-        while (stream.getBitPosition() < startPos + size * 8) {
+        while (hasMoreData(stream)) {
             items.put(i, Box.parseBox(stream));
             i++;
         }

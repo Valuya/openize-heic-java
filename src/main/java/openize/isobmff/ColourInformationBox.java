@@ -61,10 +61,10 @@ public class ColourInformationBox extends Box {
      * </p>
      *
      * @param stream File stream.
-     * @param size   Box size in bytes.
+     * @param header Box header.
      */
-    public ColourInformationBox(BitStreamReader stream, /*UInt64*/ long size) {
-        super(BoxType.colr, size);
+    ColourInformationBox(BitStreamReader stream, BoxHeader header) {
+        super(header);
 
         colourType = stream.read(32) & 0xFFFFFFFFL;
 
@@ -94,7 +94,7 @@ public class ColourInformationBox extends Box {
      */
     @Override
     public String toString() {
-        return String.format("%s Color type: %s", this.type, uintToString(colourType));
+        return String.format("%s Color type: %s", this.type, fourCharacterCodeText(colourType));
     }
 
     /**
@@ -103,6 +103,6 @@ public class ColourInformationBox extends Box {
      * </p>
      */
     public final String getColourType() {
-        return uintToString(colourType);
+        return fourCharacterCodeText(colourType);
     }
 }

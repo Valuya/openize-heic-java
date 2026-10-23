@@ -87,8 +87,8 @@ public class ItemInfoEntry extends FullBox {
      *
      * @param stream File stream.
      */
-    ItemInfoEntry(BitStreamReader stream) {
-        super(stream, BoxType.infe);
+    ItemInfoEntry(BitStreamReader stream, BoxHeader header) {
+        super(stream, header);
 
         itemHidden = flags.get(23);
 
@@ -118,7 +118,6 @@ public class ItemInfoEntry extends FullBox {
                 itemUriType = stream.readString();
             }
         }
-        skipToEnd(stream);
     }
 
     /**
@@ -130,6 +129,7 @@ public class ItemInfoEntry extends FullBox {
     public String toString() {
         String nn = itemName == null ? "" : itemName;
         String n2 = contentType == null ? "" : contentType;
-        return String.format("%s id: %d type: %s name: %s%s", this.type, itemID, uintToString(itemType), nn, n2);
+        return String.format(
+                "%s id: %d type: %s name: %s%s", this.type, itemID, fourCharacterCodeText(itemType), nn, n2);
     }
 }
