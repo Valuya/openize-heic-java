@@ -92,4 +92,12 @@ class PixelApiTest {
         assertThatThrownBy(() -> new PixelRegion(0, 0, 0, 10)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new PixelRegion(-1, 0, 10, 10)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void refusesARegionWhoseEdgesOverflow() {
+        assertThatThrownBy(() -> new PixelRegion(Integer.MAX_VALUE, 0, 2, 1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PixelRegion(0, Integer.MAX_VALUE, 1, 2))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

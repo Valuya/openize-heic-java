@@ -21,7 +21,13 @@ package openize.heic.decoder;
  */
 public record PixelRegion(int left, int top, int width, int height) {
     public PixelRegion {
-        if (left < 0 || top < 0 || width < 1 || height < 1) {
+        // right() and bottom() must not overflow
+        if (left < 0
+                || top < 0
+                || width < 1
+                || height < 1
+                || (long) left + width > Integer.MAX_VALUE
+                || (long) top + height > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(
                     "Not a region of pixels: %d,%d %dx%d".formatted(left, top, width, height));
         }
