@@ -102,9 +102,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.cfg.outputs.version }}
         run: |
+          # before the tag: once HEAD is tagged, it is the last release, and no commit comes after it
+          tools/release-version.sh --notes "$VERSION" > "$RUNNER_TEMP/notes.md"
           git tag "v${VERSION}" "$GITHUB_SHA"
           git push origin "v${VERSION}"
-          tools/release-version.sh --notes "$VERSION" > "$RUNNER_TEMP/notes.md"
           gh release create "v${VERSION}" --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag --latest
       # Published on the Portal is not yet resolvable: the sync to repo1 usually takes minutes
       - name: Wait until it resolves from Maven Central
