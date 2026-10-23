@@ -198,10 +198,13 @@ output regenerates them with `-Dopenize.updateReferences=true`. The other suites
 
 ## Releasing
 
-Versions follow semantic versioning; `main` carries the next version as a `-SNAPSHOT`. Publishing a GitHub release
-tagged `vX.Y.Z` runs the [release workflow](.github/workflows/release.yml): it builds and tests `X.Y.Z`, signs it,
-uploads it to Maven Central through the Central Portal, and waits until it resolves from Central. Run by hand, the
-workflow publishes the version it is given, and can stage it for a release in the Portal instead.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/), and the version is not
+committed: the pom's `0-SNAPSHOT` is never released. Running the [release workflow](.github/workflows/release.yml) on
+`main`, from the Actions tab or with `gh workflow run release.yml`, publishes a new version when a commit since the
+last release changed `src/main` or `pom.xml`. [`tools/release-version.sh`](tools/release-version.sh) computes it with
+[git-cliff](https://git-cliff.org/) from those commits: a breaking change (`feat!:` or a `BREAKING CHANGE:` footer)
+bumps the major version, `feat:` the minor, anything else the patch. The workflow tests, signs and publishes the
+version to Maven Central, then tags it `vX.Y.Z` and creates its GitHub release, with the commits as release notes.
 
 ## License
 
