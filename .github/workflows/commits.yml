@@ -1,0 +1,29 @@
+name: commits
+
+# The release version comes from the commit messages (tools/release-version.sh): a pull request's commits follow
+# Conventional Commits, type(scope)!: description
+
+on:
+  pull_request:
+
+jobs:
+  conventional:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check the commit messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          types='feat|fix|perf|refactor|revert|build|docs|test|ci|chore|style'
+          invalid=$(git log --no-merges --format='%h %s' "$BASE..$HEAD" \
+            | grep -vE "^[0-9a-f]+ (${types})(\([^)]+\))?!?: ." || true)
+          if [ -n "$invalid" ]; then
+            echo "::error::commit messages that are not Conventional Commits, type(scope)!: description:"
+            echo "$invalid"
+            exit 1
+          fi
