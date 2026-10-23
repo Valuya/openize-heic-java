@@ -11,23 +11,17 @@
 package openize.heic.decoder;
 
 final class Scans {
+    // scanOrder[log2BlockSize][scanIdx][sPos][sComp] (6.5.3 to 6.5.5), built once with the class
+    private static final byte[][][][] SCAN_ORDER = createScanOrder();
+
+    private Scans() {}
+
     public static byte[][][][] getScanOrder() {
-        return scanOrder;
+        return SCAN_ORDER;
     }
 
-    private static byte[][][][] scanOrder;
-
-    private static boolean initialised = false;
-
-    static synchronized void initialize() {
-        if (initialised) return;
-
-        initialised = true;
-        scanOrderInitialize();
-    }
-
-    static void scanOrderInitialize() {
-        scanOrder = new byte[6][][][];
+    private static byte[][][][] createScanOrder() {
+        byte[][][][] scanOrder = new byte[6][][][];
         for (int log2BlockSize = 0; log2BlockSize < 6; log2BlockSize++) {
             scanOrder[log2BlockSize] = new byte[4][][];
 
@@ -39,6 +33,7 @@ final class Scans {
 
             if (log2BlockSize > 1) scanOrder[log2BlockSize][3] = traverseScanInitialize((byte) (1 << log2BlockSize));
         }
+        return scanOrder;
     }
 
     // 6.5.3 Up-right diagonal scan order array initialization process

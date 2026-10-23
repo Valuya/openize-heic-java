@@ -10,6 +10,7 @@
 
 package openize.heic.decoder;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -726,6 +727,8 @@ public class HeicImageFrame {
         int gridWidth = getByteFromIdatField(gridDescriptor, 4, fieldLength);
         int gridHeight = getByteFromIdatField(gridDescriptor, 4 + fieldLength, fieldLength);
 
+        // tiles cover disjoint pixels and decode independently, so they decode in parallel
+        List<Runnable> tileDecodes = new ArrayList<>();
         for (int row = 0; row < rowCount; row++) {
             for (int column = 0; column < columnCount; column++) {
                 HeicImageFrame tileFrame = getDerivedFrame(row * columnCount + column);
@@ -737,10 +740,11 @@ public class HeicImageFrame {
 
                 // tiles outside the requested region are not decoded at all
                 if (!tileTarget.isEmpty()) {
-                    tileFrame.decodeInto(tileTarget, alphaOnly);
+                    tileDecodes.add(() -> tileFrame.decodeInto(tileTarget, alphaOnly));
                 }
             }
         }
+        tileDecodes.parallelStream().forEach(Runnable::run);
     }
 
     private void decodeOverlayInto(PixelTarget overlayTarget, boolean alphaOnly) {

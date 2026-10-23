@@ -417,7 +417,6 @@ public class Cabac {
 
     public Cabac(BitStreamWithNalSupport stream) {
         this.stream = stream;
-        Scans.initialize();
     }
 
     final boolean readEndOfSliceSegmentFlag() {
