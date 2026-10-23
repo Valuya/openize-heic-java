@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * Scaling list data (7.3.4) and the scaling factors derived from it (7.4.5).
  *

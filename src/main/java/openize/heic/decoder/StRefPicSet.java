@@ -11,7 +11,6 @@
 package openize.heic.decoder;
 
 import java.util.Arrays;
-import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 /**
  * st_ref_pic_set( stRpsIdx ) (7.3.7) and the variables derived from it (7.4.8). Only P and B slices use the

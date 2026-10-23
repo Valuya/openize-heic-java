@@ -19,7 +19,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import openize.heic.decoder.io.BitStreamWithNalSupport;
 import openize.isobmff.Box;
 import openize.isobmff.BoxType;
 import openize.isobmff.EntityToGroupBox;

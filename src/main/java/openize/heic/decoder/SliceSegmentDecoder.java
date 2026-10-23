@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * Decodes the slice segment data (7.3.8) of an intra slice segment into its picture: each coding unit is parsed,
  * then reconstructed, transform block by transform block.

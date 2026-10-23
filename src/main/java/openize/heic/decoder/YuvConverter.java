@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.MathUtils;
-
 /**
  * Converts decoded YCbCr samples to 8-bit RGB with the matrix coefficients and range of a {@link ColourDescription}.
  */
@@ -117,7 +115,7 @@ final class YuvConverter {
     }
 
     private static int to8Bits(double channel) {
-        return MathExtra.clip3(0, 255, MathUtils.f64S32(channel));
+        return MathExtra.clip3(0, 255, (int) channel);
     }
 
     /**

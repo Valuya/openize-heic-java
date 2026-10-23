@@ -10,13 +10,11 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * A NAL unit: its header, and where it lies in the stream. The subclasses parse the payloads the decoder uses; the
  * others, SEI included, are skipped.
  */
-public class NalUnit {
+class NalUnit {
     final NalHeader nalHeader;
     // in bits, from the start of the stream
     private final long startPosition;

@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import openize.heic.decoder.io.BitStreamWithNalSupport;
 import openize.isobmff.AuxiliaryTypeProperty;
 import openize.isobmff.Box;
 import openize.isobmff.BoxType;
@@ -483,7 +482,7 @@ public final class HeicImageFrame {
     // an nclx colour information property takes precedence over the video usability information of the bitstream
     private YuvConverter.ColourDescription colourDescription(SeqParameterSetRbsp sps) {
         if (nclxColour == null) {
-            return YuvConverter.ColourDescription.of(sps.VuiParameters);
+            return YuvConverter.ColourDescription.of(sps.vuiParameters);
         }
         return new YuvConverter.ColourDescription(
                 nclxColour.getColourPrimaries(), nclxColour.getMatrixCoefficients(), nclxColour.isFullRange());

@@ -10,7 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
 import org.jspecify.annotations.Nullable;
 
 /**

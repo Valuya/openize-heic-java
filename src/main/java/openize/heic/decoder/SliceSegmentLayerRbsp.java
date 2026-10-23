@@ -10,14 +10,12 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * A coded slice segment NAL unit (7.3.2.9): its header is read, then its coding tree blocks are decoded into the
  * current picture.
  */
-public class SliceSegmentLayerRbsp extends NalUnit {
-    public SliceSegmentLayerRbsp(BitStreamWithNalSupport stream, long startPosition, int size) {
+class SliceSegmentLayerRbsp extends NalUnit {
+    SliceSegmentLayerRbsp(BitStreamWithNalSupport stream, long startPosition, int size) {
         super(stream, startPosition, size);
 
         DecoderContext context = stream.getContext();

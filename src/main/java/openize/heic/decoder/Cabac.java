@@ -11,7 +11,6 @@
 package openize.heic.decoder;
 
 import java.util.Arrays;
-import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 /**
  * The CABAC parsing process (9.3) of the syntax elements of intra slice segment data: the arithmetic decoding
@@ -19,7 +18,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
  *
  * <p>Each context variable is held as one int, {@code pStateIdx << 1 | valMps}.
  */
-public final class Cabac {
+final class Cabac {
     // Table 9-52: rangeTabLps[pStateIdx][qRangeIdx], flattened as [pStateIdx << 2 | qRangeIdx]
     private static final int[] RANGE_TAB_LPS = {
         128, 176, 208, 240, 128, 167, 197, 227, 128, 158, 187, 216, 123, 150, 178, 205, 116, 142, 169, 195, 111, 135,
@@ -63,7 +62,7 @@ public final class Cabac {
     private int ivlCurrRange;
     private int ivlOffset;
 
-    public Cabac(BitStreamWithNalSupport stream) {
+    Cabac(BitStreamWithNalSupport stream) {
         this.stream = stream;
     }
 

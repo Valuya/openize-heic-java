@@ -10,13 +10,12 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
 import org.jspecify.annotations.Nullable;
 
 /**
  * pic_parameter_set_rbsp( ) (7.3.2.3), and the scan conversion tables derived from it and its SPS (6.5.1, 6.5.2).
  */
-public class PicParameterSetRbsp extends NalUnit {
+class PicParameterSetRbsp extends NalUnit {
     // 7.4.3.3.1
     private static final int MAX_PPS_ID = 63;
     private static final int MAX_SPS_ID = 15;

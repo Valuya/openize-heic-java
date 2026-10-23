@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * hrd_parameters( ) (E.2.2), read to get past it: the hypothetical reference decoder does not matter to decoding a
  * picture. Keeps the parameters common to all sub-layers, which the next set of a VPS can share.

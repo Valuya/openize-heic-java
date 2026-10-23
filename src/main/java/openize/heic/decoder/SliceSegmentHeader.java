@@ -11,7 +11,6 @@
 package openize.heic.decoder;
 
 import java.util.Optional;
-import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 /**
  * A slice segment header (7.3.6.1). A dependent slice segment takes the slice-level elements of the slice segment
@@ -92,10 +91,6 @@ final class SliceSegmentHeader {
         if (pps == null) {
             throw new HeicFormatException(
                     "A slice refers to picture parameter set %d, which is not defined".formatted(ppsId));
-        }
-        if (pps.sps == null) {
-            throw new HeicFormatException(
-                    "Picture parameter set %d refers to a sequence parameter set that is not defined".formatted(ppsId));
         }
         return pps;
     }

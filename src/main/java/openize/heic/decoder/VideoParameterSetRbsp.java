@@ -10,13 +10,11 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * video_parameter_set_rbsp( ) (7.3.2.1). Nothing in it matters to decoding the base layer: it is parsed to identify
  * it, and to check that it is well formed.
  */
-public class VideoParameterSetRbsp extends NalUnit {
+class VideoParameterSetRbsp extends NalUnit {
     // 7.4.3.1
     private static final int MAX_VPS_NUM_LAYER_SETS_MINUS1 = 1023;
 

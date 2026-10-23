@@ -10,15 +10,14 @@
 
 package openize.heic.decoder;
 
-import java.util.HashMap;
-import java.util.Map;
-import openize.heic.decoder.io.BitStreamWithNalSupport;
+import java.util.ArrayList;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
  * seq_parameter_set_rbsp( ) (7.3.2.2) and the variables derived from it (7.4.3.2).
  */
-public class SeqParameterSetRbsp extends NalUnit {
+class SeqParameterSetRbsp extends NalUnit {
     // 7.4.3.2.1
     private static final int MAX_SPS_ID = 15;
     private static final int MAX_BIT_DEPTH_MINUS8 = 8;
@@ -48,7 +47,7 @@ public class SeqParameterSetRbsp extends NalUnit {
     final boolean scalingListEnabledFlag;
     final boolean spsScalingListDataPresentFlag;
     // null unless sps_scaling_list_data_present_flag
-    final @Nullable ScalingListData ScalingListData;
+    final @Nullable ScalingListData scalingListData;
     final boolean ampEnabledFlag;
     final boolean sampleAdaptiveOffsetEnabledFlag;
     final boolean pcmEnabledFlag;
@@ -59,14 +58,15 @@ public class SeqParameterSetRbsp extends NalUnit {
     private final int log2DiffMaxMinPcmLumaCodingBlockSize;
     final boolean pcmLoopFilterDisabledFlag;
     final int numShortTermRefPicSets;
-    final Map<Integer, StRefPicSet> stRefPicSets = new HashMap<>();
+    // the short-term reference picture sets, which later sets, and slice headers, predict from
+    final List<StRefPicSet> stRefPicSets = new ArrayList<>();
     final boolean longTermRefPicsPresentFlag;
     final int numLongTermRefPicsSps;
     final int[] ltRefPicPocLsbSps;
     final boolean[] usedByCurrPicLtSpsFlag;
     final boolean spsTemporalMvpEnabledFlag;
     final boolean strongIntraSmoothingEnabledFlag;
-    final VuiParameters VuiParameters;
+    final VuiParameters vuiParameters;
     final SpsRangeExtension spsRangeExt;
     final SpsSccExtension spsSccExt;
 
@@ -115,7 +115,7 @@ public class SeqParameterSetRbsp extends NalUnit {
 
         scalingListEnabledFlag = stream.readFlag();
         spsScalingListDataPresentFlag = scalingListEnabledFlag && stream.readFlag();
-        ScalingListData = spsScalingListDataPresentFlag ? new ScalingListData(stream) : null;
+        scalingListData = spsScalingListDataPresentFlag ? new ScalingListData(stream) : null;
 
         ampEnabledFlag = stream.readFlag();
         sampleAdaptiveOffsetEnabledFlag = stream.readFlag();
@@ -142,7 +142,7 @@ public class SeqParameterSetRbsp extends NalUnit {
 
         numShortTermRefPicSets = stream.readUevAtMost(MAX_NUM_SHORT_TERM_REF_PIC_SETS);
         for (int i = 0; i < numShortTermRefPicSets; i++) {
-            stRefPicSets.put(i, new StRefPicSet(stream, this, i));
+            stRefPicSets.add(new StRefPicSet(stream, this, i));
         }
 
         longTermRefPicsPresentFlag = stream.readFlag();
@@ -157,7 +157,7 @@ public class SeqParameterSetRbsp extends NalUnit {
         spsTemporalMvpEnabledFlag = stream.readFlag();
         strongIntraSmoothingEnabledFlag = stream.readFlag();
         boolean vuiParametersPresentFlag = stream.readFlag();
-        VuiParameters =
+        vuiParameters =
                 vuiParametersPresentFlag ? new VuiParameters(stream, spsMaxSubLayersMinus1) : new VuiParameters();
 
         boolean spsExtensionPresentFlag = stream.readFlag();
@@ -215,22 +215,6 @@ public class SeqParameterSetRbsp extends NalUnit {
      */
     final int getChromaArrayType() {
         return separateColourPlaneFlag ? 0 : chromaFormatIdc;
-    }
-
-    final int numNegativePics(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).getNumNegativePics();
-    }
-
-    final int numPositivePics(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).getNumPositivePics();
-    }
-
-    final boolean[] usedByCurrPicS0(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).getUsedByCurrPicS0();
-    }
-
-    final boolean[] usedByCurrPicS1(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).getUsedByCurrPicS1();
     }
 
     final int getSubWidthC() {

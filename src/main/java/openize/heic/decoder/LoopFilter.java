@@ -389,7 +389,7 @@ final class LoopFilter {
         int yEnd = Math.min(yCtb + ctbHeight, compHeight);
 
         int log2OffsetScale =
-                (int) (cIdx == 0 ? pps.ppsRangeExt.log2SaoOffsetScaleLuma : pps.ppsRangeExt.log2SaoOffsetScaleChroma);
+                cIdx == 0 ? pps.ppsRangeExt.log2SaoOffsetScaleLuma : pps.ppsRangeExt.log2SaoOffsetScaleChroma;
 
         // SaoOffsetVal (7.4.9.3)
         int[] offsetAbs = picture.saoOffsetAbs[cIdx][rx][ry];

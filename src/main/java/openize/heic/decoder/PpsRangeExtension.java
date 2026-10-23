@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * pps_range_extension( ) (7.3.2.3.2); the inferred values for a picture parameter set without one.
  */

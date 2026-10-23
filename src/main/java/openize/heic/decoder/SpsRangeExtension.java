@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * sps_range_extension( ) (7.3.2.2.2); all flags 0 for a sequence parameter set without one.
  */

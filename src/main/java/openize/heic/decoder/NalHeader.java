@@ -10,12 +10,10 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * nal_unit_header( ) (7.3.1.2).
  */
-public final class NalHeader {
+final class NalHeader {
     final NalUnitType type;
     final int nuhTemporalIdPlus1;
 

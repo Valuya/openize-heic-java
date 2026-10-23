@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * The colour description of vui_parameters( ) (E.2.1); the rest is read past.
  */

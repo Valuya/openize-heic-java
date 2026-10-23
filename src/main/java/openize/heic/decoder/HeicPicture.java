@@ -18,7 +18,7 @@ import java.util.Optional;
  * A decoded picture: its samples, at the coded size, and the per-block state that decoding and the in-loop filters
  * read back. Only intra-coded pictures are decoded, so every coding unit is intra.
  */
-public final class HeicPicture {
+final class HeicPicture {
     final SeqParameterSetRbsp sps;
     final PicParameterSetRbsp pps;
     private final List<SliceSegmentHeader> sliceSegmentHeaders = new ArrayList<>();
@@ -64,7 +64,7 @@ public final class HeicPicture {
 
         ScalingListData scalingList = pps.ppsScalingListDataPresentFlag
                 ? pps.ppsScalingListData
-                : sps.spsScalingListDataPresentFlag ? sps.ScalingListData : ScalingListData.DEFAULT;
+                : sps.spsScalingListDataPresentFlag ? sps.scalingListData : ScalingListData.DEFAULT;
         scalingFactor = scalingList.getScalingFactor();
 
         // whole coding tree blocks, so that blocks straddling the right and bottom edges can be reconstructed

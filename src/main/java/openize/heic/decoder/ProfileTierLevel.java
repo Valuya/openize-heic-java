@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * The general profile and level of profile_tier_level( ) (7.3.3), in a VPS or SPS, where the profile is always present.
  */

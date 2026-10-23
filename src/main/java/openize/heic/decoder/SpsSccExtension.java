@@ -10,8 +10,6 @@
 
 package openize.heic.decoder;
 
-import openize.heic.decoder.io.BitStreamWithNalSupport;
-
 /**
  * sps_scc_extension( ) (7.3.2.2.3); no screen content coding tools for a sequence parameter set without one.
  */

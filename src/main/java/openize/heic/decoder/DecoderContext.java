@@ -19,7 +19,7 @@ import org.jspecify.annotations.Nullable;
  * The state of one decode: the parameter sets by id, the picture being decoded, the scratch buffers, and the coding
  * unit state that carries over from one coding unit to the next, across slice segments.
  */
-public final class DecoderContext {
+final class DecoderContext {
     private final Map<Integer, VideoParameterSetRbsp> videoParameterSets = new HashMap<>();
     private final Map<Integer, SeqParameterSetRbsp> sequenceParameterSets = new HashMap<>();
     private final Map<Integer, PicParameterSetRbsp> pictureParameterSets = new HashMap<>();
@@ -50,22 +50,22 @@ public final class DecoderContext {
     int qpPrimeCb;
     int qpPrimeCr;
 
-    public Map<Integer, VideoParameterSetRbsp> getVPS() {
+    Map<Integer, VideoParameterSetRbsp> getVPS() {
         return videoParameterSets;
     }
 
-    public Map<Integer, SeqParameterSetRbsp> getSPS() {
+    Map<Integer, SeqParameterSetRbsp> getSPS() {
         return sequenceParameterSets;
     }
 
-    public Map<Integer, PicParameterSetRbsp> getPPS() {
+    Map<Integer, PicParameterSetRbsp> getPPS() {
         return pictureParameterSets;
     }
 
     /**
      * Registers a parameter set; other NAL units, including those of layers that are not decoded, are ignored.
      */
-    public void addNalContext(NalUnit nalUnit) {
+    void addNalContext(NalUnit nalUnit) {
         switch (nalUnit) {
             case VideoParameterSetRbsp vps -> videoParameterSets.put(vps.vpsVideoParameterSetId & 0xFF, vps);
             case SeqParameterSetRbsp sps -> sequenceParameterSets.put(sps.spsSeqParameterSetId & 0xFF, sps);

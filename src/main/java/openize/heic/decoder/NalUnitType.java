@@ -13,7 +13,7 @@ package openize.heic.decoder;
 /**
  * nal_unit_type (Table 7-1).
  */
-public enum NalUnitType {
+enum NalUnitType {
     // coded slice segments of trailing, temporal sub-layer access and step-wise temporal sub-layer access pictures
     TRAIL_N(0),
     TRAIL_R(1),
@@ -104,14 +104,14 @@ public enum NalUnitType {
         this.unitCode = unitCode;
     }
 
-    public static NalUnitType codeToType(int unitCode) {
+    static NalUnitType codeToType(int unitCode) {
         if (unitCode < 0 || unitCode >= TYPE_BY_CODE.length) {
             throw new HeicFormatException("Unknown NAL unit type %d".formatted(unitCode));
         }
         return TYPE_BY_CODE[unitCode];
     }
 
-    public int getUnitCode() {
+    int getUnitCode() {
         return unitCode;
     }
 

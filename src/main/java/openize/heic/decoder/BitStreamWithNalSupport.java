@@ -8,17 +8,14 @@
  * available along with Openize.HEIC sources.
  */
 
-package openize.heic.decoder.io;
+package openize.heic.decoder;
 
-import openize.heic.decoder.Cabac;
-import openize.heic.decoder.DecoderContext;
-import openize.heic.decoder.HeicFormatException;
 import openize.isobmff.io.BitStreamReader;
 
 /**
  * Reads HEVC syntax: exp-Golomb codes, and NAL unit payloads with their emulation prevention bytes removed.
  */
-public class BitStreamWithNalSupport extends BitStreamReader {
+final class BitStreamWithNalSupport extends BitStreamReader {
     // A 32-bit unsigned exp-Golomb code has at most 31 leading zero bits
     private static final int MAX_EXP_GOLOMB_LEADING_ZEROS = 31;
 
@@ -30,26 +27,26 @@ public class BitStreamWithNalSupport extends BitStreamReader {
     private int previousByte = 0xFF;
     private int byteBeforePrevious = 0xFF;
 
-    public BitStreamWithNalSupport(byte[] data) {
+    BitStreamWithNalSupport(byte[] data) {
         super(data);
         cabac = new Cabac(this);
     }
 
-    public final Cabac getCabac() {
+    final Cabac getCabac() {
         return cabac;
     }
 
-    public final DecoderContext getContext() {
+    final DecoderContext getContext() {
         return context;
     }
 
-    public final void turnOnNalUnitMode() {
+    final void turnOnNalUnitMode() {
         nalMode = true;
         previousByte = 0xFF;
         byteBeforePrevious = 0xFF;
     }
 
-    public final void turnOffNulUnitMode() {
+    final void turnOffNulUnitMode() {
         nalMode = false;
     }
 
@@ -87,7 +84,7 @@ public class BitStreamWithNalSupport extends BitStreamReader {
         }
     }
 
-    public final long readUev() {
+    final long readUev() {
         int leadingZeroBits = 0;
         while (read(1) == 0) {
             leadingZeroBits++;
@@ -104,7 +101,7 @@ public class BitStreamWithNalSupport extends BitStreamReader {
      *
      * @throws HeicFormatException if the value is larger
      */
-    public final int readUevAtMost(int maximum) {
+    final int readUevAtMost(int maximum) {
         long value = readUev();
         if (value > maximum) {
             throw new HeicFormatException(
@@ -113,7 +110,7 @@ public class BitStreamWithNalSupport extends BitStreamReader {
         return (int) value;
     }
 
-    public final int readSev() {
+    final int readSev() {
         long codeNum = readUev();
 
         boolean negative = (codeNum & 1) == 0;
@@ -125,27 +122,12 @@ public class BitStreamWithNalSupport extends BitStreamReader {
      *
      * @throws HeicFormatException if the value is outside
      */
-    public final int readSevInRange(int minimum, int maximum, String elementName) {
+    final int readSevInRange(int minimum, int maximum, String elementName) {
         int value = readSev();
         if (value < minimum || value > maximum) {
             throw new HeicFormatException("%s %d at bit %d, outside %d..%d"
                     .formatted(elementName, value, getBitPosition(), minimum, maximum));
         }
         return value;
-    }
-
-    /**
-     * more_rbsp_data(): whether the RBSP holds data before its rbsp_trailing_bits().
-     */
-    public final boolean hasMoreRbspData(long endPosition) {
-        if (getBitPosition() >= endPosition) {
-            throw new HeicFormatException("Read past the end of a NAL unit");
-        }
-
-        while (notByteAligned()) {
-            skipBits(1);
-        }
-
-        return peek(8) != 0x80;
     }
 }
