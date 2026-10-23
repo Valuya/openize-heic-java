@@ -28,6 +28,8 @@ class ResidualCoding {
 
         DecoderContext streamContext = stream.getContext();
         streamContext.transformSkipFlag[cIdx] = false;
+        ResidualBuffers residualBuffers = streamContext.getResidualBuffers();
+        residualBuffers.startBlock(1 << log2TrafoSize);
 
         boolean[] explicitRdpcmFlagX0Y0 = picture.explicitRdpcmFlag[x0][y0];
         if (explicitRdpcmFlagX0Y0 == null) {
@@ -333,14 +335,7 @@ class ResidualCoding {
                         }
                     }
 
-                    if (cIdx == 0) {
-                        picture.transCoeffLevel[cIdx][(int) ((x0 + (xC & 0xFFFFFFFFL)) & 0xFFFFFFFFL)][
-                                (int) ((y0 + (yC & 0xFFFFFFFFL)) & 0xFFFFFFFFL)] = transCoeffLevel;
-                    } else {
-                        picture.transCoeffLevel[cIdx][
-                                (int) ((x0 / (sps.getSubWidthC() & 0xFF) + (xC & 0xFFFFFFFFL)) & 0xFFFFFFFFL)][
-                                (int) ((y0 / (sps.getSubHeightC() & 0xFF) + (yC & 0xFFFFFFFFL)) & 0xFFFFFFFFL)] = transCoeffLevel;
-                    }
+                    residualBuffers.setCoefficient((int) xC, (int) yC, transCoeffLevel);
 
                     numSigCoeff++;
                 }

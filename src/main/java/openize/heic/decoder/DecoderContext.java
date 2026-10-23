@@ -38,6 +38,8 @@ public class DecoderContext {
 
     private final HashMap<Long, HeicPicture> pictures;
 
+    private final ResidualBuffers residualBuffers = new ResidualBuffers();
+
     // public boolean first_decoded_picture = true;
     public boolean noRaslOutputFlag = false;
     public boolean handleCraAsBlaFlag = false;
@@ -171,6 +173,10 @@ public class DecoderContext {
     }
 
     private int currentQpY;
+
+    ResidualBuffers getResidualBuffers() {
+        return residualBuffers;
+    }
 
     public DecoderContext() {
         vPS = new HashMap<>();

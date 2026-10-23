@@ -48,8 +48,6 @@ public class HeicPicture {
     public IntraPredMode[][] intraPredModeY;
     public IntraPredMode[][] intraPredModeC;
 
-    public int[][][] transCoeffLevel;
-
     public int[][] ctDepthByPosition;
     public PredMode[][] cuPredModeByPosition;
     public int[][] qpYByPosition;
@@ -117,7 +115,6 @@ public class HeicPicture {
         saoOffsetAbs = new int[chromaCount][][][];
         saoOffsetSign = new int[chromaCount][][][];
         saoBandPosition = new int[chromaCount][][];
-        transCoeffLevel = new int[chromaCount][][];
 
         if ((sps.getBitDepthY() & 0xFF) > 8 || (sps.getBitDepthC() & 0xFF) > 8)
             pixelsHighColorRange = new /*UInt16*/ int[chromaCount][][];
@@ -131,8 +128,6 @@ public class HeicPicture {
             saoOffsetAbs[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
             saoOffsetSign[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())][];
             saoBandPosition[i] = new int[(int) (sps.getPicWidthInCtbsY())][(int) (sps.getPicHeightInCtbsY())];
-
-            transCoeffLevel[i] = new int[(int) (widthMax & 0xFFFFFFFFL)][(int) (heightMax & 0xFFFFFFFFL)];
 
             if ((sps.getBitDepthY() & 0xFF) > 8 || (sps.getBitDepthC() & 0xFF) > 8)
                 pixelsHighColorRange[i] =
@@ -184,7 +179,6 @@ public class HeicPicture {
         blockFlags = null;
         intraPredModeY = null;
         intraPredModeC = null;
-        transCoeffLevel = null;
         ctDepthByPosition = null;
         cuPredModeByPosition = null;
         qpYByPosition = null;

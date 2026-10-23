@@ -151,6 +151,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
             61, -54, 46, -38, 31, -22, 13, -4
         }
     };
+    private static final int MAX_TRANSFORM_SIZE = 32;
     private static final int[] levelScale = {40, 45, 51, 57, 64, 72};
     // Table 8-5
     private static final int[] intraPredAngleTable = {
@@ -431,30 +432,28 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         //    scale_coefficients();
         // }
 
-        int[][] transSamples = scalingAndTransformation(stream, picture, x0, y0, cuPredMode, trafoDepth, cIdx, nTbS);
-
+        ResidualBuffers residualBuffers = stream.getContext().getResidualBuffers();
         int bitDepth = ((cIdx == 0) ? picture.sps.getBitDepthY() : picture.sps.getBitDepthC()) & 0xFF;
+        boolean highColorRange = (picture.sps.getBitDepthY() & 0xFF) > 8 || (picture.sps.getBitDepthC() & 0xFF) > 8;
 
-        if ((picture.sps.getBitDepthY() & 0xFF) > 8 || (picture.sps.getBitDepthC() & 0xFF) > 8) {
-            for (int x = 0; x < nTbS; x++) {
-                int[] pixelHicolorRangeIdxX = picture.pixelsHighColorRange[cIdx][x0 + x];
-                int[] sampleX = samples[x];
-                int[] transSampleX = transSamples[x];
-                for (int y = 0; y < nTbS; y++) {
-                    pixelHicolorRangeIdxX[y0 + y] =
-                            MathExtra.clipBitDepth(sampleX[y] + transSampleX[y], bitDepth) & 0xFFFF;
-                }
-            }
-        } else {
-            for (int x = 0; x < nTbS; x++) {
-                byte[] pixelsIdxX = picture.pixels[cIdx][x0 + x];
-                int[] sampleX = samples[x];
-                int[] transSampleX = transSamples[x];
-                for (int y = 0; y < nTbS; y++) {
-                    pixelsIdxX[y0 + y] = (/*Byte*/ byte) MathExtra.clipBitDepth(sampleX[y] + transSampleX[y], bitDepth);
+        // a block without coded coefficients has a zero residual: the prediction is the reconstruction
+        int[] residual = residualBuffers.isEmpty()
+                ? null
+                : scalingAndTransformation(stream, picture, x0, y0, cuPredMode, cIdx, nTbS, residualBuffers);
+
+        for (int x = 0; x < nTbS; x++) {
+            int[] predictedColumn = samples[x];
+            for (int y = 0; y < nTbS; y++) {
+                int reconstructed = MathExtra.clipBitDepth(
+                        predictedColumn[y] + (residual == null ? 0 : residual[x * nTbS + y]), bitDepth);
+                if (highColorRange) {
+                    picture.pixelsHighColorRange[cIdx][x0 + x][y0 + y] = reconstructed & 0xFFFF;
+                } else {
+                    picture.pixels[cIdx][x0 + x][y0 + y] = (byte) reconstructed;
                 }
             }
         }
+        residualBuffers.clear();
     }
 
     // 8.4.4.2.1 General intra sample prediction
@@ -792,291 +791,151 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         return predSamples;
     }
 
-    private int[][] scalingAndTransformationBuffer;
-
-    // 8.6.2 Scaling and transformation process
-    private int[][] scalingAndTransformation(
+    // 8.6.2 Scaling and transformation process, from the coefficients in the residual buffers
+    private int[] scalingAndTransformation(
             BitStreamWithNalSupport stream,
             HeicPicture picture,
             int xTbY,
             int yTbY,
             PredMode cuPredMode,
-            int trafoDepth,
             int cIdx,
-            int nTbS) {
-        // Inputs to this process are:
-        // – a luma location(xTbY, yTbY) specifying the top-left sample of the current luma transform block
-        //   relative to the top-left luma sample of the current picture,
-        // – a variable trafoDepth specifying the hierarchy depth of the current block relative to the coding block,
-        // – a variable cIdx specifying the colour component of the current block,
-        // – a variable nTbS specifying the size of the current transform block.
-        // Output of this process is the (nTbS)x(nTbS) array of residual samples r with elements r[x][y].
-
+            int nTbS,
+            ResidualBuffers residualBuffers) {
         SliceSegmentHeader sliceHeader = picture.getSliceHeaders().get(picture.sliceHeaderIndex[xTbY][yTbY]);
 
         int bitDepth = ((cIdx == 0) ? picture.sps.getBitDepthY() : picture.sps.getBitDepthC()) & 0xFF;
         int bdShift = Math.max(20 - bitDepth, picture.sps.spsRangeExt.extendedPrecisionProcessingFlag ? 11 : 0);
-        int tsShift = 5 + MathUtils.f64S32(MathUtils.log(nTbS, 2));
-
-        boolean rotateCoeffs = (picture.sps.spsRangeExt.transformSkipRotationEnabledFlag
+        int log2BlockSize = Integer.numberOfTrailingZeros(nTbS);
+        int tsShift = 5 + log2BlockSize;
+        boolean rotateCoeffs = picture.sps.spsRangeExt.transformSkipRotationEnabledFlag
                 && nTbS == 4
-                && cuPredMode == PredMode.MODE_INTRA);
-
-        if (scalingAndTransformationBuffer == null) {
-            scalingAndTransformationBuffer = new int[nTbS][nTbS];
-        }
-
-        int[][] rotateSamples = scalingAndTransformationBuffer;
+                && cuPredMode == PredMode.MODE_INTRA;
+        int[] residual = residualBuffers.residual;
 
         DecoderContext streamContext = stream.getContext();
         if (streamContext.cuTransquantBypassFlag) {
-            if (rotateCoeffs) {
-                for (int x = 0; x < nTbS; x++) {
-                    int[] rotateSampleX = rotateSamples[x];
-                    int[] transCoefLevel = picture.transCoeffLevel[cIdx][xTbY + nTbS - x - 1];
-                    for (int y = 0; y < nTbS; y++) {
-                        rotateSampleX[y] = transCoefLevel[yTbY + nTbS - y - 1];
-                    }
+            for (int x = 0; x < nTbS; x++) {
+                for (int y = 0; y < nTbS; y++) {
+                    residual[x * nTbS + y] = rotateCoeffs
+                            ? residualBuffers.coefficient(nTbS - x - 1, nTbS - y - 1)
+                            : residualBuffers.coefficient(x, y);
                 }
-            } else {
-                for (int x = 0; x < nTbS; x++)
-                    System.arraycopy(picture.transCoeffLevel[cIdx][xTbY + x], yTbY, rotateSamples[x], 0, nTbS);
+            }
+            return residual;
+        }
+
+        int qP = switch (cIdx) {
+            case 1 -> streamContext.getQpCb();
+            case 2 -> streamContext.getQpCr();
+            default ->
+                MathExtra.clip3(
+                        0,
+                        51 + (picture.sps.getQpBdOffsetY() & 0xFF),
+                        streamContext.getQpY()
+                                + (picture.tuResidualActFlag[xTbY][yTbY]
+                                        ? picture.pps.getPpsActQpOffsetY() + sliceHeader.sliceActYQpOffset
+                                        : 0));
+        };
+
+        int[] scaled = scaleCoefficients(stream, picture, cuPredMode, cIdx, nTbS, qP, residualBuffers);
+
+        if (streamContext.transformSkipFlag[cIdx]) {
+            for (int x = 0; x < nTbS; x++) {
+                for (int y = 0; y < nTbS; y++) {
+                    int scaledIndex = rotateCoeffs ? (nTbS - x - 1) * nTbS + (nTbS - y - 1) : x * nTbS + y;
+                    residual[x * nTbS + y] = scaled[scaledIndex] << tsShift;
+                }
             }
         } else {
-            int qP;
-
-            switch (cIdx) {
-                case 1:
-                    qP = streamContext.getQpCb();
-                    break;
-                case 2:
-                    qP = streamContext.getQpCr();
-                    break;
-                case 0:
-                default:
-                    qP = MathExtra.clip3(
-                            0,
-                            51 + (picture.sps.getQpBdOffsetY() & 0xFF),
-                            streamContext.getQpY()
-                                    + (picture.tuResidualActFlag[xTbY][yTbY]
-                                            ? picture.pps.getPpsActQpOffsetY() + sliceHeader.sliceActYQpOffset
-                                            : 0));
-                    break;
-            }
-
-            int[][] d =
-                    getScalingProcessForTransformCoefficients(stream, picture, xTbY, yTbY, cuPredMode, cIdx, nTbS, qP);
-
-            if (streamContext.transformSkipFlag[cIdx]) {
-                for (int x = 0; x < nTbS; x++) {
-                    int[] rotateSampleX = rotateSamples[x];
-                    int[] dnTbsX = d[nTbS - x - 1];
-                    int[] dX = d[x];
-                    for (int y = 0; y < nTbS; y++) {
-                        rotateSampleX[y] = (rotateCoeffs ? dnTbsX[nTbS - y - 1] : dX[y]) << tsShift;
-                    }
-                }
-            } else {
-                rotateSamples =
-                        transformationOfScaledCoefficients(stream, picture, xTbY, yTbY, cuPredMode, cIdx, nTbS, d);
-            }
-
-            int offset = 1 << (bdShift - 1);
-
-            for (int x = 0; x < nTbS; x++) {
-                int[] rotateSampleX = rotateSamples[x];
-                for (int y = 0; y < nTbS; y++) {
-                    rotateSampleX[y] = (rotateSampleX[y] + offset) >> bdShift;
-                }
-            }
+            transformScaledCoefficients(picture, cuPredMode, cIdx, nTbS, residualBuffers);
         }
-        return rotateSamples;
-    }
 
-    private int[][] scalingProcessForTransformCoefficientsM;
-    private int[][] scalingProcessForTransformCoefficientsD;
+        int offset = 1 << (bdShift - 1);
+        for (int index = 0; index < nTbS * nTbS; index++) {
+            residual[index] = (residual[index] + offset) >> bdShift;
+        }
+        return residual;
+    }
 
     // 8.6.3 Scaling process for transform coefficients
-    private int[][] getScalingProcessForTransformCoefficients(
+    private int[] scaleCoefficients(
             BitStreamWithNalSupport stream,
             HeicPicture picture,
-            int xTbY,
-            int yTbY,
             PredMode cuPredMode,
             int cIdx,
             int nTbS,
-            int qP) {
-        // Inputs to this process are:
-        // – a luma location(xTbY, yTbY) specifying the top-left sample of the current luma transform block
-        //   relative to the top-left luma sample of the current picture,
-        // – a variable nTbS specifying the size of the current transform block,
-        // – a variable cIdx specifying the colour component of the current block,
-        // – a variable qP specifying the quantization parameter.
-        // Output of this process is the(nTbS) x(nTbS)array d of scaled transform coefficients with elements d[x][y].
-
-        int log2TransformRange = cIdx == 0
-                ? (picture.sps.spsRangeExt.extendedPrecisionProcessingFlag
-                        ? Math.max(15, (picture.sps.getBitDepthY() & 0xFF) + 6)
-                        : 15)
-                : (picture.sps.spsRangeExt.extendedPrecisionProcessingFlag
-                        ? Math.max(15, (picture.sps.getBitDepthC() & 0xFF) + 6)
-                        : 15);
-
-        int bdShift = ((cIdx == 0 ? picture.sps.getBitDepthY() : picture.sps.getBitDepthC()) & 0xFF)
-                + MathUtils.f64S32(MathUtils.log(nTbS, 2))
-                + 10
-                - log2TransformRange;
+            int qP,
+            ResidualBuffers residualBuffers) {
+        int bitDepth = (cIdx == 0 ? picture.sps.getBitDepthY() : picture.sps.getBitDepthC()) & 0xFF;
+        int log2TransformRange =
+                picture.sps.spsRangeExt.extendedPrecisionProcessingFlag ? Math.max(15, bitDepth + 6) : 15;
+        int log2BlockSize = Integer.numberOfTrailingZeros(nTbS);
+        int bdShift = bitDepth + log2BlockSize + 10 - log2TransformRange;
         int coeffMin = cIdx == 0 ? picture.sps.getCoeffMinY() : picture.sps.getCoeffMinC();
         int coeffMax = cIdx == 0 ? picture.sps.getCoeffMaxY() : picture.sps.getCoeffMaxC();
+        int roundingOffset = 1 << (bdShift - 1);
 
-        int sizeId = MathUtils.f64S32(MathUtils.log(nTbS, 2)) - 2;
+        int sizeId = log2BlockSize - 2;
         int matrixId = cIdx + (cuPredMode == PredMode.MODE_INTRA ? 0 : 3);
+        int[][] scalingFactors = picture.scalingFactor[sizeId][matrixId];
+        boolean flatScaling =
+                !picture.sps.scalingListEnabledFlag || (stream.getContext().transformSkipFlag[cIdx] && nTbS > 4);
 
-        if (scalingProcessForTransformCoefficientsM == null) {
-            scalingProcessForTransformCoefficientsM = new int[nTbS][nTbS];
-        }
-
-        if (scalingProcessForTransformCoefficientsD == null) {
-            scalingProcessForTransformCoefficientsD = new int[nTbS][nTbS];
-        }
-
-        int[][] m = scalingProcessForTransformCoefficientsM;
-        int[][] d = scalingProcessForTransformCoefficientsD;
-
-        int coeff;
-
-        DecoderContext streamContext = stream.getContext();
-        int[][] scalingFactorSizeIdMatrixID = picture.scalingFactor[sizeId][matrixId];
-        int bgShiftMask = 1 << (bdShift - 1);
+        int[] scaled = residualBuffers.scaled;
         for (int x = 0; x < nTbS; x++) {
-            int[] transCoefLevelX = picture.transCoeffLevel[cIdx][xTbY + x];
-            int[] mX = m[x];
-            int[] scalingFactorSizeIdMatrixIdX = scalingFactorSizeIdMatrixID[x];
-            int[] dX = d[x];
+            int[] scalingFactorColumn = scalingFactors[x];
             for (int y = 0; y < nTbS; y++) {
-                coeff = transCoefLevelX[yTbY + y];
-
-                if (!picture.sps.scalingListEnabledFlag || (streamContext.transformSkipFlag[cIdx] && nTbS > 4)) {
-                    mX[y] = 16;
-                } else {
-                    mX[y] = scalingFactorSizeIdMatrixIdX[y];
-                }
-
-                dX[y] = MathExtra.clip3(
+                int scalingFactor = flatScaling ? 16 : scalingFactorColumn[y];
+                int coefficient = residualBuffers.coefficient(x, y);
+                scaled[x * nTbS + y] = MathExtra.clip3(
                         coeffMin,
                         coeffMax,
-                        ((coeff * mX[y] * levelScale[qP % 6] << (qP / 6)) + bgShiftMask) >> bdShift);
+                        ((coefficient * scalingFactor * levelScale[qP % 6] << (qP / 6)) + roundingOffset) >> bdShift);
             }
         }
-
-        return d;
+        return scaled;
     }
 
-    private int[][] transformationOfScaledCoefficientsE;
-    private int[][] transformationOfScaledCoefficientsG;
-    private int[][] transformationOfScaledCoefficientsR;
-
-    // 8.6.4 Transformation process for scaled transform coefficients
-    private int[][] transformationOfScaledCoefficients(
-            BitStreamWithNalSupport stream,
-            HeicPicture picture,
-            int xTbY,
-            int yTbY,
-            PredMode cuPredMode,
-            int cIdx,
-            int nTbS,
-            int[][] d) {
-        // Inputs to this process are:
-        // – a luma location(xTbY, yTbY) specifying the top - left sample of the current luma transform block relative
-        // to the
-        //   top - left luma sample of the current picture,
-        // – a variable nTbS specifying the size of the current transform block,
-        // – a variable cIdx specifying the colour component of the current block,
-        // – an(nTbS)x(nTbS) array d of scaled transform coefficients with elements d[x][y].
-        // Output of this process is the(nTbS) x(nTbS)array r of residual samples with elements r[x][y].
-
+    // 8.6.4.2 Transformation process: columns, intermediate clipping, then rows. Only the coefficients up to the last
+    // non-zero one in each direction can contribute, so the sums stop there.
+    private void transformScaledCoefficients(
+            HeicPicture picture, PredMode cuPredMode, int cIdx, int nTbS, ResidualBuffers residualBuffers) {
         int coeffMin = cIdx == 0 ? picture.sps.getCoeffMinY() : picture.sps.getCoeffMinC();
         int coeffMax = cIdx == 0 ? picture.sps.getCoeffMaxY() : picture.sps.getCoeffMaxC();
+        boolean discreteSineTransform = cuPredMode == PredMode.MODE_INTRA && nTbS == 4 && cIdx == 0;
+        int[][] transMatrix = discreteSineTransform ? transMatrix4x4 : transMatrix32x32;
+        int matrixRowStep = discreteSineTransform ? 1 : MAX_TRANSFORM_SIZE / nTbS;
+        int lastColumn = residualBuffers.lastNonZeroX();
+        int lastRow = residualBuffers.lastNonZeroY();
 
-        int trType = (cuPredMode == PredMode.MODE_INTRA && nTbS == 4 && cIdx == 0) ? 1 : 0;
-        int mult = 1 << (5 - MathUtils.f64S32(MathUtils.log(nTbS, 2)));
-
-        if (transformationOfScaledCoefficientsE == null) {
-            transformationOfScaledCoefficientsE = new int[nTbS][nTbS];
-        } else {
-            for (int[] ints : transformationOfScaledCoefficientsE) {
-                Arrays.fill(ints, (byte) 0);
-            }
-        }
-
-        if (transformationOfScaledCoefficientsG == null) {
-            transformationOfScaledCoefficientsG = new int[nTbS][nTbS];
-        } else {
-            for (int[] ints : transformationOfScaledCoefficientsG) {
-                Arrays.fill(ints, (byte) 0);
-            }
-        }
-
-        if (transformationOfScaledCoefficientsR == null) {
-            transformationOfScaledCoefficientsR = new int[nTbS][nTbS];
-        } else {
-            for (int[] ints : transformationOfScaledCoefficientsR) {
-                Arrays.fill(ints, (byte) 0);
-            }
-        }
-
-        int[][] e = transformationOfScaledCoefficientsE;
-        int[][] g = transformationOfScaledCoefficientsG;
-        int[][] r = transformationOfScaledCoefficientsR;
+        int[] scaled = residualBuffers.scaled;
+        int[] columnTransformed = residualBuffers.columnTransformed;
+        int[] clipped = residualBuffers.clipped;
+        int[] residual = residualBuffers.residual;
 
         for (int x = 0; x < nTbS; x++) {
-            int[] eX = e[x];
-            int[] dX = d[x];
-            if (trType == 1) {
-                for (int j = 0; j < nTbS; j++) {
-                    for (int i = 0; i < nTbS; i++) {
-                        int[] transMatrix4x4J = transMatrix4x4[j];
-                        eX[i] += transMatrix4x4J[i] * dX[j];
+            int columnStart = x * nTbS;
+            for (int i = 0; i < nTbS; i++) {
+                int sum = 0;
+                if (x <= lastColumn) {
+                    for (int j = 0; j <= lastRow; j++) {
+                        sum += transMatrix[j * matrixRowStep][i] * scaled[columnStart + j];
                     }
                 }
-            } else {
-                for (int j = 0; j < nTbS; j++) {
-                    int[] transMatrix32x32Jmult = transMatrix32x32[j * mult];
-                    int dXj = dX[j];
-                    for (int i = 0; i < nTbS; i++) {
-                        eX[i] += transMatrix32x32Jmult[i] * dXj;
-                    }
-                }
-            }
-        }
-
-        for (int x = 0; x < nTbS; x++) {
-            int[] eX = e[x];
-            int[] gX = g[x];
-            for (int y = 0; y < nTbS; y++) {
-                gX[y] = MathExtra.clip3(coeffMin, coeffMax, (eX[y] + 64) >> 7);
+                columnTransformed[columnStart + i] = sum;
+                clipped[columnStart + i] = MathExtra.clip3(coeffMin, coeffMax, (sum + 64) >> 7);
             }
         }
 
         for (int y = 0; y < nTbS; y++) {
-            if (trType == 1) {
-                for (int i = 0; i < nTbS; i++) {
-                    int[] rI = r[i];
-                    for (int j = 0; j < nTbS; j++) {
-                        rI[y] += transMatrix4x4[j][i] * g[j][y];
-                    }
+            for (int i = 0; i < nTbS; i++) {
+                int sum = 0;
+                for (int j = 0; j <= lastColumn; j++) {
+                    sum += transMatrix[j * matrixRowStep][i] * clipped[j * nTbS + y];
                 }
-            } else {
-                for (int i = 0; i < nTbS; i++) {
-                    int[] rI = r[i];
-                    for (int j = 0; j < nTbS; j++) {
-                        rI[y] += transMatrix32x32[j * mult][i] * g[j][y];
-                    }
-                }
+                residual[i * nTbS + y] = sum;
             }
         }
-
-        return r;
     }
 
     // 8.6.4.2 Transformation process
