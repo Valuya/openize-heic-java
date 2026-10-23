@@ -19,7 +19,7 @@ import openize.heic.decoder.HeicDecodingOptions;
 import openize.heic.decoder.HeicImage;
 import openize.heic.decoder.HeicImageTooLargeException;
 import openize.heic.decoder.PixelFormat;
-import openize.heic.decoder.Rectangle;
+import openize.heic.decoder.PixelRegion;
 import org.junit.jupiter.api.Test;
 
 class DecodingOptionsTest {
@@ -31,7 +31,7 @@ class DecodingOptionsTest {
         HeicDecodingOptions oneMegapixel = HeicDecodingOptions.DEFAULT.withMaxPixelCount(1_000_000);
         HeicImage heicImage = HeicImage.load(IPHONE_PHOTO, oneMegapixel);
 
-        assertThatThrownBy(() -> heicImage.getInt32Array(PixelFormat.Argb32))
+        assertThatThrownBy(() -> heicImage.decodeArgb())
                 .isInstanceOf(HeicImageTooLargeException.class)
                 .hasMessageContaining("3024x4032");
     }
@@ -40,10 +40,10 @@ class DecodingOptionsTest {
     void decodesARegionWithinTheLimitOfALargerImage() throws IOException {
         HeicDecodingOptions oneMegapixel = HeicDecodingOptions.DEFAULT.withMaxPixelCount(1_000_000);
         HeicImage heicImage = HeicImage.load(IPHONE_PHOTO, oneMegapixel);
-        Rectangle centre = new Rectangle(1256, 1760, 512, 512);
+        PixelRegion centre = new PixelRegion(1256, 1760, 512, 512);
 
-        int[] centrePixels = heicImage.getInt32Array(PixelFormat.Argb32, centre);
-        int[] allPixels = HeicImage.load(IPHONE_PHOTO).getInt32Array(PixelFormat.Argb32);
+        int[] centrePixels = heicImage.decodeArgb(centre);
+        int[] allPixels = HeicImage.load(IPHONE_PHOTO).decodeArgb();
 
         assertThat(centrePixels).hasSize(512 * 512);
         for (int row = 0; row < 512; row++) {
@@ -61,9 +61,9 @@ class DecodingOptionsTest {
     void refusesCodedPicturesLargerThanTheLimitEvenForASmallRegion() throws IOException {
         HeicDecodingOptions smallerThanATile = HeicDecodingOptions.DEFAULT.withMaxPixelCount(100_000);
         HeicImage heicImage = HeicImage.load(IPHONE_PHOTO, smallerThanATile);
-        Rectangle smallRegion = new Rectangle(0, 0, 100, 100);
+        PixelRegion smallRegion = new PixelRegion(0, 0, 100, 100);
 
-        assertThatThrownBy(() -> heicImage.getInt32Array(PixelFormat.Argb32, smallRegion))
+        assertThatThrownBy(() -> heicImage.decodeArgb(smallRegion))
                 .isInstanceOf(HeicImageTooLargeException.class)
                 .hasMessageContaining("512x512");
     }
@@ -73,7 +73,7 @@ class DecodingOptionsTest {
         HeicDecodingOptions sequential = HeicDecodingOptions.DEFAULT.withParallel(false);
         HeicImage heicImage = HeicImage.load(IPHONE_PHOTO, sequential);
 
-        byte[] argbBytes = heicImage.getByteArray(PixelFormat.Argb32);
+        byte[] argbBytes = heicImage.decodeBytes(PixelFormat.ARGB32);
 
         TestSamples.assertMatchesReference("iphone_photo.heic", argbBytes);
     }

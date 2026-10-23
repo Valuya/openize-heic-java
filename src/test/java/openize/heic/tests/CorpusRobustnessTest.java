@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import openize.heic.decoder.HeicFormatException;
 import openize.heic.decoder.HeicImage;
-import openize.heic.decoder.PixelFormat;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -61,8 +60,8 @@ class CorpusRobustnessTest {
 
     private static void decode(Path heifFile) throws IOException {
         HeicImage heicImage = HeicImage.load(heifFile);
-        int[] argbPixels = heicImage.getInt32Array(PixelFormat.Argb32);
-        int pixelCount = (int) (heicImage.getWidth() * heicImage.getHeight());
+        int[] argbPixels = heicImage.decodeArgb();
+        int pixelCount = heicImage.getWidth() * heicImage.getHeight();
 
         assertThat(argbPixels).hasSize(pixelCount);
     }

@@ -11,36 +11,54 @@
 package openize.heic.decoder;
 
 /**
- * <p>
- * Specifies the format of the color data for each pixel in the image.
- * </p>
+ * The layout of the bytes of a pixel decoded to a byte array: 8 bits per component, in the order of the name.
  */
 public enum PixelFormat {
-    /**
-     * <p>
-     * Specifies that the format is 24 bits per pixel; 8 bits each are used for the red, green, and blue components.
-     * </p>
-     */
-    Rgb24,
+    RGB24(3),
+    RGBA32(4),
+    ARGB32(4),
+    BGRA32(4);
 
-    /**
-     * <p>
-     * Specifies that the format is 32 bits per pixel; 8 bits each are used for the red, green, blue, and alpha components.
-     * </p>
-     */
-    Rgba32,
+    private final int bytesPerPixel;
 
-    /**
-     * <p>
-     * Specifies that the format is 32 bits per pixel; 8 bits each are used for the alpha, red, green, and blue components.
-     * </p>
-     */
-    Argb32,
+    PixelFormat(int bytesPerPixel) {
+        this.bytesPerPixel = bytesPerPixel;
+    }
 
-    /**
-     * <p>
-     * Specifies that the format is 32 bits per pixel; 8 bits each are used for the blue, green, red, and alpha components.
-     * </p>
-     */
-    Bgra32,
+    public int bytesPerPixel() {
+        return bytesPerPixel;
+    }
+
+    // writes the 0xAARRGGBB pixel at output[index] in this format
+    void write(int argb, byte[] output, int index) {
+        byte alpha = (byte) (argb >>> 24);
+        byte red = (byte) (argb >> 16);
+        byte green = (byte) (argb >> 8);
+        byte blue = (byte) argb;
+        switch (this) {
+            case RGB24 -> {
+                output[index] = red;
+                output[index + 1] = green;
+                output[index + 2] = blue;
+            }
+            case RGBA32 -> {
+                output[index] = red;
+                output[index + 1] = green;
+                output[index + 2] = blue;
+                output[index + 3] = alpha;
+            }
+            case ARGB32 -> {
+                output[index] = alpha;
+                output[index + 1] = red;
+                output[index + 2] = green;
+                output[index + 3] = blue;
+            }
+            case BGRA32 -> {
+                output[index] = blue;
+                output[index + 1] = green;
+                output[index + 2] = red;
+                output[index + 3] = alpha;
+            }
+        }
+    }
 }

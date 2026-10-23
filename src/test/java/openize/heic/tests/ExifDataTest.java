@@ -17,7 +17,6 @@ import com.drew.metadata.exif.ExifIFD0Directory;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
 import java.io.IOException;
 import openize.heic.decoder.ExifData;
-import openize.heic.decoder.ExifDirectoryType;
 import openize.heic.decoder.HeicImage;
 import org.junit.jupiter.api.Test;
 
@@ -28,18 +27,28 @@ class ExifDataTest {
         HeicImage heicImage = HeicImage.load(TestSamples.samplePath("iphone_portrait_photo.heic"));
         ExifData exifData = heicImage.getExifOptional().orElseThrow();
 
-        Object xResolution = exifData.getExifRawDataOptional(
-                        ExifDirectoryType.ExifIfd0Directory, ExifIFD0Directory.TAG_X_RESOLUTION)
+        Object xResolution = exifData.getValueOptional(ExifIFD0Directory.class, ExifIFD0Directory.TAG_X_RESOLUTION)
                 .orElseThrow();
-        Object exposureTime = exifData.getExifRawDataOptional(
-                        ExifDirectoryType.ExifSubIfdDirectory, ExifSubIFDDirectory.TAG_EXPOSURE_TIME)
+        Object exposureTime = exifData.getValueOptional(
+                        ExifSubIFDDirectory.class, ExifSubIFDDirectory.TAG_EXPOSURE_TIME)
                 .orElseThrow();
-        Object exifImageWidth = exifData.getExifRawDataOptional(
-                        ExifDirectoryType.ExifSubIfdDirectory, ExifSubIFDDirectory.TAG_EXIF_IMAGE_WIDTH)
+        Object exifImageWidth = exifData.getValueOptional(
+                        ExifSubIFDDirectory.class, ExifSubIFDDirectory.TAG_EXIF_IMAGE_WIDTH)
                 .orElseThrow();
 
         assertThat(xResolution).isEqualTo(new Rational(72, 1));
         assertThat(exposureTime).isEqualTo(new Rational(1, 50));
         assertThat(exifImageWidth).isEqualTo(4032L);
+    }
+
+    @Test
+    void describesATag() throws IOException {
+        HeicImage heicImage = HeicImage.load(TestSamples.samplePath("iphone_portrait_photo.heic"));
+        ExifData exifData = heicImage.getExifOptional().orElseThrow();
+
+        String make = exifData.getDescriptionOptional(ExifIFD0Directory.class, ExifIFD0Directory.TAG_MAKE)
+                .orElseThrow();
+
+        assertThat(make).isEqualTo("Apple");
     }
 }

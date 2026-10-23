@@ -21,21 +21,25 @@ final class PixelTarget {
     private final PixelBox clip;
     private final AxisTransform transform;
     private final int[] destination;
+    private final int destinationOffset;
     private final int destinationWidth;
 
-    private PixelTarget(PixelBox clip, AxisTransform transform, int[] destination, int destinationWidth) {
+    private PixelTarget(
+            PixelBox clip, AxisTransform transform, int[] destination, int destinationOffset, int destinationWidth) {
         this.clip = clip;
         this.transform = transform;
         this.destination = destination;
+        this.destinationOffset = destinationOffset;
         this.destinationWidth = destinationWidth;
     }
 
     /**
-     * A destination holding {@code region} of an image whose pixels are in the image's own coordinates.
+     * A destination holding {@code region} of an image whose pixels are in the image's own coordinates, its first
+     * pixel at {@code destination[offset]} and each row {@code scanlineStride} after the one before.
      */
-    static PixelTarget forRegion(PixelBox region, int[] destination) {
+    static PixelTarget forRegion(PixelBox region, int[] destination, int offset, int scanlineStride) {
         AxisTransform regionTransform = AxisTransform.translation(-region.left(), -region.top());
-        return new PixelTarget(region, regionTransform, destination, region.width());
+        return new PixelTarget(region, regionTransform, destination, offset, scanlineStride);
     }
 
     /**
@@ -44,7 +48,8 @@ final class PixelTarget {
      */
     PixelTarget forSourceImage(AxisTransform toThisImage, PixelBox kept) {
         PixelBox clipInSource = toThisImage.inverse().map(clip).intersect(kept);
-        return new PixelTarget(clipInSource, toThisImage.andThen(transform), destination, destinationWidth);
+        return new PixelTarget(
+                clipInSource, toThisImage.andThen(transform), destination, destinationOffset, destinationWidth);
     }
 
     PixelBox clip() {
@@ -68,7 +73,7 @@ final class PixelTarget {
     }
 
     int base() {
-        return transform.translateX() + transform.translateY() * destinationWidth;
+        return destinationOffset + transform.translateX() + transform.translateY() * destinationWidth;
     }
 
     /**

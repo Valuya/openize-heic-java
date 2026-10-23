@@ -45,6 +45,6 @@ class ConcurrentDecodingTest {
 
     private static byte[] decode(String sampleName) throws IOException {
         HeicImage heicImage = HeicImage.load(TestSamples.samplePath(sampleName));
-        return heicImage.getByteArray(PixelFormat.Argb32);
+        return heicImage.decodeBytes(PixelFormat.ARGB32);
     }
 }

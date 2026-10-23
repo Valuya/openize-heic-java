@@ -98,6 +98,13 @@ public class Box {
         return offset + headerSize;
     }
 
+    /**
+     * The size of the content of the box in bytes, after its header.
+     */
+    public final long getContentLength() {
+        return size - headerSize;
+    }
+
     final long getEndOffset() {
         return offset + size;
     }

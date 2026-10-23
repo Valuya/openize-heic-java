@@ -40,7 +40,7 @@ class HeicDecodingTest {
             })
     void decodesPrimaryImage(String sampleName) throws IOException {
         HeicImage heicImage = HeicImage.load(TestSamples.samplePath(sampleName));
-        byte[] argbBytes = heicImage.getByteArray(PixelFormat.Argb32);
+        byte[] argbBytes = heicImage.decodeBytes(PixelFormat.ARGB32);
 
         TestSamples.assertMatchesReference(sampleName, argbBytes);
     }
@@ -49,11 +49,11 @@ class HeicDecodingTest {
     void decodesEveryFrameOfACollection() throws IOException {
         String sampleName = "nokia/random_collection_1440x960.heic";
         HeicImage heicImage = HeicImage.load(TestSamples.samplePath(sampleName));
-        Map<Long, HeicImageFrame> framesById = heicImage.getFrames();
+        Map<Long, HeicImageFrame> framesById = heicImage.getTopLevelFrames();
 
         assertThat(framesById).isNotEmpty();
         framesById.forEach((frameId, heicImageFrame) -> {
-            byte[] argbBytes = heicImageFrame.getByteArray(PixelFormat.Argb32);
+            byte[] argbBytes = heicImageFrame.decodeBytes(PixelFormat.ARGB32);
             TestSamples.assertMatchesReference(sampleName + "_" + frameId, argbBytes);
         });
     }
@@ -63,7 +63,7 @@ class HeicDecodingTest {
         String sampleName = "iphone_iOS18_tmap+MatteMaps.heic";
         HeicImage heicImage = HeicImage.load(TestSamples.samplePath(sampleName));
 
-        assertThat(heicImage).extracting(HeicImage::getWidth).isEqualTo(4284L);
-        assertThat(heicImage).extracting(HeicImage::getHeight).isEqualTo(5712L);
+        assertThat(heicImage).extracting(HeicImage::getWidth).isEqualTo(4284);
+        assertThat(heicImage).extracting(HeicImage::getHeight).isEqualTo(5712);
     }
 }

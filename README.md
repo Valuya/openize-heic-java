@@ -2,241 +2,112 @@
 
 ![Openize.HEIC](publish/openize_heic_java.png)
 
-Openize.HEIC is an open source SDK implementing the ISO/IEC 23008-12:2017 HEIF file format decoder.
+A HEIC decoder in pure Java: HEIF files (ISO/IEC 23008-12) of HEVC coded images, such as the photos of phones and
+cameras, decoded to RGB without native libraries.
 
-It is written from scratch and has a plain Java API to enable a simple integration into other software.
+This is Valuya's fork of [Openize.HEIC](https://github.com/openize-com/openize-heic-java). It decodes like libheif,
+rejects malformed files cleanly, and is written as plain modern Java. It requires Java 21 or later.
 
-## Supported features
+## Supported
 
-Openize.HEIC has support for:
-* HEIC coded static images;
-  * I slices;
-  * 4:2:0, 4:2:2 and 4:4:4 chroma subsampling.
-* HEIC coded animations that use several I-slices;
-* multiple images in a file;
-* alpha channels, depth maps, thumbnails, auxiliary images;
-* correct color transform according to embedded color profiles;
-* image transformations (crop, mirror, rotate), overlay images;
-* reading XML metadata;
-* reading EXIF metadata.
+* HEVC intra-coded images: Main, Main 10 and the range extensions, 4:0:0, 4:2:0, 4:2:2 and 4:4:4, up to 16 bits per
+  sample;
+* multiple slices and slice segments, tiles, wavefront parallel processing, PCM, transform skip, scaling lists,
+  deblocking and sample adaptive offset;
+* grid, overlay and identity derived images, clean aperture crop, rotation and mirroring;
+* alpha planes, depth maps and the other auxiliary images, thumbnails, alternative groups;
+* colours from the `nclx` colour property, or from the bitstream's video usability information;
+* Exif metadata (read with [metadata-extractor](https://github.com/drewnoakes/metadata-extractor)), XMP and other
+  MIME items.
 
-* in-loop filters: deblocking filter and sample adaptive offset;
-* explicit scaling lists (SPS and PPS);
-* clean aperture (clap) cropping.
+Decoded images match libheif within YCbCr to RGB rounding: at most 2 levels per channel.
 
-Decoded images match libheif within YCbCr to RGB rounding (at most 1 or 2 levels per channel).
-`LibheifComparisonTest` checks this on every sample when libheif's `heif-dec` or `heif-convert` is
-installed (Debian/Ubuntu `libheif-examples`, Homebrew `libheif`), and is skipped otherwise.
+Not supported: image sequences coded with P and B slices, codecs other than HEVC (AVIF, uncompressed `unci` images),
+applying ICC profiles or HDR gain maps, and the screen content coding tools (palette mode, adaptive colour
+transform) and cross-component prediction. Files that need them fail with `HeicFormatException`.
 
-Openize.HEIC doesn't support:
-* HDR images;
-* color transform according to EXIF contained color profiles;
-* HEIC coded animations that use P and B-slices.
+## Usage
 
-
-## New features & enhancements in version 26.5.1:
-
-- Fixed ArrayIndexOutOfBoundsException in transform_tree.java. Thanks to [@hqkhanh9600196](https://github.com/hqkhanh9600196).
-
-## New features & enhancements in version 26.5.0:
-
-- Added support for reading EXIF metadata.
-- Added support for tile mod HEIC files;
-- Added format check before load.
-
-## New features & enhancements in version 25.9.0:
-
-- Added `ContentLightLevelInfo` box parsing;
-- Added access to more metadata (including ColourType, GroupsListBox, etc.);
-- Added `toString` summary method to image frame;
-- Improved parallel processing for enhanced stability;
-- Changed the way `Frames` property is calculated (altr group logic and no thumbnails);
-- Changed frame properties loading to support iOS18+ files;
-- Added box types used in iOS18+ files;
-- Performed memory optimizations;
-- API markdown fixes;
-- Minor spelling fixes.
-
-
-## Usage examples
-
-### Read .heic file to int array with argb32 data
-
-``` java
-try (IOFileStream fs = new IOFileStream("filename.heic", IOMode.READ))
-{
-    HeicImage image = HeicImage.load(fs);
-    int[] pixels = image.getInt32Array(openize.heic.decoder.PixelFormat.Argb32);
-}
-```
-
-### Convert .heic file to JPEG using Java ImageIO
-
-``` java
-try (IOFileStream fs = new IOFileStream("filename.heic", IOMode.READ))
-{
-    HeicImage image = HeicImage.load(fs);
-     
-    var width = (int)image.Width;
-    var height = (int)image.Height;
-	
-	BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-	int[] pixels = image.getInt32Array(PixelFormat.Argb32);
-	bufferedImage.setRGB(0, 0, width, height, pixels, 0, width);
-	
-	ImageIO.write(image2, "JPG", new File("output.jpg"));
-}
-```
-
-### Convert .heic file to PNG using Java ImageIO
-``` java
-try (IOFileStream fs = new IOFileStream("filename.heic", IOMode.READ))
-{
-    HeicImage image = HeicImage.load(fs);
-     
-    var width = (int)image.Width;
-    var height = (int)image.Height;
-	
-	BufferedImage image2 = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-
-	final int[] dstArray = ((DataBufferInt) image2.getRaster()
-                                                  .getDataBuffer()).getData();
-
-    int[] pixels = image.getInt32Array(PixelFormat.Argb32, dstArray);
-
-	if (pixels != dstArray)
-	{
-		image2.setRGB(0, 0, width, height, pixels, 0, width);
-	}
-		
-	ImageIO.write(image2, "PNG", new File("output.png"));
-}
-```
-
-### Convert .heic file to .png using Java ImageIO
-``` java
-try (IOFileStream fs = new IOFileStream("filename.heic", IOMode.READ))
-{
-    HeicImage image = HeicImage.load(fs);
-
-    int width = (int)image.getWidth();
-    int height = (int)image.getHeight();
-
-	BufferedImage outImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-	final int[] dstArray = ((DataBufferInt) outImage.getRaster()
-                                                  .getDataBuffer()).getData();
-	int[] pixels = image.getInt32Array(PixelFormat.Argb32, dstArray);
-
-	if (pixels != dstArray)
-	{
-		outImage.setRGB(0, 0, width, height, pixels, 0, width);
-	}
-	ImageIO.write(outImage, "PNG", new File("output.png"));
-}
-```
-
-### Convert .heic collection to a set of .png files
-``` java
-try (IOFileStream fs = new IOFileStream("filename.heic", IOMode.READ))
-{
-	HeicImage image = HeicImage.load(fs);
-
-	final Map<Long, HeicImageFrame> frames = image.getFrames();
-	for (Long key : frames.keySet())
-	{
-		int width = (int)frames.get(key).getWidth();
-		int height = (int)frames.get(key).getHeight();
-		
-		BufferedImage image2 = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		final int[] dstArray = ((DataBufferInt) image2.getRaster()
-                                                  .getDataBuffer()).getData();
-												  
-		int[] pixels = frames.get(key).getInt32Array(PixelFormat.Argb32, dstArray);
-		
-		if (pixels != dstArray)
-		{
-			image2.setRGB(0, 0, width, height, pixels, 0, width);
-		}
-		
-		ImageIO.write(image2, "PNG", new File("output"+key+".png"));
-	}
-}
-```
-
-### Read .heic file exif data
 ```java
-import com.drew.metadata.exif.*;
+HeicImage image = HeicImage.load(Path.of("photo.heic"));
 
-try (IOFileStream fs = new IOFileStream("filename.heic", IOMode.READ))
-{
-    HeicImage image = HeicImage.load(fs);
-    Object xResolution = image.getExif().getExifRawData(ExifDirectoryType.ExifIfd0Directory, ExifIFD0Directory.TAG_X_RESOLUTION);
-}
+// the primary image, as displayed: cropped, rotated, with its alpha
+int[] argbPixels = image.decodeArgb();
+
+// part of it: only the grid tiles the region covers are decoded
+int[] centre = image.decodeArgb(new PixelRegion(1000, 1000, 512, 512));
 ```
 
-## Documentation
+Into a `BufferedImage`, without a copy:
 
-All public classes, methods and properties are documented in corresponding API_README:
-* [/Openize.Heic.Decoder/docs/API_README.md](/docs/Openize.Heic.Decoder/API_README.md) for Openize.Heic.Decoder;
-* [/Openize.IsoBmff/docs/API_README.md](/docs/Openize.IsoBmff/API_README.md) for Openize.IsoBmff.
+```java
+BufferedImage bufferedImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+int[] raster = ((DataBufferInt) bufferedImage.getRaster().getDataBuffer()).getData();
+image.decodeArgb(PixelRegion.ofSize(image.getWidth(), image.getHeight()), raster, 0, image.getWidth());
+ImageIO.write(bufferedImage, "png", new File("photo.png"));
+```
 
-### HeicImage
+Every image of the file, and the Exif metadata:
 
-#### Methods
-Name | Type | Description | Parameters | Notes
------------- | ------------- | ------------- | ------------- | -------------
-**load** | **HeicImage** | Reads the file meta data and creates a class object for further decoding of the file contents. | `Stream stream` - File stream. | This operation does not decode pixels. Use the default frame methods GetByteArray or GetInt32Array afterwards in order to decode pixels.
-**canLoad** | **boolean** | Checks if the stream can be read as a heic image. Returns true if file header contains heic signarure, false otherwise | `Stream stream` - File stream. | 
-**getByteArray** | **byte[]** | Get pixel data of the default image frame in the format of byte array.<br />Each three or four bytes (the count depends on the pixel format) refer to one pixel left to right top to bottom line by line.<br />Returns null if frame does not contain image data. In general, it equals to `dstArray`. | `PixelFormat pixelFormat` - Pixel format that defines the order of colors and the presence of alpha byte.<br />`Rectangle boundsRectangle` - Bounds of the requested area.<br/>`byte[] dstArray` - Byte array for storing the pixel values. If it is `null` or its length is less than necessary the new array will be allocated and returned.
-**getInt32Array** | **int[]** | Get pixel data of the default image frame in the format of integer array.<br />Each int value refers to one pixel left to right top to bottom line by line.<br />Returns null if frame does not contain image data. In general, it equals to `dstArray`. | `PixelFormat pixelFormat` - Pixel format that defines the order of colors.<br />`Rectangle boundsRectangle` - Bounds of the requested area.<br/>`int[] dstArray` - Integer array for storing the argb values. If it is `null` or its length is less than necessary the new array will be allocated and returned.
+```java
+for (HeicImageFrame frame : image.getTopLevelFrames().values()) {
+    byte[] rgbaBytes = frame.decodeBytes(PixelFormat.RGBA32);
+}
 
+Optional<String> cameraModel = image.getExifOptional()
+        .flatMap(exif -> exif.getDescriptionOptional(ExifIFD0Directory.class, ExifIFD0Directory.TAG_MODEL));
+```
 
-#### Properties
-Name | Type | Description
------------- | ------------- | ------------- 
-**Header** | **HeicHeader** | Heic image header. Grants convinient access to IsoBmff container meta data.
-**Frames** | **Map<Long, HeicImageFrame>** | Dictionary of public Heic image frames with access by identifier. 
-**AllFrames** | **Map<Long, HeicImageFrame>** | Dictionary of all Heic image frames with access by identifier. 
-**DefaultFrame** | **HeicImageFrame** | Returns the default image frame, which is specified in meta data. 
-**Width** | **long** | Width of the default image frame in pixels.
-**Height** | **long** | Height of the default image frame in pixels.
+`HeicImage` loads the metadata only; pixels are decoded when asked for. An instance can be shared between
+threads, and the tiles of a grid decode in parallel on the common fork-join pool.
 
-### HeicImageFrame
+### Untrusted files
 
-#### Methods
-Name | Type | Description | Parameters
------------- | ------------- | ------------- | -------------
-**getByteArray** | **byte[]** | Get pixel data in the format of byte array.<br />Each three or four bytes (the count depends on the pixel format) refer to one pixel left to right top to bottom line by line. In general, it equals to `dstArray`.<br />Returns null if frame does not contain image data. | `PixelFormat pixelFormat` - Pixel format that defines the order of colors and the presence of alpha byte.<br />`Rectangle boundsRectangle` - Bounds of the requested area.<br/>`byte[] dstArray` - Byte array for storing the pixel values. If it is `null` or its length is less than necessary the new array will be allocated and returned.
-**getInt32Array** | **int[]** | Get pixel data in the format of integer array. Each int value refers to one pixel left to right top to bottom line by line. In general, it equals to `dstArray`.<br />Returns null if frame does not contain image data. | `PixelFormat pixelFormat` - Pixel format that defines the order of colors.<br />`Rectangle boundsRectangle` - Bounds of the requested area.<br/>`int[] dstArray` - Integer array for storing the argb values. If it is `null` or its length is less than necessary the new array will be allocated and returned.
-**getTextData** | **String** | Get frame text data.<br />Exists only for mime frame types. | 
-**toString** | **String** | Returns a string representation of the object. | 
+A malformed or unsupported file fails with `HeicFormatException`, never with another exception or a hang. Before
+anything is allocated, the size of each coded picture and of the requested image is checked against
+`HeicDecodingOptions.maxPixelCount` (16384 x 16384 by default):
 
-### Properties
-Name | Type | Description
------------- | ------------- | ------------- 
-**ID** | **long** | The unique identifier of the image frame.
-**ImageType** | **ImageFrameType** | Type of an image frame content.
-**Width** | **long** | Width of the image frame in pixels. 
-**Height** | **long** | Height of the image frame in pixels.
-**HasAlpha** | **boolean** | Indicates the presence of transparency of transparency layer.<br />True if frame is linked with alpha data frame, false otherwise.
-**IsHidden** | **boolean** | Indicates the fact that frame is marked as hidden.<br />True if frame is hidden, false otherwise.
-**IsImage** | **boolean** | Indicates the fact that frame contains image data.<br />True if frame is image, false otherwise.
-**IsDerived** | **boolean** | Indicates the fact that frame contains image transform data and is inherited from another frame(-s).<br />True if frame is derived, false otherwise.
-**DerivativeType** | **BoxType** | Indicates the type of derivative content if the frame is derived.
-**AuxiliaryReferenceType** | **AuxiliaryReferenceType** | Indicates the type of auxiliary reference layer if the frame type is auxiliary.
-**NumberOfChannels** | **byte** | Number of channels with color data.
-**BitsPerChannel** | **byte[]** | Bits per channel with color data.
+```java
+HeicDecodingOptions options = HeicDecodingOptions.DEFAULT.withMaxPixelCount(50_000_000).withParallel(false);
+HeicImage image = HeicImage.load(uploadedBytes, options);
+```
+
+## Building and testing
+
+```bash
+mvn verify
+```
+
+compiles, checks the formatting (palantir-java-format, `mvn spotless:apply` fixes it) and runs the tests. The
+samples' decoded pixels are compared with SHA-256 digests in `TestsData/references`; a deliberate change of the
+output regenerates them with `-Dopenize.updateReferences=true`. The other suites take options:
+
+* `LibheifComparisonTest` decodes every sample with libheif too and requires the same pixels within 2 levels. It runs
+  when `heif-dec` or `heif-convert` (Debian/Ubuntu `libheif-examples`, Homebrew `libheif`) is on the `PATH`, or with
+  `-Dopenize.libheif.decoder=/path/to/heif-convert`; `-Dopenize.libheif.corpus=/dir` adds the files of a directory.
+* `CorpusRobustnessTest` requires every file to decode or fail with `HeicFormatException`, in bounded time:
+  `-Dopenize.corpus=/dir` runs it on a directory, such as the HEIF conformance files and libheif's test data.
+* `MutationFuzzTest` does the same on corrupted copies of the samples: `-Dopenize.fuzz.iterations=50000`,
+  `-Dopenize.fuzz.seed=2`.
 
 ## License
-Openize.HEIC is available under [Openize License](LICENSE).
+
+Openize.HEIC is available under the [Openize License](LICENSE).
+
 > [!CAUTION]
-> Openize does not and cannot grant You a patent license for the utilization of HEVC/H.265 image compression/decompression technologies.
+> Openize does not and cannot grant You a patent license for the utilization of HEVC/H.265 image
+> compression/decompression technologies.
 
-Openize.HEIC uses Openize.IsoBmff that is distributed under [MIT License](/Openize.IsoBmff/LICENSE).
-
-Openize.HEIC uses [MetadataExtractor](https://github.com/drewnoakes/metadata-extractor) that is distributed under [Apache-2.0 license](https://github.com/drewnoakes/metadata-extractor?tab=Apache-2.0-1-ov-file#readme).
+The `openize.isobmff` package is distributed under the [MIT License](licenses). metadata-extractor is distributed
+under the [Apache-2.0 license](https://github.com/drewnoakes/metadata-extractor?tab=Apache-2.0-1-ov-file#readme).
 
 ## OSS Notice
-Sample files used for tests and located in the "./Openize.Heic.Tests/TestsData/samples/nokia" folder belong to Nokia Technologies and are used according to [Nokia High-Efficiency Image File Format (HEIF) License](https://github.com/nokiatech/heif/blob/master/LICENSE.TXT)
 
-> Licensed Field means the non-commercial purposes of evaluation, testing and academic research in each non-commercial case to use, run, modify (in a way that still complies with the Specification) and copy the Software to (a) generate, using one or more encoded pictures as inputs, a file complying with the Specification and including the one or more encoded pictures that were given as inputs; and/or (b) read a file complying with the Specification, resulting into one or more encoded pictures included in the file as outputs.
+The sample files in `TestsData/samples/nokia` belong to Nokia Technologies and are used according to the
+[Nokia High-Efficiency Image File Format (HEIF) License](https://github.com/nokiatech/heif/blob/master/LICENSE.TXT):
+
+> Licensed Field means the non-commercial purposes of evaluation, testing and academic research in each
+> non-commercial case to use, run, modify (in a way that still complies with the Specification) and copy the
+> Software to (a) generate, using one or more encoded pictures as inputs, a file complying with the Specification and
+> including the one or more encoded pictures that were given as inputs; and/or (b) read a file complying with the
+> Specification, resulting into one or more encoded pictures included in the file as outputs.

@@ -55,7 +55,7 @@ public class HeicHeader {
     /**
      * The id of the primary item, the image shown by default; 0 when the file names none.
      */
-    public final long getDefaultFrameId() {
+    public final long getPrimaryItemId() {
         return meta.getPrimaryItemBoxOptional().map(PrimaryItemBox::getItemId).orElse(0L);
     }
 

@@ -24,7 +24,6 @@ import java.util.SplittableRandom;
 import openize.heic.decoder.HeicDecodingOptions;
 import openize.heic.decoder.HeicFormatException;
 import openize.heic.decoder.HeicImage;
-import openize.heic.decoder.PixelFormat;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -85,7 +84,7 @@ class MutationFuzzTest {
 
     private static void decode(byte[] heicData) {
         HeicImage heicImage = HeicImage.load(heicData, FUZZ_OPTIONS);
-        heicImage.getInt32Array(PixelFormat.Argb32);
+        heicImage.decodeArgb();
     }
 
     // one to eight corruptions: flipped bits, overwritten bytes, a truncation, a duplicated or deleted range

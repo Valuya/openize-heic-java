@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import openize.heic.decoder.HeicImage;
-import openize.heic.decoder.PixelFormat;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.opentest4j.TestAbortedException;
@@ -62,9 +61,9 @@ class LibheifComparisonTest {
         List<BufferedImage> libheifImages = decodeWithLibheif(libheifDecoder, heicFile);
 
         HeicImage heicImage = HeicImage.load(heicFile);
-        int width = (int) heicImage.getWidth();
-        int height = (int) heicImage.getHeight();
-        int[] openizePixels = heicImage.getInt32Array(PixelFormat.Argb32);
+        int width = heicImage.getWidth();
+        int height = heicImage.getHeight();
+        int[] openizePixels = heicImage.decodeArgb();
 
         // libheif writes every top-level image; the primary one has to be among them
         List<BufferedImage> sameSizeLibheifImages = libheifImages.stream()
