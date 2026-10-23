@@ -97,6 +97,8 @@
                     <compilerArgs>
                         <arg>-Xlint:all,-serial</arg>
                         <arg>-XDcompilePolicy=simple</arg>
+                        <!-- Error Prone needs it on JDK 21, later releases do it by default -->
+                        <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
                         <arg>--should-stop=ifError=FLOW</arg>
                         <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:JSpecifyMode=true -XepExcludedPaths:.*/src/test/.*</arg>
                     </compilerArgs>
