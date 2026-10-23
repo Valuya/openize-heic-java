@@ -18,6 +18,8 @@ final class IntraPredictionBuffers {
     private static final int MAX_BLOCK_SIZE = 32;
 
     final NeighbouringSamples neighbouringSamples = new NeighbouringSamples(MAX_BLOCK_SIZE);
+    final NeighbouringSamplesGenerator neighbouringSamplesGenerator =
+            new NeighbouringSamplesGenerator(neighbouringSamples);
     final NeighbouringSamples filteredSamples = new NeighbouringSamples(MAX_BLOCK_SIZE);
     // predSamples[x][y] at [y * nTbS + x], row by row, for the current block size nTbS
     final int[] predictedSamples = new int[MAX_BLOCK_SIZE * MAX_BLOCK_SIZE];

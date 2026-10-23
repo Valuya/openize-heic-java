@@ -46,7 +46,7 @@ final class IntraPrediction {
             int intraPredMode,
             boolean cuTransquantBypassFlag) {
         SeqParameterSetRbsp sps = picture.sps;
-        NeighbouringSamples samples = NeighbouringSamplesGenerator.generate(picture, x0, y0, nTbS, cIdx, buffers);
+        NeighbouringSamples samples = buffers.neighbouringSamplesGenerator.generate(picture, x0, y0, nTbS, cIdx);
         if (!sps.spsRangeExt.intraSmoothingDisabledFlag && (cIdx == 0 || sps.getChromaArrayType() == 3)) {
             samples = filterNeighbouringSamples(sps, buffers, samples, nTbS, cIdx, intraPredMode);
         }
