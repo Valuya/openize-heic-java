@@ -214,7 +214,7 @@ public class SeqParameterSetRbsp extends NalUnit {
             while (stream.hasMoreRbspData(getEndPosition())) spsExtensionDataFlag = stream.readFlag(); // u(1)
         }
 
-        new RbspTrailingBits(stream);
+        readRbspTrailingBits(stream);
     }
 
     @Override

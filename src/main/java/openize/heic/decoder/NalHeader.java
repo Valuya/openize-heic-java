@@ -10,118 +10,60 @@
 
 package openize.heic.decoder;
 
-import java.util.Objects;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
-public /*struct*/ class NalHeader {
-    public NalUnitType type;
-    public byte nuhLayerId;
-    public byte nuhTemporalIdPlus1; // > 0
-
-    public NalHeader() {}
+/**
+ * nal_unit_header( ) (7.3.1.2).
+ */
+public final class NalHeader {
+    final NalUnitType type;
+    final int nuhTemporalIdPlus1;
 
     NalHeader(BitStreamWithNalSupport stream) {
-        stream.skipBits(1); // 1
+        stream.skipBits(1); // forbidden_zero_bit
         type = NalUnitType.codeToType(stream.read(6));
-        nuhLayerId = (byte) stream.read(6);
-        nuhTemporalIdPlus1 = (byte) stream.read(3);
+        stream.skipBits(6); // nuh_layer_id: NalUnit skips the units of layers other than the base one
+        nuhTemporalIdPlus1 = stream.read(3);
     }
 
-    final byte getTemporalId() {
-        return (byte) ((nuhTemporalIdPlus1 & 0xFF) - 1);
+    boolean isRadlPicture() {
+        return type == NalUnitType.RADL_N || type == NalUnitType.RADL_R;
     }
 
-    final boolean isRadlPicture() {
-        return type == NalUnitType.RADL_N
-                || // 6
-                type == NalUnitType.RADL_R;
-    } // 7
-
-    final boolean isRaslPicture() {
-        return type == NalUnitType.RASL_N
-                || // 8
-                type == NalUnitType.RASL_R;
-    } // 9
-
-    final boolean isIdrPicture() {
-        return type == NalUnitType.IDR_W_RADL
-                || // 19
-                type == NalUnitType.IDR_N_LP;
-    } // 20
-
-    final boolean isBlaPicture() {
-        return type == NalUnitType.BLA_W_LP
-                || // 16
-                type == NalUnitType.BLA_W_RADL
-                || // 17
-                type == NalUnitType.BLA_N_LP;
-    } // 18
-
-    final boolean isCraPicture() {
-        return type == NalUnitType.CRA_NUT;
-    } // 21
-
-    final boolean isRapPicture() {
-        return isIdrPicture() || isBlaPicture() || isCraPicture();
-    } // 16..21
-
-    final boolean isIrapPicture() {
-        return type.getUnitCode() >= 16 && type.getUnitCode() <= 23;
+    boolean isRaslPicture() {
+        return type == NalUnitType.RASL_N || type == NalUnitType.RASL_R;
     }
 
-    final boolean isReferenceNALU() {
-        return (((type.getUnitCode() <= NalUnitType.RSV_VCL_R15.getUnitCode()) && (type.getUnitCode() % 2 != 0))
-                || ((type.getUnitCode() >= NalUnitType.BLA_W_LP.getUnitCode())
-                        && (type.getUnitCode() <= NalUnitType.RSV_IRAP_VCL23.getUnitCode())));
+    boolean isIdrPicture() {
+        return type == NalUnitType.IDR_W_RADL || type == NalUnitType.IDR_N_LP;
     }
 
-    final boolean isSublayerNonReference() {
-        switch (type) {
-            case TRAIL_N:
-            case TSA_N:
-            case STSA_N:
-            case RADL_N:
-            case RASL_N:
-            case RSV_VCL_N10:
-            case RSV_VCL_N12:
-            case RSV_VCL_N14:
-                return true;
-            default:
-                return false;
-        }
+    boolean isBlaPicture() {
+        return type == NalUnitType.BLA_W_LP || type == NalUnitType.BLA_W_RADL || type == NalUnitType.BLA_N_LP;
     }
 
-    public void cloneTo(NalHeader that) {
-        that.type = type;
-        that.nuhLayerId = nuhLayerId;
-        that.nuhTemporalIdPlus1 = nuhTemporalIdPlus1;
+    /**
+     * An IDR, BLA or CRA picture: NAL unit types 16 to 21.
+     */
+    boolean isRapPicture() {
+        return isIdrPicture() || isBlaPicture() || type == NalUnitType.CRA_NUT;
     }
 
-    public NalHeader copy() {
-        NalHeader struct = new NalHeader();
-        cloneTo(struct);
-        return struct;
+    /**
+     * An IRAP picture: NAL unit types 16 to 23, the reserved ones included.
+     */
+    boolean isIrapPicture() {
+        return type.getUnitCode() >= NalUnitType.BLA_W_LP.getUnitCode()
+                && type.getUnitCode() <= NalUnitType.RSV_IRAP_VCL23.getUnitCode();
     }
 
-    private boolean equalsByValue(NalHeader that) {
-        return that.type == type && that.nuhLayerId == nuhLayerId && that.nuhTemporalIdPlus1 == nuhTemporalIdPlus1;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (!(obj instanceof NalHeader)) {
-            return false;
-        }
-
-        return equalsByValue((NalHeader) obj);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(type, nuhLayerId, nuhTemporalIdPlus1);
+    /**
+     * A sub-layer non-reference picture: the even NAL unit types up to 14 (Table 7-1).
+     */
+    boolean isSublayerNonReference() {
+        return switch (type) {
+            case TRAIL_N, TSA_N, STSA_N, RADL_N, RASL_N, RSV_VCL_N10, RSV_VCL_N12, RSV_VCL_N14 -> true;
+            default -> false;
+        };
     }
 }

@@ -194,7 +194,7 @@ public class PicParameterSetRbsp extends NalUnit {
             while (stream.hasMoreRbspData(getEndPosition())) ppsExtensionDataFlag = stream.readFlag(); // u(1)
         }
 
-        new RbspTrailingBits(stream);
+        readRbspTrailingBits(stream);
     }
 
     // The scan conversion tables (6.5.1, 6.5.2) are sized by the picture: built on first use by a decode, after its

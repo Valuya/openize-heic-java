@@ -12,89 +12,106 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+/**
+ * A NAL unit: its header, and where it lies in the stream. The subclasses parse the payloads the decoder uses; the
+ * others, SEI included, are skipped.
+ */
 public class NalUnit {
-    public final NalHeader nalHeader;
-    public final /*UInt64*/ long startPosition;
-    public final int size;
+    final NalHeader nalHeader;
+    // in bits, from the start of the stream
+    private final long startPosition;
+    // in bytes, emulation prevention bytes included
+    private final int size;
 
-    public NalUnit(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
+    NalUnit(BitStreamWithNalSupport stream, long startPosition, int size) {
         nalHeader = new NalHeader(stream);
-
         this.startPosition = startPosition;
         this.size = size;
-    }
-
-    public static NalUnit parseKnownUnit(BitStreamWithNalSupport stream, int size, NalUnitType type) {
-        NalUnit nalUnit;
-        /*UInt64*/
-        long startPosition = stream.getBitPosition();
-        stream.turnOnNalUnitMode();
-
-        // only the base layer is decoded: NAL units of other layers (nuh_layer_id > 0, multi-layer HEVC) are skipped
-        int nuhLayerId = (stream.peek(16) >> 3) & 0x3F;
-
-        if (nuhLayerId > 0) {
-            nalUnit = new NalUnit(stream, startPosition, size);
-        } else if (type.getUnitCode() < 32) {
-            // VCL
-            nalUnit = new SliceSegmentLayerRbsp(stream, startPosition, size);
-        } else {
-            // non-VCL
-            switch (type) {
-                case VPS_NUT: // 32
-                    nalUnit = new VideoParameterSetRbsp(stream, startPosition, size);
-                    break;
-                case SPS_NUT: // 33
-                    nalUnit = new SeqParameterSetRbsp(stream, startPosition, size);
-                    break;
-                case PPS_NUT: // 34
-                    nalUnit = new PicParameterSetRbsp(stream, startPosition, size);
-                    break;
-                case PREFIX_SEI_NUT: // 39
-                case SUFFIX_SEI_NUT: // 40
-                    nalUnit = new SeiPayloadRbsp(stream, startPosition, size);
-                    break;
-                default:
-                    nalUnit = new NalUnit(stream, startPosition, size);
-                    break;
-            }
-        }
-
-        stream.turnOffNulUnitMode();
-        /*UInt64*/
-        long currentPosition = stream.getBitPosition();
-
-        if (currentPosition - startPosition > (size & 0xFFFFFFFFL) * 8L) {
-            throw new HeicFormatException("A %s NAL unit overruns its %d bytes".formatted(type, size));
-        }
-
-        if (currentPosition - startPosition < (size & 0xFFFFFFFFL) * 8L) {
-            stream.skipBits(size * 8 - (int) (currentPosition - startPosition));
-        }
-
-        return nalUnit;
     }
 
     /**
      * Reads a length-prefixed NAL unit, as image items store them. Zero-length units, which some writers use as
      * padding, are skipped.
      */
-    public static void parseUnit(BitStreamWithNalSupport stream) {
+    static void parseUnit(BitStreamWithNalSupport stream) {
         int size = stream.read(32);
         if (size == 0) {
             return;
         }
-        int peek = stream.peek(8);
-        NalUnitType type = NalUnitType.codeToType((peek >> 1) & 0x3F);
+        long remainingBytes = stream.getLength() - stream.getBitPosition() / 8;
+        if (size < 0 || size > remainingBytes) {
+            throw new HeicFormatException("A NAL unit of %d bytes, more than the %d left in the file"
+                    .formatted(Integer.toUnsignedLong(size), remainingBytes));
+        }
+        NalUnitType type = NalUnitType.codeToType((stream.peek(8) >> 1) & 0x3F);
         parseKnownUnit(stream, size, type);
     }
 
-    public final /*UInt64*/ long getEndPosition() {
-        return startPosition + (size & 0xFFFFFFFFL) * 8L;
+    /**
+     * Parses a NAL unit of {@code size} bytes, which starts on a byte boundary, and leaves the stream after it.
+     */
+    static NalUnit parseKnownUnit(BitStreamWithNalSupport stream, int size, NalUnitType type) {
+        long startPosition = stream.getBitPosition();
+        stream.turnOnNalUnitMode();
+        NalUnit nalUnit = parsePayload(stream, startPosition, size, type);
+        stream.turnOffNulUnitMode();
+
+        // emulation prevention bytes are read but not returned: the size, which counts them, is the reference
+        long endPosition = nalUnit.getEndPosition();
+        if (stream.getBitPosition() > endPosition) {
+            throw new HeicFormatException("A %s NAL unit overruns its %d bytes".formatted(type, size));
+        }
+        stream.setBytePosition(endPosition / 8);
+        return nalUnit;
+    }
+
+    private static NalUnit parsePayload(
+            BitStreamWithNalSupport stream, long startPosition, int size, NalUnitType type) {
+        // only the base layer is decoded: NAL units of other layers (nuh_layer_id > 0, multi-layer HEVC) are skipped
+        int nuhLayerId = (stream.peek(16) >> 3) & 0x3F;
+        if (nuhLayerId > 0) {
+            return new NalUnit(stream, startPosition, size);
+        }
+        if (type.isVcl()) {
+            return new SliceSegmentLayerRbsp(stream, startPosition, size);
+        }
+        return switch (type) {
+            case VPS_NUT -> new VideoParameterSetRbsp(stream, startPosition, size);
+            case SPS_NUT -> new SeqParameterSetRbsp(stream, startPosition, size);
+            case PPS_NUT -> new PicParameterSetRbsp(stream, startPosition, size);
+            default -> new NalUnit(stream, startPosition, size);
+        };
+    }
+
+    /**
+     * The bit position just after the unit.
+     */
+    final long getEndPosition() {
+        return startPosition + size * 8L;
+    }
+
+    /**
+     * Skips the extension data flags (7.3.2.1 to 7.3.2.3) that a parameter set carries for extensions this decoder
+     * does not know.
+     */
+    final void skipExtensionData(BitStreamWithNalSupport stream) {
+        while (stream.hasMoreRbspData(getEndPosition())) {
+            stream.readFlag();
+        }
+    }
+
+    /**
+     * rbsp_trailing_bits( ) (7.3.2.11): the stop bit, then zero bits up to the byte boundary.
+     */
+    static void readRbspTrailingBits(BitStreamWithNalSupport stream) {
+        stream.read(1);
+        while (stream.notByteAligned()) {
+            stream.skipBits(1);
+        }
     }
 
     @Override
     public String toString() {
-        return "NAL Unit " + nalHeader.type;
+        return "NAL Unit %s".formatted(nalHeader.type);
     }
 }

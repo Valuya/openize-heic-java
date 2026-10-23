@@ -110,7 +110,7 @@ public class VideoParameterSetRbsp extends NalUnit {
         if (vpsExtensionFlag) {
             while (stream.hasMoreRbspData(getEndPosition())) vpsExtensionDataFlag = stream.readFlag(); // u(1)
         }
-        new RbspTrailingBits(stream);
+        readRbspTrailingBits(stream);
     }
 
     @Override
