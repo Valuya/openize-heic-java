@@ -1,4 +1,4 @@
-# Openize.HEIC for Java
+# HEIC decoder for Java
 
 ![Openize.HEIC](publish/openize_heic_java.png)
 
@@ -7,6 +7,28 @@ cameras, decoded to RGB without native libraries.
 
 This is Valuya's fork of [Openize.HEIC](https://github.com/openize-com/openize-heic-java). It decodes like libheif,
 rejects malformed files cleanly, and is written as plain modern Java. It requires Java 21 or later.
+
+## Installation
+
+The decoder is on Maven Central:
+
+```xml
+<dependency>
+    <groupId>io.github.valuya</groupId>
+    <artifactId>heic-decoder</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+or with Gradle:
+
+```kotlin
+implementation("io.github.valuya:heic-decoder:1.0.0")
+```
+
+Its packages are `io.github.valuya.heic`, the API, and `io.github.valuya.heic.isobmff`, the file format boxes the
+decoder reads; its module name is `io.github.valuya.heic`. It depends on
+[metadata-extractor](https://github.com/drewnoakes/metadata-extractor) for Exif and on the JSpecify annotations.
 
 ## Supported
 
@@ -47,7 +69,7 @@ out JIT warm-up; libheif's are per process, writing raw YCbCr. Java 21 and 26 de
 ```bash
 mvn -q test-compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 taskset -c 4 java -cp target/classes:target/test-classes:$(cat target/classpath.txt) \
-        openize.heic.tests.DecodeBenchmark 4 7 false \
+        io.github.valuya.heic.tests.DecodeBenchmark 4 7 false \
         $(ls TestsData/samples/*.heic TestsData/samples/nokia/*.heic | grep -v -e tmap -e gimp_rgb)
 ```
 
@@ -115,6 +137,13 @@ output regenerates them with `-Dopenize.updateReferences=true`. The other suites
 * `MutationFuzzTest` does the same on corrupted copies of the samples: `-Dopenize.fuzz.iterations=50000`,
   `-Dopenize.fuzz.seed=2`.
 
+## Releasing
+
+Versions follow semantic versioning; `main` carries the next version as a `-SNAPSHOT`. Publishing a GitHub release
+tagged `vX.Y.Z` runs the [release workflow](.github/workflows/release.yml): it builds and tests `X.Y.Z`, signs it,
+uploads it to Maven Central through the Central Portal, and waits until it resolves from Central. Run by hand, the
+workflow publishes the version it is given, and can stage it for a release in the Portal instead.
+
 ## License
 
 Openize.HEIC is available under the [Openize License](LICENSE).
@@ -123,8 +152,9 @@ Openize.HEIC is available under the [Openize License](LICENSE).
 > Openize does not and cannot grant You a patent license for the utilization of HEVC/H.265 image
 > compression/decompression technologies.
 
-The `openize.isobmff` package is distributed under the [MIT License](licenses). metadata-extractor is distributed
-under the [Apache-2.0 license](https://github.com/drewnoakes/metadata-extractor?tab=Apache-2.0-1-ov-file#readme).
+The `io.github.valuya.heic.isobmff` package is distributed under the [MIT License](licenses). metadata-extractor is
+distributed under the
+[Apache-2.0 license](https://github.com/drewnoakes/metadata-extractor?tab=Apache-2.0-1-ov-file#readme).
 
 ## OSS Notice
 
