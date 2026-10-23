@@ -14,7 +14,8 @@ import java.util.Arrays;
 
 /**
  * The coefficients of the transform block being decoded, and the intermediate arrays of its inverse transform,
- * reused for every block of a picture. Arrays are indexed {@code [x * size + y]}.
+ * reused for every block of a picture. The coefficients and their scaled values are indexed {@code [x * size + y]}, the
+ * transformed blocks row by row, {@code [y * size + x]}.
  *
  * <p>Residual coding fills the coefficients of a block; reconstructing that block, which always comes next, reads
  * them and clears them. A block without coded coefficients finds the buffers empty.
@@ -24,10 +25,12 @@ final class ResidualBuffers {
     private static final int MAX_BLOCK_AREA = MAX_BLOCK_SIZE * MAX_BLOCK_SIZE;
 
     final int[] scaled = new int[MAX_BLOCK_AREA];
-    final int[] columnTransformed = new int[MAX_BLOCK_AREA];
+    // the inverse transform: a one-dimensional transform, its scratch, and the clipped columns, row by row
+    final int[] transformed = new int[MAX_BLOCK_SIZE];
+    final int[] transformScratch = new int[MAX_BLOCK_SIZE];
     final int[] clipped = new int[MAX_BLOCK_AREA];
+    // r[y * size + x], row by row
     final int[] residual = new int[MAX_BLOCK_AREA];
-    final int[] row = new int[MAX_BLOCK_SIZE];
 
     // transform_skip_flag of the current block
     boolean transformSkipFlag;

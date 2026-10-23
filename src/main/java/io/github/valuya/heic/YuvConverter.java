@@ -66,6 +66,10 @@ final class YuvConverter {
         int stepY = target.stepY();
         int base = target.base();
 
+        if (!picture.highColorRange && !monochrome && !alphaOnly) {
+            convert8BitColour(picture, convertedBox, tables, target, log2SubWidthC, log2SubHeightC);
+            return;
+        }
         for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
             int rowIndex = base + row * stepY;
             int lumaRow = row * picture.planeWidths[0];
@@ -99,6 +103,43 @@ final class YuvConverter {
         }
     }
 
+    // the same as the general loop for 8-bit colour samples to opaque pixels, the most common case, without its tests
+    private static void convert8BitColour(
+            HeicPicture picture,
+            PixelBox convertedBox,
+            ChannelTables tables,
+            PixelTarget target,
+            int log2SubWidthC,
+            int log2SubHeightC) {
+        byte[] lumaPlane = picture.planes[0];
+        byte[] cbPlane = picture.planes[1];
+        byte[] crPlane = picture.planes[2];
+        double[] luma = tables.luma;
+        double[] crToRed = tables.crToRed;
+        double[] crToGreen = tables.crToGreen;
+        double[] cbToGreen = tables.cbToGreen;
+        double[] cbToBlue = tables.cbToBlue;
+        int[] destination = target.destination();
+        int stepX = target.stepX();
+        int stepY = target.stepY();
+        int base = target.base();
+        for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
+            int rowIndex = base + row * stepY;
+            int lumaRow = row * picture.planeWidths[0];
+            int chromaRow = (row >> log2SubHeightC) * picture.planeWidths[1];
+            for (int col = convertedBox.left(); col < convertedBox.right(); col++) {
+                double scaledLuma = luma[lumaPlane[lumaRow + col] & 0xFF];
+                int chromaIndex = chromaRow + (col >> log2SubWidthC);
+                int cb = cbPlane[chromaIndex] & 0xFF;
+                int cr = crPlane[chromaIndex] & 0xFF;
+                int red = to8Bits(scaledLuma + crToRed[cr]);
+                int green = to8Bits(scaledLuma - crToGreen[cr] - cbToGreen[cb]);
+                int blue = to8Bits(scaledLuma + cbToBlue[cb]);
+                destination[rowIndex + col * stepX] = 0xFF000000 | (red << 16) | (green << 8) | blue;
+            }
+        }
+    }
+
     private static int sample(HeicPicture picture, int cIdx, int index) {
         return picture.highColorRange
                 ? picture.highColorRangePlanes[cIdx][index] & 0xFFFF
@@ -106,7 +147,7 @@ final class YuvConverter {
     }
 
     private static int to8Bits(double channel) {
-        return MathExtra.clip3(0, 255, (int) channel);
+        return Math.max(0, Math.min(255, (int) channel));
     }
 
     // the tables of the workspace when they are for the same bit depths and colours

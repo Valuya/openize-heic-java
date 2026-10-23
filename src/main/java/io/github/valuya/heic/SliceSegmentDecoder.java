@@ -675,7 +675,7 @@ final class SliceSegmentDecoder {
         int yLuma = y0 * (cIdx == 0 ? 1 : sps.getSubHeightC());
         int intraPredMode =
                 cIdx == 0 ? picture.intraPredModeY.get(xLuma, yLuma) : picture.intraPredModeC.get(xLuma, yLuma);
-        int[][] predSamples = IntraPrediction.predict(
+        int[] predSamples = IntraPrediction.predict(
                 picture,
                 context.getIntraPredictionBuffers(),
                 x0,
@@ -686,15 +686,9 @@ final class SliceSegmentDecoder {
                 context.cuTransquantBypassFlag);
 
         ResidualBuffers residualBuffers = context.getResidualBuffers();
-        int bitDepth = cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC();
         if (residualBuffers.isEmpty()) {
             // no coded coefficients: the prediction is the reconstruction
-            for (int x = 0; x < nTbS; x++) {
-                int[] predictedColumn = predSamples[x];
-                for (int y = 0; y < nTbS; y++) {
-                    picture.setSample(cIdx, x0 + x, y0 + y, predictedColumn[y]);
-                }
-            }
+            picture.setBlock(cIdx, x0, y0, nTbS, predSamples);
         } else {
             int qP = cIdx == 0 ? context.qpPrimeY : cIdx == 1 ? context.qpPrimeCb : context.qpPrimeCr;
             int[] residual = InverseTransform.residual(
@@ -706,13 +700,7 @@ final class SliceSegmentDecoder {
                     context.cuTransquantBypassFlag,
                     residualBuffers.transformSkipFlag,
                     residualDpcmDirection(intraPredMode, residualBuffers.transformSkipFlag));
-            for (int x = 0; x < nTbS; x++) {
-                int[] predictedColumn = predSamples[x];
-                for (int y = 0; y < nTbS; y++) {
-                    int reconstructed = MathExtra.clipBitDepth(predictedColumn[y] + residual[x * nTbS + y], bitDepth);
-                    picture.setSample(cIdx, x0 + x, y0 + y, reconstructed);
-                }
-            }
+            picture.setReconstructedBlock(cIdx, x0, y0, nTbS, predSamples, residual);
             residualBuffers.clear();
         }
     }

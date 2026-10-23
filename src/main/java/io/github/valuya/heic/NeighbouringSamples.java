@@ -48,6 +48,11 @@ final class NeighbouringSamples {
         Arrays.fill(samples, 0, sampleCount(size), value);
     }
 
+    /** The samples, at {@link #index}. */
+    int[] array() {
+        return samples;
+    }
+
     int index(int x, int y) {
         return y == -1 ? x + 1 : 2 * size + y + 1;
     }
