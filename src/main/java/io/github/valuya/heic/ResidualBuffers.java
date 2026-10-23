@@ -29,15 +29,6 @@ final class ResidualBuffers {
     final int[] residual = new int[MAX_BLOCK_AREA];
     final int[] row = new int[MAX_BLOCK_SIZE];
 
-    // residual coding of the current block: coded sub-block flags, and per scan position of the current sub-block
-    private static final int MAX_SUB_BLOCKS_PER_SIDE = MAX_BLOCK_SIZE / 4;
-    private final boolean[][] codedSubBlockFlags = new boolean[MAX_SUB_BLOCKS_PER_SIDE][MAX_SUB_BLOCKS_PER_SIDE];
-    final boolean[] sigCoeffFlags = new boolean[16];
-    final boolean[] coeffAbsLevelGreater1Flags = new boolean[16];
-    final boolean[] coeffAbsLevelGreater2Flags = new boolean[16];
-    final boolean[] coeffSignFlags = new boolean[16];
-    final int[] coeffAbsLevelRemainings = new int[16];
-
     // transform_skip_flag of the current block
     boolean transformSkipFlag;
     private final int[] coefficients = new int[MAX_BLOCK_AREA];
@@ -45,14 +36,6 @@ final class ResidualBuffers {
     // bounds of the non-zero coefficients, -1 while there are none
     private int lastNonZeroX = -1;
     private int lastNonZeroY = -1;
-
-    boolean[][] clearedCodedSubBlockFlags(int log2BlockSize) {
-        int subBlocksPerSide = 1 << (log2BlockSize - 2);
-        for (int xS = 0; xS < subBlocksPerSide; xS++) {
-            Arrays.fill(codedSubBlockFlags[xS], 0, subBlocksPerSide, false);
-        }
-        return codedSubBlockFlags;
-    }
 
     void startBlock(int size) {
         clear();

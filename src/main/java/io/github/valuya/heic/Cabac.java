@@ -43,13 +43,22 @@ final class Cabac {
         24, 24, 25, 26, 26, 27, 27, 28, 29, 29, 30, 30, 30, 31, 32, 32, 33, 33, 33, 34, 34, 35, 35, 35, 36, 36, 36, 37,
         37, 37, 38, 38, 63
     };
-    // Table 9-50: ctxIdxMap[(yC << 2) + xC] of sig_coeff_flag in a 4x4 transform block
-    private static final int[] CTX_IDX_MAP = {0, 1, 4, 5, 2, 3, 4, 5, 6, 6, 8, 8, 7, 7, 8};
     // A coeff_abs_level_remaining prefix longer than this cannot code a coefficient within the transform range
     private static final int MAX_COEFF_ABS_LEVEL_REMAINING_PREFIX = 32;
     private static final int STAT_COEFF_COUNT = 4;
 
-    private final BitStreamWithNalSupport stream;
+    // the next context state after a most probable symbol, at [state + 128], and after a least probable one, at
+    // [~state + 128] (Table 9-53)
+    private static final int[] TRANSITIONS = new int[256];
+
+    static {
+        for (int state = 0; state < 128; state++) {
+            int pStateIdx = state >> 1;
+            int valMps = state & 1;
+            TRANSITIONS[state + 128] = (TRANS_IDX_MPS[pStateIdx] << 1) | valMps;
+            TRANSITIONS[~state + 128] = (TRANS_IDX_LPS[pStateIdx] << 1) | (pStateIdx == 0 ? 1 - valMps : valMps);
+        }
+    }
 
     private final int[] contextStates = new int[ContextTable.CONTEXT_COUNT];
     // 9.3.2.4: StatCoeff, the persistent Rice adaptation statistics
@@ -59,17 +68,80 @@ final class Cabac {
     private final ContextStorage wppStorage = new ContextStorage();
     private final ContextStorage dependentSliceStorage = new ContextStorage();
 
-    private int ivlCurrRange;
-    private int ivlOffset;
+    // the slice segment data, as RBSP bytes, the arithmetic decoding engine reads, and the next byte it reads
+    private byte[] sliceData = new byte[0];
+    private int sliceDataLength;
+    private int sliceDataPosition;
+    // the NAL unit of the slice segment, for the error of reading past it, once one starts
+    private NalUnitType nalUnitType = NalUnitType.UNSPEC48;
+    private int nalUnitSize;
 
-    Cabac(BitStreamWithNalSupport stream) {
-        this.stream = stream;
+    // the arithmetic decoding engine (9.3.4.3): ivlCurrRange, and ivlOffset followed by the 7 bits read after it, at
+    // most, the least significant ones not read yet: -bitsNeeded - 1 of them are read, and bitsNeeded is the number of
+    // bits ivlOffset reads before the next byte is needed, minus 8
+    private int ivlCurrRange;
+    private int value;
+    private int bitsNeeded;
+
+    /**
+     * Starts reading the slice segment data, {@code length} RBSP bytes of {@code sliceData}, the rest of a NAL unit of
+     * {@code nalUnitType} and {@code nalUnitSize} bytes.
+     */
+    void startSliceSegmentData(byte[] sliceData, int length, NalUnitType nalUnitType, int nalUnitSize) {
+        this.sliceData = sliceData;
+        sliceDataLength = length;
+        sliceDataPosition = 0;
+        bitsNeeded = -1;
+        this.nalUnitType = nalUnitType;
+        this.nalUnitSize = nalUnitSize;
     }
 
-    // 9.3.2.5 Initialization process for the arithmetic decoding engine
+    // 9.3.2.5 Initialization process for the arithmetic decoding engine, at a byte boundary: ivlOffset is the next 9
+    // bits
     void initializeArithmeticDecoder() {
         ivlCurrRange = 510;
-        ivlOffset = stream.read(9);
+        value = (nextByte() << 8) | nextByte();
+        bitsNeeded = -8;
+        // ivlOffset is less than ivlCurrRange from then on; the engine relies on it
+        if (value >> 7 >= 510) {
+            throw new HeicFormatException(
+                    "Malformed slice data: the arithmetic decoder starts at ivlOffset %d".formatted(value >> 7));
+        }
+    }
+
+    // the next byte of the slice segment data: past them, the bits read are past the end of the NAL unit
+    private int nextByte() {
+        if (sliceDataPosition >= sliceDataLength) {
+            throw NalUnit.overrun(nalUnitType, nalUnitSize);
+        }
+        return sliceData[sliceDataPosition++] & 0xFF;
+    }
+
+    // the bits the engine has read from the slice segment data, the bits read ahead of ivlOffset excluded
+    private int bitPosition() {
+        return sliceDataPosition * 8 + bitsNeeded + 1;
+    }
+
+    /** Skips the bits up to the next byte boundary: before PCM samples, and between substreams. */
+    void alignToByte() {
+        sliceDataPosition = (bitPosition() + 7) >> 3;
+        bitsNeeded = -1;
+    }
+
+    /** Reads {@code bitCount} bits, up to 16, outside the arithmetic coding: the samples of a PCM coding unit. */
+    int readBits(int bitCount) {
+        int position = bitPosition();
+        int bits = 0;
+        for (int i = 0; i < bitCount; i++, position++) {
+            if (position >> 3 >= sliceDataLength) {
+                throw NalUnit.overrun(nalUnitType, nalUnitSize);
+            }
+            bits = (bits << 1) | ((sliceData[position >> 3] >> (7 - (position & 7))) & 1);
+        }
+        // as if the engine had read up to there
+        sliceDataPosition = (position + 7) >> 3;
+        bitsNeeded = position - sliceDataPosition * 8 - 1;
+        return bits;
     }
 
     // 9.3.2.2 Initialization process for context variables, and the Rice statistics
@@ -275,131 +347,20 @@ final class Cabac {
         return decodeFixedLengthBypass((lastSigCoeffPrefix >> 1) - 1);
     }
 
-    // 9.3.4.2.4: ctxInc from the coded_sub_block_flag of the sub-blocks right and below
-    boolean readCodedSubBlockFlag(int xS, int yS, boolean[][] codedSubBlockFlag, int cIdx, int log2TrafoSize) {
-        int lastSubBlock = (1 << (log2TrafoSize - 2)) - 1;
-        boolean codedNeighbour = (xS < lastSubBlock && codedSubBlockFlag[xS + 1][yS])
-                || (yS < lastSubBlock && codedSubBlockFlag[xS][yS + 1]);
+    // 9.3.4.2.4: ctxInc from whether the sub-block right or the one below has coefficients
+    boolean readCodedSubBlockFlag(boolean codedNeighbour, int cIdx) {
         int ctxInc = (codedNeighbour ? 1 : 0) + (cIdx == 0 ? 0 : 2);
         return decodeBin(ContextTable.CODED_SUB_BLOCK_FLAG.offset() + ctxInc) == 1;
     }
 
-    /**
-     * Reads sig_coeff_flag, with ctxInc from clause 9.3.4.2.5.
-     *
-     * @param transformSkipContext transform_skip_context_enabled_flag holds and the block is transform-skipped or
-     *     bypassed
-     */
-    boolean readSigCoeffFlag(
-            boolean transformSkipContext,
-            int xC,
-            int yC,
-            boolean[][] codedSubBlockFlag,
-            int cIdx,
-            int log2TrafoSize,
-            int scanIdx) {
-        int sigCtx;
-        if (transformSkipContext) {
-            sigCtx = cIdx == 0 ? 42 : 16;
-        } else if (log2TrafoSize == 2) {
-            sigCtx = CTX_IDX_MAP[(yC << 2) + xC];
-        } else if (xC + yC == 0) {
-            sigCtx = 0;
-        } else {
-            sigCtx = sigCtxFromNeighbours(xC, yC, codedSubBlockFlag, cIdx, log2TrafoSize, scanIdx);
-        }
-        int ctxInc = cIdx == 0 ? sigCtx : 27 + sigCtx;
+    // with ctxInc from clause 9.3.4.2.5
+    boolean readSigCoeffFlag(int ctxInc) {
         return decodeBin(ContextTable.SIG_COEFF_FLAG.offset() + ctxInc) == 1;
     }
 
-    private static int sigCtxFromNeighbours(
-            int xC, int yC, boolean[][] codedSubBlockFlag, int cIdx, int log2TrafoSize, int scanIdx) {
-        int xS = xC >> 2;
-        int yS = yC >> 2;
-        int lastSubBlock = (1 << (log2TrafoSize - 2)) - 1;
-        int prevCsbf = 0;
-        if (xS < lastSubBlock && codedSubBlockFlag[xS + 1][yS]) {
-            prevCsbf += 1;
-        }
-        if (yS < lastSubBlock && codedSubBlockFlag[xS][yS + 1]) {
-            prevCsbf += 2;
-        }
-
-        int xP = xC & 3;
-        int yP = yC & 3;
-        int sigCtx = switch (prevCsbf) {
-            case 0 -> xP + yP == 0 ? 2 : xP + yP < 3 ? 1 : 0;
-            case 1 -> yP == 0 ? 2 : yP == 1 ? 1 : 0;
-            case 2 -> xP == 0 ? 2 : xP == 1 ? 1 : 0;
-            default -> 2;
-        };
-
-        if (cIdx == 0) {
-            if (xS + yS > 0) {
-                sigCtx += 3;
-            }
-            return sigCtx + (log2TrafoSize == 3 ? (scanIdx == 0 ? 9 : 15) : 21);
-        }
-        return sigCtx + (log2TrafoSize == 3 ? 9 : 12);
-    }
-
-    /**
-     * The context state that carries from one coeff_abs_level_greater1_flag of a transform block to the next
-     * (9.3.4.2.6): ctxSet and greater1Ctx of the previous invocation, and the flag it decoded.
-     */
-    static final class Greater1Context {
-        int ctxSet;
-        int greater1Ctx;
-        boolean greater1Flag;
-
-        // for a new transform block
-        void reset() {
-            ctxSet = 0;
-            greater1Ctx = 0;
-            greater1Flag = false;
-        }
-    }
-
-    // 9.3.4.2.6: ctxInc from the previous invocations in the transform block
-    boolean readCoeffAbsLevelGreater1Flag(
-            int cIdx,
-            int subBlockIndex,
-            boolean firstCoeffInSubBlock,
-            boolean firstSubBlock,
-            int lastSubBlockGreater1Ctx,
-            Greater1Context lastInvocation) {
-        int ctxSet;
-        int greater1Ctx;
-        if (firstCoeffInSubBlock) {
-            ctxSet = subBlockIndex == 0 || cIdx > 0 ? 0 : 2;
-            int lastGreater1Ctx;
-            if (firstSubBlock) {
-                lastGreater1Ctx = 1;
-            } else {
-                lastGreater1Ctx = lastSubBlockGreater1Ctx;
-                if (lastGreater1Ctx > 0) {
-                    lastGreater1Ctx = lastInvocation.greater1Flag ? 0 : lastGreater1Ctx + 1;
-                }
-            }
-            if (lastGreater1Ctx == 0) {
-                ctxSet++;
-            }
-            greater1Ctx = 1;
-        } else {
-            ctxSet = lastInvocation.ctxSet;
-            greater1Ctx = lastInvocation.greater1Ctx;
-            if (greater1Ctx > 0) {
-                greater1Ctx = lastInvocation.greater1Flag ? 0 : greater1Ctx + 1;
-            }
-        }
-
-        int ctxInc = ctxSet * 4 + Math.min(3, greater1Ctx) + (cIdx > 0 ? 16 : 0);
-        boolean greater1Flag = decodeBin(ContextTable.COEFF_ABS_LEVEL_GREATER1_FLAG.offset() + ctxInc) == 1;
-
-        lastInvocation.ctxSet = ctxSet;
-        lastInvocation.greater1Ctx = greater1Ctx;
-        lastInvocation.greater1Flag = greater1Flag;
-        return greater1Flag;
+    // with ctxInc from clause 9.3.4.2.6
+    boolean readCoeffAbsLevelGreater1Flag(int ctxInc) {
+        return decodeBin(ContextTable.COEFF_ABS_LEVEL_GREATER1_FLAG.offset() + ctxInc) == 1;
     }
 
     // 9.3.4.2.7: ctxInc from ctxSet
@@ -424,17 +385,20 @@ final class Cabac {
         return (((1 << (prefix - 3)) + 3 - 1) << cRiceParam) + decodeFixedLengthBypass(prefix - 3 + cRiceParam);
     }
 
-    boolean readCoeffSignFlag() {
-        return decodeBypass() == 1;
+    /** {@code count} coeff_sign_flag, the first one read the most significant bit. */
+    int readCoeffSignFlags(int count) {
+        return decodeFixedLengthBypass(count);
     }
 
     // 9.3.3.5 Fixed-length binarization, bypass decoded
     private int decodeFixedLengthBypass(int bitCount) {
         int value = 0;
-        for (int i = 0; i < bitCount; i++) {
-            value = (value << 1) | decodeBypass();
+        int remaining = bitCount;
+        while (remaining > 8) {
+            value = (value << 8) | decodeBypassBits(8);
+            remaining -= 8;
         }
-        return value;
+        return remaining == 0 ? value : (value << remaining) | decodeBypassBits(remaining);
     }
 
     // 9.3.3.2 Truncated Rice binarization with cRiceParam 0 (truncated unary), bypass decoded
@@ -460,61 +424,74 @@ final class Cabac {
         return value + decodeFixedLengthBypass(suffixLength);
     }
 
-    // 9.3.4.3.2 Arithmetic decoding process for a binary decision, with the context at contextIndex
+    // 9.3.4.3.2 Arithmetic decoding process for a binary decision, with the context at contextIndex. The symbol picks
+    // the new range, ivlOffset and context state through a mask rather than a branch: which symbol comes is a coin toss
+    // the processor would often mispredict.
     private int decodeBin(int contextIndex) {
         int state = contextStates[contextIndex];
-        int pStateIdx = state >> 1;
-        int valMps = state & 1;
-
-        int ivlLpsRange = RANGE_TAB_LPS[(pStateIdx << 2) | ((ivlCurrRange >> 6) & 3)];
-        ivlCurrRange -= ivlLpsRange;
-
-        int binVal;
-        if (ivlOffset >= ivlCurrRange) {
-            binVal = 1 - valMps;
-            ivlOffset -= ivlCurrRange;
-            ivlCurrRange = ivlLpsRange;
-            if (pStateIdx == 0) {
-                valMps = 1 - valMps;
-            }
-            pStateIdx = TRANS_IDX_LPS[pStateIdx];
-        } else {
-            binVal = valMps;
-            pStateIdx = TRANS_IDX_MPS[pStateIdx];
-        }
-        contextStates[contextIndex] = (pStateIdx << 1) | valMps;
-
-        renormalize();
-        return binVal;
+        int ivlLpsRange = RANGE_TAB_LPS[((state >> 1) << 2) | ((ivlCurrRange >> 6) & 3)];
+        int mpsRange = ivlCurrRange - ivlLpsRange;
+        int scaledMpsRange = mpsRange << 7;
+        // -1 for the least probable symbol: ivlOffset is at least the range of the most probable one
+        int lps = (scaledMpsRange - value - 1) >> 31;
+        value -= scaledMpsRange & lps;
+        int range = mpsRange + ((ivlLpsRange - mpsRange) & lps);
+        state ^= lps;
+        contextStates[contextIndex] = TRANSITIONS[state + 128];
+        renormalize(range);
+        return state & 1;
     }
 
-    // 9.3.4.3.3 Renormalization: doubles ivlCurrRange up to 256, reading a bit per doubling, all the bits at once
-    private void renormalize() {
-        if (ivlCurrRange < 256) {
-            int shift = Integer.numberOfLeadingZeros(ivlCurrRange) - 23;
-            ivlCurrRange <<= shift;
-            ivlOffset = (ivlOffset << shift) | stream.read(shift);
+    // 9.3.4.3.3 Renormalization: doubles the range up to 256, and ivlOffset with it, all the bits at once
+    private void renormalize(int range) {
+        int shift = Integer.numberOfLeadingZeros(range) - 23;
+        ivlCurrRange = range << shift;
+        value <<= shift;
+        bitsNeeded += shift;
+        if (bitsNeeded >= 0) {
+            value |= nextByte() << bitsNeeded;
+            bitsNeeded -= 8;
         }
     }
 
     // 9.3.4.3.4 Bypass decoding process for binary decisions
     private int decodeBypass() {
-        ivlOffset = (ivlOffset << 1) | stream.read(1);
-        if (ivlOffset >= ivlCurrRange) {
-            ivlOffset -= ivlCurrRange;
-            return 1;
+        value <<= 1;
+        if (++bitsNeeded == 0) {
+            value |= nextByte();
+            bitsNeeded = -8;
         }
-        return 0;
+        int scaledRange = ivlCurrRange << 7;
+        // -1 when ivlOffset is at least ivlCurrRange
+        int one = (scaledRange - value - 1) >> 31;
+        value -= scaledRange & one;
+        return -one;
+    }
+
+    // bitCount bypass bins at once, 1 to 8, most significant first. Each bin doubles ivlOffset, takes the next bit, and
+    // is 1 when ivlOffset reaches ivlCurrRange, which it then takes off: the bins are the binary digits of the quotient
+    // of the extended ivlOffset by ivlCurrRange, one division, since ivlOffset is less than ivlCurrRange
+    private int decodeBypassBits(int bitCount) {
+        value <<= bitCount;
+        bitsNeeded += bitCount;
+        if (bitsNeeded >= 0) {
+            value |= nextByte() << bitsNeeded;
+            bitsNeeded -= 8;
+        }
+        int scaledRange = ivlCurrRange << 7;
+        int bins = value / scaledRange;
+        value -= bins * scaledRange;
+        return bins;
     }
 
     // 9.3.4.3.5 Decoding process for binary decisions before termination. When it decodes 1, the last bit the engine
     // read is the rbsp_stop_one_bit or alignment_bit_equal_to_one that follows, so only zero bits remain to align
     private int decodeTerminate() {
         ivlCurrRange -= 2;
-        if (ivlOffset >= ivlCurrRange) {
+        if (value >= ivlCurrRange << 7) {
             return 1;
         }
-        renormalize();
+        renormalize(ivlCurrRange);
         return 0;
     }
 

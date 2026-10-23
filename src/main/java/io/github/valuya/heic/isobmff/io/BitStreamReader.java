@@ -157,6 +157,21 @@ public class BitStreamReader {
         bitIndex = (int) (targetBitPosition % BITS_PER_BYTE);
     }
 
+    /** The data being read. */
+    protected final byte[] getData() {
+        return data;
+    }
+
+    /** The byte being read, or the next one when it has no bit consumed yet. */
+    protected final int getBytePosition() {
+        return bytePosition;
+    }
+
+    /** Whether every bit of the current byte is consumed, so that the next read moves to the next byte first. */
+    protected final boolean isCurrentByteConsumed() {
+        return bitIndex == BITS_PER_BYTE;
+    }
+
     /**
      * Moves to the next byte once every bit of the current one is consumed.
      */

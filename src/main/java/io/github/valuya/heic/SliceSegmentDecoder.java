@@ -23,7 +23,6 @@ final class SliceSegmentDecoder {
         28, 29, 29, 30, 31
     };
 
-    private final BitStreamWithNalSupport stream;
     private final Cabac cabac;
     private final DecoderContext context;
     private final SliceSegmentHeader header;
@@ -48,7 +47,6 @@ final class SliceSegmentDecoder {
         if (header.pps.ppsPicParameterSetId != picture.pps.ppsPicParameterSetId) {
             throw new HeicFormatException("The slice segments of a picture refer to different parameter sets");
         }
-        this.stream = stream;
         this.header = header;
         this.picture = picture;
         cabac = stream.getCabac();
@@ -95,7 +93,7 @@ final class SliceSegmentDecoder {
                 if (!cabac.readEndOfSubsetOneBit()) {
                     throw new HeicFormatException("Malformed slice data: end_of_subset_one_bit is 0");
                 }
-                alignToByte();
+                cabac.alignToByte();
                 cabac.initializeArithmeticDecoder();
                 initializeContexts();
             }
@@ -314,12 +312,12 @@ final class SliceSegmentDecoder {
 
     // 7.3.8.7 PCM sample syntax, after pcm_alignment_zero_bit; the samples are the reconstruction (8.4.4.1)
     private void decodePcmSamples(int x0, int y0, int log2Size) {
-        alignToByte();
+        cabac.alignToByte();
         int nCbS = 1 << log2Size;
         int lumaShift = sps.getBitDepthY() - sps.pcmSampleBitDepthLuma;
         for (int j = 0; j < nCbS; j++) {
             for (int i = 0; i < nCbS; i++) {
-                picture.setSample(0, x0 + i, y0 + j, stream.read(sps.pcmSampleBitDepthLuma) << lumaShift);
+                picture.setSample(0, x0 + i, y0 + j, cabac.readBits(sps.pcmSampleBitDepthLuma) << lumaShift);
             }
         }
         if (sps.getChromaArrayType() != 0) {
@@ -331,7 +329,7 @@ final class SliceSegmentDecoder {
             for (int cIdx = 1; cIdx <= 2; cIdx++) {
                 for (int j = 0; j < chromaHeight; j++) {
                     for (int i = 0; i < chromaWidth; i++) {
-                        int sample = stream.read(sps.pcmSampleBitDepthChroma) << chromaShift;
+                        int sample = cabac.readBits(sps.pcmSampleBitDepthChroma) << chromaShift;
                         picture.setSample(cIdx, xC + i, yC + j, sample);
                     }
                 }
@@ -729,11 +727,5 @@ final class SliceSegmentDecoder {
             return InverseTransform.NO_RESIDUAL_DPCM;
         }
         return intraPredMode == IntraPredMode.INTRA_ANGULAR26 ? 1 : 0;
-    }
-
-    private void alignToByte() {
-        while (stream.notByteAligned()) {
-            stream.skipBits(1);
-        }
     }
 }
