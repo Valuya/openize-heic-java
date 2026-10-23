@@ -20,11 +20,17 @@ Openize.HEIC has support for:
 * reading XML metadata;
 * reading EXIF metadata.
 
+* in-loop filters: deblocking filter and sample adaptive offset;
+* explicit scaling lists (SPS and PPS);
+* clean aperture (clap) cropping.
+
+Decoded images match libheif within YCbCr to RGB rounding (at most 1 or 2 levels per channel):
+see [tools/compare-with-libheif](tools/compare-with-libheif).
+
 Openize.HEIC doesn't support:
 * HDR images;
 * color transform according to EXIF contained color profiles;
-* HEIC coded animations that use P and B-slices;
-* deblocking filter.
+* HEIC coded animations that use P and B-slices.
 
 
 ## New features & enhancements in version 26.5.1:
