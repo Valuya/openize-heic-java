@@ -242,6 +242,10 @@ final class HeicPicture {
 
         int ctbAddrCurr = ctbAddrRsAt(xCurr, yCurr);
         int ctbAddrN = ctbAddrRsAt(xNbY, yNbY);
+        // a coding tree block is in one slice and one tile
+        if (ctbAddrN == ctbAddrCurr) {
+            return true;
+        }
         if (sliceAddrRs[ctbAddrCurr] != sliceAddrRs[ctbAddrN]) {
             return false;
         }

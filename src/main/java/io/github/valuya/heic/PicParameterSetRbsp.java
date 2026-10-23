@@ -240,10 +240,11 @@ class PicParameterSetRbsp extends NalUnit {
      * that coding tree block, interleaved.
      */
     final int minTbAddrZs(int x, int y) {
-        int log2MinTbsPerCtb = sps.getCtbLog2SizeY() - sps.getMinTbLog2SizeY();
+        ScanTables tables = getScanTables();
+        int log2MinTbsPerCtb = tables.log2MinTbsPerCtb();
         int mask = (1 << log2MinTbsPerCtb) - 1;
-        int ctbAddrRs = (y >> log2MinTbsPerCtb) * sps.getPicWidthInCtbsY() + (x >> log2MinTbsPerCtb);
-        return (getScanTables().ctbAddrRsToTs()[ctbAddrRs] << (2 * log2MinTbsPerCtb))
+        int ctbAddrRs = (y >> log2MinTbsPerCtb) * tables.picWidthInCtbs() + (x >> log2MinTbsPerCtb);
+        return (tables.ctbAddrRsToTs()[ctbAddrRs] << (2 * log2MinTbsPerCtb))
                 | Z_ORDER_BITS[x & mask]
                 | (Z_ORDER_BITS[y & mask] << 1);
     }
@@ -306,7 +307,15 @@ class PicParameterSetRbsp extends NalUnit {
             }
         }
 
-        return new ScanTables(colBd, rowBd, ctbAddrRsToTs, ctbAddrTsToRs, tileIdByCtbAddrTs, tileIdFromRs);
+        return new ScanTables(
+                colBd,
+                rowBd,
+                ctbAddrRsToTs,
+                ctbAddrTsToRs,
+                tileIdByCtbAddrTs,
+                tileIdFromRs,
+                picWidthInCtbs,
+                sps.getCtbLog2SizeY() - sps.getMinTbLog2SizeY());
     }
 
     // colWidth / rowHeight (6-3, 6-4): uniform, or as coded with the last tile taking what remains
@@ -360,5 +369,8 @@ class PicParameterSetRbsp extends NalUnit {
             int[] ctbAddrTsToRs,
             int[] tileIdByCtbAddrTs,
             // the tile ID of each CTB, in CTB raster scan
-            int[] tileIdFromRs) {}
+            int[] tileIdFromRs,
+            int picWidthInCtbs,
+            // minimum transform blocks per CTB side, log2
+            int log2MinTbsPerCtb) {}
 }
