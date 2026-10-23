@@ -44,7 +44,8 @@ final class SliceSegmentDecoder {
     private int log2CbSize;
 
     SliceSegmentDecoder(BitStreamWithNalSupport stream, SliceSegmentHeader header, HeicPicture picture) {
-        if (header.pps != picture.pps) {
+        // 7.4.7.1: every slice segment of a picture has the same PPS; the picture's is used throughout
+        if (header.pps.ppsPicParameterSetId != picture.pps.ppsPicParameterSetId) {
             throw new HeicFormatException("The slice segments of a picture refer to different parameter sets");
         }
         this.stream = stream;
@@ -53,8 +54,8 @@ final class SliceSegmentDecoder {
         cabac = stream.getCabac();
         context = stream.getContext();
         slice = header.slice;
-        sps = header.sps;
-        pps = header.pps;
+        sps = picture.sps;
+        pps = picture.pps;
         widthInCtbs = sps.getPicWidthInCtbsY();
         sliceSegmentIndex = picture.addSliceSegmentHeader(header);
         ctbAddrInRs = header.sliceSegmentAddress;
@@ -366,7 +367,7 @@ final class SliceSegmentDecoder {
             int j = (block >> 1) * pbOffset;
             int mpmIdxOrRemIntraLumaPredMode =
                     prevIntraLumaPredFlag[block] ? cabac.readMpmIdx() : cabac.readRemIntraLumaPredMode();
-            IntraPredMode[] candModeList = picture.generateIntraPredModeCandidates(
+            int[] candModeList = picture.generateIntraPredModeCandidates(
                     x0 + i, y0 + j, availableLeft || i > 0, availableAbove || j > 0);
             picture.setIntraPredModeY(
                     x0 + i, y0 + j, pbOffset, candModeList, prevIntraLumaPredFlag[block], mpmIdxOrRemIntraLumaPredMode);
@@ -386,10 +387,10 @@ final class SliceSegmentDecoder {
 
     private void setIntraChromaPredMode(int xPb, int yPb, int pbSize, int intraChromaPredMode) {
         picture.intraChromaPredMode.fill(xPb, yPb, pbSize, intraChromaPredMode);
-        IntraPredMode intraPredModeC =
+        int intraPredModeC =
                 HeicPicture.deriveIntraPredModeC(picture.intraPredModeY.get(xPb, yPb), intraChromaPredMode);
         if (sps.getChromaArrayType() == 2) {
-            intraPredModeC = IntraPredMode.get(INTRA_PRED_MODE_C_422[intraPredModeC.ordinal()]);
+            intraPredModeC = INTRA_PRED_MODE_C_422[intraPredModeC];
         }
         picture.setIntraPredModeC(xPb, yPb, pbSize, intraPredModeC);
     }
@@ -683,7 +684,7 @@ final class SliceSegmentDecoder {
         int nTbS = 1 << log2TrafoSize;
         int xLuma = x0 * (cIdx == 0 ? 1 : sps.getSubWidthC());
         int yLuma = y0 * (cIdx == 0 ? 1 : sps.getSubHeightC());
-        IntraPredMode intraPredMode =
+        int intraPredMode =
                 cIdx == 0 ? picture.intraPredModeY.get(xLuma, yLuma) : picture.intraPredModeC.get(xLuma, yLuma);
         int[][] predSamples = IntraPrediction.predict(
                 picture,
@@ -729,7 +730,7 @@ final class SliceSegmentDecoder {
 
     // 8.6.2: implicit RDPCM accumulates the residual of a horizontally or vertically predicted lossless or
     // transform-skipped block along the prediction direction
-    private int residualDpcmDirection(IntraPredMode intraPredMode, boolean transformSkipFlag) {
+    private int residualDpcmDirection(int intraPredMode, boolean transformSkipFlag) {
         boolean implicitRdpcm = sps.spsRangeExt.implicitRdpcmEnabledFlag
                 && (context.cuTransquantBypassFlag || transformSkipFlag)
                 && (intraPredMode == IntraPredMode.INTRA_ANGULAR10 || intraPredMode == IntraPredMode.INTRA_ANGULAR26);

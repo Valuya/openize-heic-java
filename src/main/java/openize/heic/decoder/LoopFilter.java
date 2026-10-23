@@ -399,11 +399,11 @@ final class LoopFilter {
             offsetVal[i + 1] = ((1 - 2 * offsetSign[i]) * offsetAbs[i]) << log2OffsetScale;
         }
 
-        int[] bandTable = null;
         int bandShift = bitDepth - 5;
         int eoClass = picture.saoEoClass[cIdx][rx][ry];
+        // band offset: the offset index of each of the 32 bands, 0 outside the four bands from sao_band_position
+        int[] bandTable = new int[saoType == 1 ? 32 : 0];
         if (saoType == 1) {
-            bandTable = new int[32];
             int bandPosition = picture.saoBandPosition[cIdx][rx][ry];
             for (int k = 0; k < 4; k++) {
                 bandTable[(k + bandPosition) & 31] = k + 1;

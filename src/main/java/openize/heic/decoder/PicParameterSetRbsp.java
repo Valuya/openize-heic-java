@@ -372,6 +372,8 @@ class PicParameterSetRbsp extends NalUnit {
         return addresses;
     }
 
+    // the arrays are the tables themselves: a ScanTables is never compared or hashed
+    @SuppressWarnings("ArrayRecordComponent")
     private record ScanTables(
             // the location of each tile column and row boundary, in CTBs
             int[] colBd,

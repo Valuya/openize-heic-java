@@ -47,8 +47,8 @@ final class HeicPicture {
     final BlockByteMap log2CbSize;
     final BlockByteMap qpY;
     final BlockFlagMap pcmFlag;
-    final BlockEnumMap<IntraPredMode> intraPredModeY;
-    final BlockEnumMap<IntraPredMode> intraPredModeC;
+    final BlockByteMap intraPredModeY;
+    final BlockByteMap intraPredModeC;
     final BlockByteMap intraChromaPredMode;
     // one bit per transform tree depth
     final BlockByteMap cbfCb;
@@ -62,9 +62,10 @@ final class HeicPicture {
         pps = firstSliceSegmentHeader.pps;
         sps = pps.sps;
 
-        ScalingListData scalingList = pps.ppsScalingListDataPresentFlag
-                ? pps.ppsScalingListData
-                : sps.spsScalingListDataPresentFlag ? sps.scalingListData : ScalingListData.DEFAULT;
+        // 7.4.3.3: the PPS scaling list, the SPS one, or the default one
+        ScalingListData scalingList = Optional.ofNullable(pps.ppsScalingListData)
+                .or(() -> Optional.ofNullable(sps.scalingListData))
+                .orElse(ScalingListData.DEFAULT);
         scalingFactor = scalingList.getScalingFactor();
 
         // whole coding tree blocks, so that blocks straddling the right and bottom edges can be reconstructed
@@ -90,8 +91,8 @@ final class HeicPicture {
         log2CbSize = new BlockByteMap(width, height);
         qpY = new BlockByteMap(width, height);
         pcmFlag = new BlockFlagMap(width, height);
-        intraPredModeY = new BlockEnumMap<>(IntraPredMode.class, width, height);
-        intraPredModeC = new BlockEnumMap<>(IntraPredMode.class, width, height);
+        intraPredModeY = new BlockByteMap(width, height);
+        intraPredModeC = new BlockByteMap(width, height);
         intraChromaPredMode = new BlockByteMap(width, height);
         cbfCb = new BlockByteMap(width, height);
         cbfCr = new BlockByteMap(width, height);
@@ -213,27 +214,27 @@ final class HeicPicture {
     }
 
     // 8.4.2 Derivation process for luma intra prediction mode: the candidate modes from the left and above neighbours
-    IntraPredMode[] generateIntraPredModeCandidates(int xPb, int yPb, boolean availableA, boolean availableB) {
-        IntraPredMode candIntraPredModeA =
+    int[] generateIntraPredModeCandidates(int xPb, int yPb, boolean availableA, boolean availableB) {
+        int candIntraPredModeA =
                 !availableA || pcmFlag.get(xPb - 1, yPb) ? IntraPredMode.INTRA_DC : intraPredModeY.get(xPb - 1, yPb);
 
         // the neighbour above, outside the current coding tree block, is not used
         int ctbLog2SizeY = sps.getCtbLog2SizeY();
         boolean aboveInCurrentCtb = yPb - 1 >= ((yPb >> ctbLog2SizeY) << ctbLog2SizeY);
-        IntraPredMode candIntraPredModeB = !availableB || pcmFlag.get(xPb, yPb - 1) || !aboveInCurrentCtb
+        int candIntraPredModeB = !availableB || pcmFlag.get(xPb, yPb - 1) || !aboveInCurrentCtb
                 ? IntraPredMode.INTRA_DC
                 : intraPredModeY.get(xPb, yPb - 1);
 
-        IntraPredMode[] candModeList = new IntraPredMode[3];
+        int[] candModeList = new int[3];
         if (candIntraPredModeB == candIntraPredModeA) {
-            if (candIntraPredModeA.ordinal() < 2) {
+            if (candIntraPredModeA < IntraPredMode.INTRA_ANGULAR2) {
                 candModeList[0] = IntraPredMode.INTRA_PLANAR;
                 candModeList[1] = IntraPredMode.INTRA_DC;
                 candModeList[2] = IntraPredMode.INTRA_ANGULAR26;
             } else {
                 candModeList[0] = candIntraPredModeA;
-                candModeList[1] = IntraPredMode.get(2 + ((candIntraPredModeA.ordinal() + 29) % 32));
-                candModeList[2] = IntraPredMode.get(2 + ((candIntraPredModeA.ordinal() - 2 + 1) % 32));
+                candModeList[1] = 2 + ((candIntraPredModeA + 29) % 32);
+                candModeList[2] = 2 + ((candIntraPredModeA - 2 + 1) % 32);
             }
         } else {
             candModeList[0] = candIntraPredModeA;
@@ -253,14 +254,14 @@ final class HeicPicture {
      * Sets IntraPredModeY of the prediction block at (xPb, yPb), from mpm_idx when prev_intra_luma_pred_flag is set,
      * from rem_intra_luma_pred_mode otherwise (8.4.2).
      */
-    IntraPredMode setIntraPredModeY(
+    int setIntraPredModeY(
             int xPb,
             int yPb,
             int pbSize,
-            IntraPredMode[] candModeList,
+            int[] candModeList,
             boolean prevIntraLumaPredFlag,
             int mpmIdxOrRemIntraLumaPredMode) {
-        IntraPredMode mode;
+        int mode;
         if (prevIntraLumaPredFlag) {
             mode = candModeList[mpmIdxOrRemIntraLumaPredMode];
         } else {
@@ -269,37 +270,37 @@ final class HeicPicture {
             sortByMode(candModeList, 1, 2);
 
             int modeIndex = mpmIdxOrRemIntraLumaPredMode;
-            for (IntraPredMode candidate : candModeList) {
-                if (modeIndex >= candidate.ordinal()) {
+            for (int candidate : candModeList) {
+                if (modeIndex >= candidate) {
                     modeIndex++;
                 }
             }
-            mode = IntraPredMode.get(modeIndex);
+            mode = modeIndex;
         }
 
         intraPredModeY.fill(xPb, yPb, pbSize, mode);
         return mode;
     }
 
-    private static void sortByMode(IntraPredMode[] candModeList, int first, int second) {
-        if (candModeList[first].ordinal() > candModeList[second].ordinal()) {
-            IntraPredMode swapped = candModeList[first];
+    private static void sortByMode(int[] candModeList, int first, int second) {
+        if (candModeList[first] > candModeList[second]) {
+            int swapped = candModeList[first];
             candModeList[first] = candModeList[second];
             candModeList[second] = swapped;
         }
     }
 
-    void setIntraPredModeC(int xPb, int yPb, int pbSize, IntraPredMode mode) {
+    void setIntraPredModeC(int xPb, int yPb, int pbSize, int mode) {
         intraPredModeC.fill(xPb, yPb, pbSize, mode);
     }
 
     // 8.4.3 Derivation process for chroma intra prediction mode, Table 8-2
-    static IntraPredMode deriveIntraPredModeC(IntraPredMode intraLumaPredMode, int intraChromaPredMode) {
+    static int deriveIntraPredModeC(int intraLumaPredMode, int intraChromaPredMode) {
         if (intraChromaPredMode == 4) {
             return intraLumaPredMode;
         }
 
-        IntraPredMode candidate = switch (intraChromaPredMode) {
+        int candidate = switch (intraChromaPredMode) {
             case 0 -> IntraPredMode.INTRA_PLANAR;
             case 1 -> IntraPredMode.INTRA_ANGULAR26;
             case 2 -> IntraPredMode.INTRA_ANGULAR10;

@@ -66,7 +66,7 @@ public final class HeicImageFrame {
     private int mirrorAxis;
 
     // the items that refer to this one
-    private @Nullable Long alphaFrameId;
+    private @Nullable HeicImageFrame alphaFrame;
     private @Nullable HeicImageFrame exifItem;
     private @Nullable ExifData exifData;
 
@@ -103,7 +103,7 @@ public final class HeicImageFrame {
 
     /** Whether the image has an alpha plane. */
     public boolean hasAlpha() {
-        return alphaFrameId != null;
+        return alphaFrame != null;
     }
 
     /** Whether the item is marked hidden: an input of a derived image, for instance. */
@@ -250,9 +250,9 @@ public final class HeicImageFrame {
     }
 
     // an auxiliary image refers to this one
-    private void addAuxiliaryImage(long auxiliaryId, AuxiliaryReferenceType type) {
+    private void addAuxiliaryImage(HeicImageFrame auxiliaryFrame, AuxiliaryReferenceType type) {
         if (type == AuxiliaryReferenceType.ALPHA) {
-            alphaFrameId = auxiliaryId;
+            alphaFrame = auxiliaryFrame;
         }
     }
 
@@ -321,7 +321,7 @@ public final class HeicImageFrame {
                 throw new HeicFormatException(
                         "Auxiliary image %d refers to item %d, which is not an image".formatted(id, referencedId));
             }
-            referencedFrame.addAuxiliaryImage(id, auxiliaryReferenceType);
+            referencedFrame.addAuxiliaryImage(this, auxiliaryReferenceType);
         }
     }
 
@@ -422,8 +422,8 @@ public final class HeicImageFrame {
                         .formatted(id, fourCharacterCodeText(itemTypeCode)));
         }
 
-        if (!alphaOnly && alphaFrameId != null) {
-            parent.getAllFrames().get(alphaFrameId).decodeInto(target, true);
+        if (!alphaOnly && alphaFrame != null) {
+            alphaFrame.decodeInto(target, true);
         }
     }
 

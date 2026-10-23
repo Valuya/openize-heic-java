@@ -50,9 +50,8 @@ final class ResidualCoding {
         residualBuffers.transformSkipFlag = transformSkipFlag;
         boolean transformSkipOrBypass = transformSkipFlag || cuTransquantBypassFlag;
 
-        IntraPredMode predModeIntra =
-                cIdx == 0 ? picture.intraPredModeY.get(x0, y0) : picture.intraPredModeC.get(x0, y0);
-        int scanIdx = scanIdx(log2TrafoSize, cIdx, sps.getChromaArrayType(), predModeIntra.ordinal());
+        int predModeIntra = cIdx == 0 ? picture.intraPredModeY.get(x0, y0) : picture.intraPredModeC.get(x0, y0);
+        int scanIdx = scanIdx(log2TrafoSize, cIdx, sps.getChromaArrayType(), predModeIntra);
 
         // both prefixes come before both suffixes
         int lastSigCoeffXPrefix =
@@ -249,7 +248,7 @@ final class ResidualCoding {
         return DIAGONAL_SCAN;
     }
 
-    private static boolean isHorizontalOrVertical(IntraPredMode predModeIntra) {
+    private static boolean isHorizontalOrVertical(int predModeIntra) {
         return predModeIntra == IntraPredMode.INTRA_ANGULAR10 || predModeIntra == IntraPredMode.INTRA_ANGULAR26;
     }
 

@@ -148,8 +148,8 @@ public final class HeicImage {
 
     private static long fourCharacterCode(String code) {
         long value = 0;
-        for (char character : code.toCharArray()) {
-            value = (value << 8) | character;
+        for (int i = 0; i < code.length(); i++) {
+            value = (value << 8) | code.charAt(i);
         }
         return value;
     }

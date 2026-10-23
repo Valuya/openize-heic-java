@@ -7,24 +7,22 @@
  * Openize.HEIC is available under Openize license, which is
  * available along with Openize.HEIC sources.
  */
-
 package openize.heic.decoder;
 
-enum SliceType /*: byte*/ {
-    B, /*  = 0 */
-    P, /*  = 1 */
-    I; /*  = 2 */
+/**
+ * slice_type (Table 7-7): B, P or I.
+ */
+enum SliceType {
+    B,
+    P,
+    I;
 
-    public static SliceType get(long code) {
-        switch ((int) code) {
-            case 0:
-                return B;
-            case 1:
-                return P;
-            case 2:
-                return I;
-            default:
-                throw new HeicFormatException("Unknown slice type " + code);
-        }
+    static SliceType get(int sliceType) {
+        return switch (sliceType) {
+            case 0 -> B;
+            case 1 -> P;
+            case 2 -> I;
+            default -> throw new HeicFormatException("Unknown slice type " + sliceType);
+        };
     }
 }

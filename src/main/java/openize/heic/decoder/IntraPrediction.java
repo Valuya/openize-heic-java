@@ -26,8 +26,8 @@ final class IntraPrediction {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4096, -1638, -910, -630, -482, -390, -315, -256, -315, -390, -482, -630, -910,
         -1638, -4096
     };
-    private static final int VERTICAL = 26;
-    private static final int HORIZONTAL = 10;
+    private static final int VERTICAL = IntraPredMode.INTRA_ANGULAR26;
+    private static final int HORIZONTAL = IntraPredMode.INTRA_ANGULAR10;
 
     private IntraPrediction() {}
 
@@ -43,7 +43,7 @@ final class IntraPrediction {
             int y0,
             int nTbS,
             int cIdx,
-            IntraPredMode intraPredMode,
+            int intraPredMode,
             boolean cuTransquantBypassFlag) {
         SeqParameterSetRbsp sps = picture.sps;
         NeighbouringSamples samples = NeighbouringSamplesGenerator.generate(picture, x0, y0, nTbS, cIdx, buffers);
@@ -56,11 +56,10 @@ final class IntraPrediction {
         boolean disableIntraBoundaryFilter = sps.spsSccExt.intraBoundaryFilteringDisabledFlag
                 || (sps.spsRangeExt.implicitRdpcmEnabledFlag && cuTransquantBypassFlag);
         return switch (intraPredMode) {
-            case INTRA_PLANAR -> predictPlanar(buffers.predictedSamples, samples, nTbS);
-            case INTRA_DC -> predictDc(buffers.predictedSamples, samples, nTbS, cIdx);
+            case IntraPredMode.INTRA_PLANAR -> predictPlanar(buffers.predictedSamples, samples, nTbS);
+            case IntraPredMode.INTRA_DC -> predictDc(buffers.predictedSamples, samples, nTbS, cIdx);
             default ->
-                predictAngular(
-                        buffers, samples, nTbS, cIdx, intraPredMode.ordinal(), bitDepth, disableIntraBoundaryFilter);
+                predictAngular(buffers, samples, nTbS, cIdx, intraPredMode, bitDepth, disableIntraBoundaryFilter);
         };
     }
 
@@ -71,7 +70,7 @@ final class IntraPrediction {
             NeighbouringSamples p,
             int nTbS,
             int cIdx,
-            IntraPredMode intraPredMode) {
+            int intraPredMode) {
         if (!isFiltered(intraPredMode, nTbS)) {
             return p;
         }
@@ -109,12 +108,11 @@ final class IntraPrediction {
     }
 
     // filterFlag: the modes farther from vertical and horizontal than intraHorVerDistThres[nTbS]
-    private static boolean isFiltered(IntraPredMode intraPredMode, int nTbS) {
+    private static boolean isFiltered(int intraPredMode, int nTbS) {
         if (intraPredMode == IntraPredMode.INTRA_DC || nTbS == 4) {
             return false;
         }
-        int mode = intraPredMode.ordinal();
-        int minDistVerHor = Math.min(Math.abs(mode - VERTICAL), Math.abs(mode - HORIZONTAL));
+        int minDistVerHor = Math.min(Math.abs(intraPredMode - VERTICAL), Math.abs(intraPredMode - HORIZONTAL));
         return switch (nTbS) {
             case 8 -> minDistVerHor > 7;
             case 16 -> minDistVerHor > 1;

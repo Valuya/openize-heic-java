@@ -89,22 +89,18 @@ enum ContextTable {
     CU_CHROMA_QP_OFFSET_IDX(154);
 
     /** The number of contexts of all tables. */
-    static final int CONTEXT_COUNT;
+    static final int CONTEXT_COUNT = NextOffset.value;
 
-    static {
-        int offset = 0;
-        for (ContextTable table : values()) {
-            table.offset = offset;
-            offset += table.initValues.length;
-        }
-        CONTEXT_COUNT = offset;
-    }
-
+    // never written after construction
+    @SuppressWarnings("ImmutableEnumChecker")
     private final int[] initValues;
-    private int offset;
+
+    private final int offset;
 
     ContextTable(int... initValues) {
         this.initValues = initValues;
+        offset = NextOffset.value;
+        NextOffset.value += initValues.length;
     }
 
     /** The index of the table's first context among the contexts of all tables. */
@@ -118,5 +114,10 @@ enum ContextTable {
 
     int initValue(int contextIndex) {
         return initValues[contextIndex];
+    }
+
+    // the constants are built in order, each from where the one before ended
+    private static final class NextOffset {
+        private static int value;
     }
 }
