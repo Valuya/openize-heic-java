@@ -54,7 +54,7 @@ final class LoopFilter {
 
     private final boolean highColorRange;
     private final byte[][][] pixels;
-    private final int[][][] pixelsHighColorRange;
+    private final short[][][] pixelsHighColorRange;
 
     // the four lines of a luma edge segment, three samples p0..p2 / q0..q2 on each side once filtered
     private final int[][] edgeSamplesP = new int[4][4];
@@ -490,7 +490,7 @@ final class LoopFilter {
     }
 
     private SliceHeader sliceHeaderAt(int x, int y) {
-        return picture.getSliceSegmentHeader(picture.sliceHeaderIndex.get(x, y)).slice;
+        return picture.getSliceSegmentHeaderAt(x, y).slice;
     }
 
     private int ctbAddrRs(int x, int y) {
@@ -511,12 +511,12 @@ final class LoopFilter {
     }
 
     private int get(int cIdx, int x, int y) {
-        return highColorRange ? pixelsHighColorRange[cIdx][x][y] : pixels[cIdx][x][y] & 0xFF;
+        return highColorRange ? pixelsHighColorRange[cIdx][x][y] & 0xFFFF : pixels[cIdx][x][y] & 0xFF;
     }
 
     private void set(int cIdx, int x, int y, int value) {
         if (highColorRange) {
-            pixelsHighColorRange[cIdx][x][y] = value;
+            pixelsHighColorRange[cIdx][x][y] = (short) value;
         } else {
             pixels[cIdx][x][y] = (byte) value;
         }

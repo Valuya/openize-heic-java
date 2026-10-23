@@ -14,10 +14,10 @@ package openize.heic.decoder;
  * A flag per 4x4 block of luma samples, all clear to start with.
  */
 final class BlockFlagMap {
-    private final BlockIntMap flags;
+    private final BlockByteMap flags;
 
     BlockFlagMap(int width, int height) {
-        flags = new BlockIntMap(width, height);
+        flags = new BlockByteMap(width, height);
     }
 
     boolean get(int x, int y) {

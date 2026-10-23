@@ -11,15 +11,16 @@
 package openize.heic.decoder;
 
 /**
- * An enum constant per 4x4 block of luma samples; every block starts with the first constant.
+ * An enum constant, of an enum of at most 128 constants, per 4x4 block of luma samples; every block starts with the
+ * first constant.
  */
 final class BlockEnumMap<E extends Enum<E>> {
     private final E[] constants;
-    private final BlockIntMap ordinals;
+    private final BlockByteMap ordinals;
 
     BlockEnumMap(Class<E> enumType, int width, int height) {
         constants = enumType.getEnumConstants();
-        ordinals = new BlockIntMap(width, height);
+        ordinals = new BlockByteMap(width, height);
     }
 
     E get(int x, int y) {

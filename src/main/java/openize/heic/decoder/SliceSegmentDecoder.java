@@ -107,8 +107,7 @@ final class SliceSegmentDecoder {
         int xCtb = ctbAddrInRs % widthInCtbs;
         int yCtb = ctbAddrInRs / widthInCtbs;
         picture.sliceAddrRs[xCtb][yCtb] = slice.sliceAddrRs();
-        picture.sliceHeaderIndex.fill(
-                xCtb << sps.getCtbLog2SizeY(), yCtb << sps.getCtbLog2SizeY(), sps.getCtbSizeY(), sliceSegmentIndex);
+        picture.setSliceSegmentIndex(ctbAddrInRs, sliceSegmentIndex);
     }
 
     // 9.3.1: the context variables a slice segment, a tile, or a wavefront row starts from
@@ -520,7 +519,7 @@ final class SliceSegmentDecoder {
     // second one below it in 4:2:2
     private void decodeChromaBlocks(
             int xLuma, int yLuma, int xCbf, int yCbf, int log2SizeC, int cbfDepth, int cIdx, int chromaOffset) {
-        BlockIntMap cbf = cIdx == 1 ? picture.cbfCb : picture.cbfCr;
+        BlockByteMap cbf = cIdx == 1 ? picture.cbfCb : picture.cbfCr;
         int xChroma = xLuma / sps.getSubWidthC();
         int yChroma = yLuma / sps.getSubHeightC();
         if (cbf.getBit(xCbf, yCbf, cbfDepth)) {
@@ -544,7 +543,7 @@ final class SliceSegmentDecoder {
         int xP = (x0 >> sps.getMinCbLog2SizeY()) << sps.getMinCbLog2SizeY();
         int yP = (y0 >> sps.getMinCbLog2SizeY()) << sps.getMinCbLog2SizeY();
         int half = sps.getMinCbSizeY() / 2;
-        BlockIntMap intraChromaPredMode = picture.intraChromaPredMode;
+        BlockByteMap intraChromaPredMode = picture.intraChromaPredMode;
         boolean coded = (!intraSplitFlag && intraChromaPredMode.get(x0, y0) == 4)
                 || (intraChromaPredMode.get(xP, yP) == 4
                         && intraChromaPredMode.get(xP + half, yP) == 4

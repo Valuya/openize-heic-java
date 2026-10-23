@@ -23,9 +23,9 @@ public final class HeicPicture {
     final PicParameterSetRbsp pps;
     private final List<SliceSegmentHeader> sliceSegmentHeaders = new ArrayList<>();
 
-    // the samples, [cIdx][x][y]: bytes up to 8 bits, ints above
+    // the samples, [cIdx][x][y]: unsigned bytes up to 8 bits, unsigned shorts above
     final byte[][][] pixels;
-    final int[][][] pixelsHighColorRange;
+    final short[][][] pixelsHighColorRange;
     final boolean highColorRange;
 
     // ScalingFactor[sizeId][matrixId][x][y] (7.4.5) from the PPS scaling list, the SPS one, or the defaults
@@ -39,20 +39,21 @@ public final class HeicPicture {
     final int[][][][] saoOffsetAbs;
     final int[][][][] saoOffsetSign;
 
-    // per 4x4 luma block; the slice segment header index is set per coding tree block
-    final BlockIntMap sliceHeaderIndex;
-    final BlockIntMap ctDepth;
-    final BlockIntMap log2CbSize;
-    final BlockIntMap qpY;
+    // per coding tree block in raster scan: the index of the header of its slice segment
+    private final int[] sliceSegmentIndexByCtb;
+
+    // per 4x4 luma block
+    final BlockByteMap ctDepth;
+    final BlockByteMap log2CbSize;
+    final BlockByteMap qpY;
     final BlockFlagMap pcmFlag;
     final BlockEnumMap<IntraPredMode> intraPredModeY;
     final BlockEnumMap<IntraPredMode> intraPredModeC;
-    final BlockIntMap intraChromaPredMode;
-    final BlockFlagMap tuResidualActFlag;
+    final BlockByteMap intraChromaPredMode;
     // one bit per transform tree depth
-    final BlockIntMap cbfCb;
-    final BlockIntMap cbfCr;
-    final BlockIntMap cbfLuma;
+    final BlockByteMap cbfCb;
+    final BlockByteMap cbfCr;
+    final BlockByteMap cbfLuma;
 
     // per 4x4 luma block: LoopFilter.VERTICAL_EDGE, HORIZONTAL_EDGE and NO_FILTER bits
     final byte[][] blockFlags;
@@ -75,7 +76,7 @@ public final class HeicPicture {
 
         highColorRange = sps.getBitDepthY() > 8 || sps.getBitDepthC() > 8;
         pixels = highColorRange ? new byte[0][][] : new byte[componentCount][width][height];
-        pixelsHighColorRange = highColorRange ? new int[componentCount][width][height] : new int[0][][];
+        pixelsHighColorRange = highColorRange ? new short[componentCount][width][height] : new short[0][][];
 
         sliceAddrRs = new int[widthInCtbs][heightInCtbs];
         saoTypeIdx = new int[componentCount][widthInCtbs][heightInCtbs];
@@ -84,33 +85,41 @@ public final class HeicPicture {
         saoOffsetAbs = new int[componentCount][widthInCtbs][heightInCtbs][4];
         saoOffsetSign = new int[componentCount][widthInCtbs][heightInCtbs][4];
 
-        sliceHeaderIndex = new BlockIntMap(width, height);
-        ctDepth = new BlockIntMap(width, height);
-        log2CbSize = new BlockIntMap(width, height);
-        qpY = new BlockIntMap(width, height);
+        sliceSegmentIndexByCtb = new int[widthInCtbs * heightInCtbs];
+        ctDepth = new BlockByteMap(width, height);
+        log2CbSize = new BlockByteMap(width, height);
+        qpY = new BlockByteMap(width, height);
         pcmFlag = new BlockFlagMap(width, height);
         intraPredModeY = new BlockEnumMap<>(IntraPredMode.class, width, height);
         intraPredModeC = new BlockEnumMap<>(IntraPredMode.class, width, height);
-        intraChromaPredMode = new BlockIntMap(width, height);
-        tuResidualActFlag = new BlockFlagMap(width, height);
-        cbfCb = new BlockIntMap(width, height);
-        cbfCr = new BlockIntMap(width, height);
-        cbfLuma = new BlockIntMap(width, height);
+        intraChromaPredMode = new BlockByteMap(width, height);
+        cbfCb = new BlockByteMap(width, height);
+        cbfCr = new BlockByteMap(width, height);
+        cbfLuma = new BlockByteMap(width, height);
         blockFlags = new byte[width >> 2][height >> 2];
     }
 
     /**
      * Adds the header of the next slice segment of the picture.
      *
-     * @return its index, the value {@link #sliceHeaderIndex} holds for its coding tree blocks
+     * @return its index, to set for its coding tree blocks
      */
     int addSliceSegmentHeader(SliceSegmentHeader header) {
         sliceSegmentHeaders.add(header);
         return sliceSegmentHeaders.size() - 1;
     }
 
-    SliceSegmentHeader getSliceSegmentHeader(int index) {
-        return sliceSegmentHeaders.get(index);
+    void setSliceSegmentIndex(int ctbAddrRs, int sliceSegmentIndex) {
+        sliceSegmentIndexByCtb[ctbAddrRs] = sliceSegmentIndex;
+    }
+
+    /**
+     * The header of the slice segment that holds the luma sample (x, y).
+     */
+    SliceSegmentHeader getSliceSegmentHeaderAt(int x, int y) {
+        int ctbLog2SizeY = sps.getCtbLog2SizeY();
+        int ctbAddrRs = (y >> ctbLog2SizeY) * sps.getPicWidthInCtbsY() + (x >> ctbLog2SizeY);
+        return sliceSegmentHeaders.get(sliceSegmentIndexByCtb[ctbAddrRs]);
     }
 
     List<SliceSegmentHeader> getSliceSegmentHeaders() {
@@ -124,12 +133,12 @@ public final class HeicPicture {
     }
 
     int getSample(int cIdx, int x, int y) {
-        return highColorRange ? pixelsHighColorRange[cIdx][x][y] : pixels[cIdx][x][y] & 0xFF;
+        return highColorRange ? pixelsHighColorRange[cIdx][x][y] & 0xFFFF : pixels[cIdx][x][y] & 0xFF;
     }
 
     void setSample(int cIdx, int x, int y, int value) {
         if (highColorRange) {
-            pixelsHighColorRange[cIdx][x][y] = value;
+            pixelsHighColorRange[cIdx][x][y] = (short) value;
         } else {
             pixels[cIdx][x][y] = (byte) value;
         }

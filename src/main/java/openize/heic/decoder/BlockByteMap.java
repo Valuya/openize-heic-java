@@ -13,19 +13,19 @@ package openize.heic.decoder;
 import java.util.Arrays;
 
 /**
- * An int per 4x4 block of luma samples. Coding blocks are at least 8x8 and prediction and transform blocks at least
- * 4x4, so a value set for a block of the picture holds for every sample of it.
+ * A small value, -128 to 127, per 4x4 block of luma samples. Coding blocks are at least 8x8 and prediction and
+ * transform blocks at least 4x4, so a value set for a block of the picture holds for every sample of it.
  */
-final class BlockIntMap {
+final class BlockByteMap {
     private static final int LOG2_BLOCK_SIZE = 2;
 
     private final int widthInBlocks;
-    private final int[] values;
+    private final byte[] values;
 
-    BlockIntMap(int width, int height) {
+    BlockByteMap(int width, int height) {
         widthInBlocks = (width + 3) >> LOG2_BLOCK_SIZE;
         int heightInBlocks = (height + 3) >> LOG2_BLOCK_SIZE;
-        values = new int[widthInBlocks * heightInBlocks];
+        values = new byte[widthInBlocks * heightInBlocks];
     }
 
     int get(int x, int y) {
@@ -33,7 +33,7 @@ final class BlockIntMap {
     }
 
     void set(int x, int y, int value) {
-        values[index(x, y)] = value;
+        values[index(x, y)] = (byte) value;
     }
 
     /**
@@ -43,7 +43,7 @@ final class BlockIntMap {
         int sizeInBlocks = Math.max(size >> LOG2_BLOCK_SIZE, 1);
         for (int blockY = 0; blockY < sizeInBlocks; blockY++) {
             int rowStart = index(x0, y0 + (blockY << LOG2_BLOCK_SIZE));
-            Arrays.fill(values, rowStart, rowStart + sizeInBlocks, value);
+            Arrays.fill(values, rowStart, rowStart + sizeInBlocks, (byte) value);
         }
     }
 
@@ -53,7 +53,7 @@ final class BlockIntMap {
 
     void setBit(int x, int y, int bit, boolean bitValue) {
         int index = index(x, y);
-        values[index] = bitValue ? values[index] | (1 << bit) : values[index] & ~(1 << bit);
+        values[index] = (byte) (bitValue ? values[index] | (1 << bit) : values[index] & ~(1 << bit));
     }
 
     private int index(int x, int y) {
