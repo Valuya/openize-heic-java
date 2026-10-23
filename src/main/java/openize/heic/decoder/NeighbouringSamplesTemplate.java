@@ -11,10 +11,21 @@
 package openize.heic.decoder;
 
 class NeighbouringSamplesTemplate {
-    protected final int size;
+    protected int size;
 
     public NeighbouringSamplesTemplate(int nTbS) {
         size = nTbS;
+    }
+
+    /**
+     * Sets up for a transform block of {@code nTbS} samples: 2 * nTbS + 1 above (with the corner), 2 * nTbS left.
+     */
+    void prepare(int nTbS) {
+        size = nTbS;
+    }
+
+    static int sampleCount(int nTbS) {
+        return 4 * nTbS + 1;
     }
 
     protected final int getIndex(int x, int y) {

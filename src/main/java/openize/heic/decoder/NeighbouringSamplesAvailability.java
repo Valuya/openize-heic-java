@@ -10,21 +10,27 @@
 
 package openize.heic.decoder;
 
-import java.util.BitSet;
+import java.util.Arrays;
 
 class NeighbouringSamplesAvailability extends NeighbouringSamplesTemplate {
-    private final BitSet data;
+    private final boolean[] data;
 
     public NeighbouringSamplesAvailability(int nTbS) {
         super(nTbS);
-        data = new BitSet(4 * nTbS + 1);
+        data = new boolean[sampleCount(nTbS)];
     }
 
     public final boolean get(int x, int y) {
-        return data.get(getIndex(x, y));
+        return data[getIndex(x, y)];
     }
 
     public final void set(int x, int y, boolean value) {
-        data.set(getIndex(x, y), value);
+        data[getIndex(x, y)] = value;
+    }
+
+    @Override
+    void prepare(int nTbS) {
+        super.prepare(nTbS);
+        Arrays.fill(data, 0, sampleCount(nTbS), false);
     }
 }

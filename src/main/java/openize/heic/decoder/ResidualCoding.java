@@ -10,6 +10,7 @@
 
 package openize.heic.decoder;
 
+import java.util.Arrays;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 // 7.4.9.11 Residual coding semantics
@@ -115,20 +116,24 @@ class ResidualCoding {
         } while (((xC & 0xFFFFFFFFL) != lastSignificantCoeffX) || ((yC & 0xFFFFFFFFL) != lastSignificantCoeffY));
 
         int arrSize = 1 << log2TrafoSize;
-        boolean[][] codedSubBlockFlag = new boolean[arrSize][arrSize];
-        boolean[][] sigCoeffFlag = new boolean[arrSize][arrSize];
+        boolean[][] codedSubBlockFlag = residualBuffers.clearedCodedSubBlockFlags(log2TrafoSize);
+        // per scan position of the current 4x4 sub-block
+        boolean[] sigCoeffFlag = residualBuffers.sigCoeffFlags;
+        boolean[] coeffAbsLevelGreater1Flag = residualBuffers.coeffAbsLevelGreater1Flags;
+        boolean[] coeffAbsLevelGreater2Flag = residualBuffers.coeffAbsLevelGreater2Flags;
+        boolean[] coeffSignFlag = residualBuffers.coeffSignFlags;
+        int[] coeffAbsLevelRemaining = residualBuffers.coeffAbsLevelRemainings;
+        Cabac.Greater1Context greater1Context = new Cabac.Greater1Context();
 
         int lastSubblockGreater1Ctx = 0;
 
-        int lastInvocationCtxSet = 0;
-        int lastInvocationGreater1Ctx = 0;
-        boolean lastInvocationCoeffAbsLevelGreater1Flag = false;
         boolean firstSubblock = true;
         boolean firstCoeffInSubblock;
 
         for (int i = lastSubBlock; i >= 0; i--) {
             xS = scanOrderLogTrafoSize2ScanIdx[i][0] & 0xFF;
             yS = scanOrderLogTrafoSize2ScanIdx[i][1] & 0xFF;
+            Arrays.fill(sigCoeffFlag, false);
 
             // int escapeDataPresent = 0;
             boolean inferSbDcSigCoeffFlag = false;
@@ -146,7 +151,7 @@ class ResidualCoding {
                         & 0xFFFFFFFFL;
                 yC = ((((yS & 0xFFFFFFFFL) << 2) & 0xFFFFFFFFL) + (scanOrder[2][scanIdx][lastScanPos][1] & 0xFF))
                         & 0xFFFFFFFFL;
-                sigCoeffFlag[(int) (xC)][(int) (yC)] = true;
+                sigCoeffFlag[lastScanPos] = true;
             }
 
             for (int n = (i == lastSubBlock) ? lastScanPos - 1 : 15; n >= 0; n--) {
@@ -155,7 +160,7 @@ class ResidualCoding {
 
                 if (codedSubBlockFlag[(int) (xS)][(int) (yS)]) {
                     if (n > 0 || !inferSbDcSigCoeffFlag) {
-                        sigCoeffFlag[(int) (xC)][(int) (yC)] = streamCabac.readSigCoeffFlag(
+                        sigCoeffFlag[n] = streamCabac.readSigCoeffFlag(
                                 picture,
                                 streamContext.transformSkipFlag[cIdx],
                                 (int) xC,
@@ -165,11 +170,11 @@ class ResidualCoding {
                                 log2TrafoSize,
                                 scanIdx);
 
-                        if (sigCoeffFlag[(int) (xC)][(int) (yC)]) {
+                        if (sigCoeffFlag[n]) {
                             inferSbDcSigCoeffFlag = false;
                         }
                     } else {
-                        sigCoeffFlag[(int) (xC)][(int) (yC)] = true;
+                        sigCoeffFlag[n] = true;
                     }
                 }
             }
@@ -179,9 +184,9 @@ class ResidualCoding {
 
             byte numGreater1Flag = 0;
             int lastGreater1ScanPos = -1;
-            boolean[] coeffAbsLevelGreater1Flag = new boolean[16];
-            boolean[] coeffAbsLevelGreater2Flag = new boolean[16];
-            int[] coeffAbsLevelRemaining = new int[16];
+            Arrays.fill(coeffAbsLevelGreater1Flag, false);
+            Arrays.fill(coeffAbsLevelGreater2Flag, false);
+            Arrays.fill(coeffAbsLevelRemaining, 0);
 
             firstCoeffInSubblock = true;
 
@@ -189,25 +194,10 @@ class ResidualCoding {
                 xC = ((((xS & 0xFFFFFFFFL) << 2) & 0xFFFFFFFFL) + (scanOrder[2][scanIdx][n][0] & 0xFF)) & 0xFFFFFFFFL;
                 yC = ((((yS & 0xFFFFFFFFL) << 2) & 0xFFFFFFFFL) + (scanOrder[2][scanIdx][n][1] & 0xFF)) & 0xFFFFFFFFL;
 
-                if (sigCoeffFlag[(int) (xC)][(int) (yC)]) {
+                if (sigCoeffFlag[n]) {
                     if ((numGreater1Flag & 0xFF) < 8) {
-                        int[] referenceToLastInvocationCtxSet = {lastInvocationCtxSet};
-                        int[] referenceToLastInvocationGreater1Ctx = {lastInvocationGreater1Ctx};
-                        boolean[] referenceToLastInvocationCoeffAbsLevelGreater1Flag = {
-                            lastInvocationCoeffAbsLevelGreater1Flag
-                        };
                         coeffAbsLevelGreater1Flag[n] = streamCabac.readCoeffAbsLevelGreater1Flag(
-                                cIdx,
-                                i,
-                                firstCoeffInSubblock,
-                                firstSubblock,
-                                lastSubblockGreater1Ctx,
-                                /*ref*/ referenceToLastInvocationCtxSet,
-                                /*ref*/ referenceToLastInvocationGreater1Ctx,
-                                /*ref*/ referenceToLastInvocationCoeffAbsLevelGreater1Flag);
-                        lastInvocationCtxSet = referenceToLastInvocationCtxSet[0];
-                        lastInvocationGreater1Ctx = referenceToLastInvocationGreater1Ctx[0];
-                        lastInvocationCoeffAbsLevelGreater1Flag = referenceToLastInvocationCoeffAbsLevelGreater1Flag[0];
+                                cIdx, i, firstCoeffInSubblock, firstSubblock, lastSubblockGreater1Ctx, greater1Context);
 
                         numGreater1Flag++;
 
@@ -233,7 +223,7 @@ class ResidualCoding {
                 }
             }
             firstSubblock = false;
-            lastSubblockGreater1Ctx = lastInvocationGreater1Ctx;
+            lastSubblockGreater1Ctx = greater1Context.greater1Ctx;
 
             boolean signHidden;
             IntraPredMode predModeIntra =
@@ -252,20 +242,20 @@ class ResidualCoding {
 
             if (lastGreater1ScanPos != -1) {
                 coeffAbsLevelGreater2Flag[lastGreater1ScanPos] =
-                        streamCabac.readCoeffAbsLevelGreater2Flag(cIdx, lastInvocationCtxSet);
+                        streamCabac.readCoeffAbsLevelGreater2Flag(cIdx, greater1Context.ctxSet);
                 //                if (coeff_abs_level_greater2_flag[lastGreater1ScanPos])
                 //                {
                 //                    escapeDataPresent = 1;
                 //                }
             }
 
-            boolean[] coeffSignFlag = new boolean[16];
+            Arrays.fill(coeffSignFlag, false);
             byte[][] scanOrder2ScanIdx = scanOrder[2][scanIdx];
             for (int n = 15; n >= 0; n--) {
                 xC = ((xS << 2) + (scanOrder2ScanIdx[n][0] & 0xFFL));
                 yC = ((yS << 2) + (scanOrder2ScanIdx[n][1] & 0xFFL));
 
-                if (sigCoeffFlag[(int) (xC)][(int) (yC)]
+                if (sigCoeffFlag[n]
                         && (!header.pps.signDataHidingEnabledFlag || !signHidden || (n != firstSigScanPos))) {
                     coeffSignFlag[n] = streamCabac.readCoeffSignFlag();
                 }
@@ -294,7 +284,7 @@ class ResidualCoding {
                 xC = ((xS << 2) + (scanOrder2ScanIdx[n][0] & 0xFFL));
                 yC = ((yS << 2) + (scanOrder2ScanIdx[n][1] & 0xFFL));
 
-                if (sigCoeffFlag[(int) (xC)][(int) (yC)]) {
+                if (sigCoeffFlag[n]) {
                     int baseLevel = 1 + (coeffAbsLevelGreater1Flag[n] ? 1 : 0) + (coeffAbsLevelGreater2Flag[n] ? 1 : 0);
 
                     if (baseLevel == ((numSigCoeff < 8) ? ((n == lastGreater1ScanPos) ? 3 : 2) : 1)) {

@@ -465,7 +465,8 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
             IntraPredMode intraPredMode,
             int nTbS,
             int cIdx) {
-        NeighbouringSamples samples = NeighbouringSamplesGenerator.generate(picture, x0, y0, nTbS, cIdx);
+        IntraPredictionBuffers buffers = stream.getContext().getIntraPredictionBuffers();
+        NeighbouringSamples samples = NeighbouringSamplesGenerator.generate(picture, x0, y0, nTbS, cIdx, buffers);
 
         if (!picture.sps.spsRangeExt.intraSmoothingDisabledFlag
                 && (cIdx == 0 || (picture.sps.getChromaArrayType() & 0xFFFFFFFFL) == 3)) // chroma 4:4:4
@@ -475,9 +476,9 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
         switch (intraPredMode) {
             case INTRA_PLANAR:
-                return decodeIntraPredictionPlanar(picture, nTbS, samples);
+                return decodeIntraPredictionPlanar(picture, nTbS, samples, buffers);
             case INTRA_DC:
-                return decodeIntraPredictionDc(picture, nTbS, cIdx, samples);
+                return decodeIntraPredictionDc(picture, nTbS, cIdx, samples, buffers);
             default:
                 return decodeIntraPredictionAngular(stream, picture, nTbS, cIdx, intraPredMode, samples);
         }
@@ -534,7 +535,8 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
                                     - 2 * (p.get(-1, nTbS - 1) & 0xFFFF))
                             < (1 << ((picture.sps.getBitDepthY() & 0xFF) - 5));
 
-            NeighbouringSamples pF = new NeighbouringSamples(nTbS);
+            NeighbouringSamples pF = stream.getContext().getIntraPredictionBuffers().filteredSamples;
+            pF.prepare(nTbS);
 
             if (biIntFlag) {
                 pF.set(-1, -1, p.get(-1, -1));
@@ -590,20 +592,15 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         return p;
     }
 
-    private int[][] decodeIntraPredictionPlanarBuffer;
-
     // 8.4.4.2.4 Specification of intra prediction mode INTRA_PLANAR
-    private int[][] decodeIntraPredictionPlanar(HeicPicture picture, int nTbS, NeighbouringSamples p) {
+    private int[][] decodeIntraPredictionPlanar(
+            HeicPicture picture, int nTbS, NeighbouringSamples p, IntraPredictionBuffers intraPredictionBuffers) {
         // Inputs to this process are:
         // – the neighbouring samples p[x][y], with x = -1, y = -1..nTbS * 2 - 1 and x = 0..nTbS * 2 - 1, y = -1,
         // – a variable nTbS specifying the transform block size.
         // Outputs of this process are the predicted samples predSamples[x][y], with x, y = 0..nTbS - 1.
 
-        if (decodeIntraPredictionPlanarBuffer == null) {
-            decodeIntraPredictionPlanarBuffer = new int[nTbS][nTbS];
-        }
-
-        int[][] predSamples = decodeIntraPredictionPlanarBuffer;
+        int[][] predSamples = intraPredictionBuffers.predictedSamples;
 
         int tbsShift = MathUtils.f64S32(MathUtils.log(nTbS, 2)) + 1;
         for (int x = 0; x < nTbS; x++) {
@@ -622,10 +619,13 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         return predSamples;
     }
 
-    private int[][] decodeIntraPredictionDcBuffer;
-
     // 8.4.4.2.5 Specification of intra prediction mode INTRA_DC
-    private int[][] decodeIntraPredictionDc(HeicPicture picture, int nTbS, int cIdx, NeighbouringSamples p) {
+    private int[][] decodeIntraPredictionDc(
+            HeicPicture picture,
+            int nTbS,
+            int cIdx,
+            NeighbouringSamples p,
+            IntraPredictionBuffers intraPredictionBuffers) {
         // Inputs to this process are:
         // – the neighbouring samples p[x][y], with x = −1, y = −1..nTbS * 2 − 1 and x = 0..nTbS * 2 − 1, y = −1,
         // – a variable nTbS specifying the transform block size,
@@ -639,11 +639,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         }
         dcVal >>= (MathUtils.f64S32(MathUtils.log(nTbS, 2)) + 1);
 
-        if (decodeIntraPredictionDcBuffer == null) {
-            decodeIntraPredictionDcBuffer = new int[nTbS][nTbS];
-        }
-
-        int[][] predSamples = decodeIntraPredictionDcBuffer;
+        int[][] predSamples = intraPredictionBuffers.predictedSamples;
 
         if (cIdx == 0 && nTbS < 32) {
             int[] predSample0 = predSamples[0];
@@ -675,8 +671,6 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         return predSamples;
     }
 
-    private int[] decodeIntraPredictionAngularBuffer;
-
     // 8.4.4.2.6 Specification of intra prediction mode INTRA_ANGULAR
     private int[][] decodeIntraPredictionAngular(
             BitStreamWithNalSupport stream,
@@ -685,6 +679,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
             int cIdx,
             IntraPredMode intraPredMode,
             NeighbouringSamples p) {
+        IntraPredictionBuffers intraPredictionBuffers = stream.getContext().getIntraPredictionBuffers();
         // Inputs to this process are:
         // – the intra prediction mode predModeIntra,
         // – the neighbouring samples p[x][y], with x = −1, y = −1..nTbS*2−1 and x = 0..nTbS*2−1, y = −1,
@@ -692,7 +687,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         // – a variable cIdx specifying the colour component of the current block.
         // Outputs of this process are the predicted samples predSamples[x][y], with x, y = 0..nTbS − 1.
 
-        int[][] predSamples = new int[nTbS][nTbS];
+        int[][] predSamples = intraPredictionBuffers.predictedSamples;
 
         int intraPredAngle = intraPredAngleTable[intraPredMode.ordinal()];
 
@@ -703,11 +698,7 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
             disableIntraBoundaryFilter = true;
         }
 
-        if (decodeIntraPredictionAngularBuffer == null) {
-            decodeIntraPredictionAngularBuffer = new int[3 * nTbS + 1];
-        }
-
-        int[] reference = decodeIntraPredictionAngularBuffer;
+        int[] reference = intraPredictionBuffers.angularReference;
 
         if (intraPredMode.ordinal() >= 18) {
             for (int x = 0; x <= nTbS; x++) reference[x + nTbS] = p.get(x - 1, -1) & 0xFFFF;

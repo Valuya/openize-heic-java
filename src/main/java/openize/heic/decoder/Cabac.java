@@ -908,15 +908,23 @@ public class Cabac {
         return decodeGeneralForBinaryDecision(model[ctxInc]) == 1;
     }
 
+    /**
+     * The context state that carries from one coeff_abs_level_greater1_flag of a transform block to the next
+     * (9.3.4.2.6): ctxSet and greater1Ctx of the previous invocation, and the flag it decoded.
+     */
+    static final class Greater1Context {
+        int ctxSet;
+        int greater1Ctx;
+        boolean greater1Flag;
+    }
+
     final boolean readCoeffAbsLevelGreater1Flag(
             int cIdx,
             int i,
             boolean firstCoeffInSubblock,
             boolean firstSubblock,
             int lastSubblockGreater1Ctx,
-            /*ref*/ int[] lastInvocationCtxSet,
-            /*ref*/ int[] lastInvocationGreater1Ctx,
-            /*ref*/ boolean[] lastInvocationCoeffAbsLevelGreater1Flag) {
+            Greater1Context lastInvocation) {
         // FL cMax = 1
         // bin 0: 0..23 (clause 9.3.4.2.6)
 
@@ -933,7 +941,7 @@ public class Cabac {
                 lastGreater1Ctx = lastSubblockGreater1Ctx;
 
                 if (lastGreater1Ctx > 0) {
-                    if (lastInvocationCoeffAbsLevelGreater1Flag[0]) {
+                    if (lastInvocation.greater1Flag) {
                         lastGreater1Ctx = 0;
                     } else {
                         lastGreater1Ctx++;
@@ -947,12 +955,12 @@ public class Cabac {
 
             greater1Ctx = 1;
         } else {
-            ctxSet = lastInvocationCtxSet[0];
+            ctxSet = lastInvocation.ctxSet;
 
-            greater1Ctx = lastInvocationGreater1Ctx[0];
+            greater1Ctx = lastInvocation.greater1Ctx;
 
             if (greater1Ctx > 0) {
-                if (lastInvocationCoeffAbsLevelGreater1Flag[0]) {
+                if (lastInvocation.greater1Flag) {
                     greater1Ctx = 0;
                 } else {
                     greater1Ctx++;
@@ -969,9 +977,9 @@ public class Cabac {
         ContextVariable[] model = contextTable[CabacType.coeffAbsLevelGreater1Flag.ordinal()];
         boolean value = decodeGeneralForBinaryDecision(model[ctxIdxInc]) == 1;
 
-        lastInvocationGreater1Ctx[0] = greater1Ctx;
-        lastInvocationCoeffAbsLevelGreater1Flag[0] = value;
-        lastInvocationCtxSet[0] = ctxSet;
+        lastInvocation.greater1Ctx = greater1Ctx;
+        lastInvocation.greater1Flag = value;
+        lastInvocation.ctxSet = ctxSet;
 
         return value;
     }
@@ -1084,10 +1092,11 @@ public class Cabac {
 
     // 9.3.4.3.3 Renormalization process in the arithmetic decoding engine
     private void renormalization() {
-        while (ivlCurrRange < 256) {
-            ivlCurrRange <<= 1;
-            ivlOffset <<= 1;
-            ivlOffset |= stream.read(1);
+        // doubles ivlCurrRange until it reaches 256, reading one bit per doubling: all the bits at once
+        if (ivlCurrRange < 256) {
+            int shift = Integer.numberOfLeadingZeros(ivlCurrRange) - 23;
+            ivlCurrRange <<= shift;
+            ivlOffset = (ivlOffset << shift) | stream.read(shift);
         }
     }
 

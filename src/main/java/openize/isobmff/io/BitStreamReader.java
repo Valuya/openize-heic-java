@@ -58,6 +58,13 @@ public class BitStreamReader {
             throw new IndexOutOfBoundsException("bitCount " + bitCount);
         }
 
+        // bits from the middle of a byte already being read: no byte boundary to handle
+        if (bitIndex > 0 && bitCount <= BITS_PER_BYTE - bitIndex) {
+            int availableBits = BITS_PER_BYTE - bitIndex;
+            bitIndex += bitCount;
+            return (currentByte() >> (availableBits - bitCount)) & ((1 << bitCount) - 1);
+        }
+
         int value = 0;
         int remainingBits = bitCount;
         while (remainingBits > 0) {

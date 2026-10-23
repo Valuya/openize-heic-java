@@ -17,7 +17,7 @@ class NeighbouringSamples extends NeighbouringSamplesTemplate {
 
     public NeighbouringSamples(int nTbS) {
         super(nTbS);
-        data = new short[4 * nTbS + 1];
+        data = new short[sampleCount(nTbS)];
     }
 
     public final int get(int x, int y) {

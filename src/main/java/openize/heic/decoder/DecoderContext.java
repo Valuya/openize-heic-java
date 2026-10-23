@@ -39,6 +39,7 @@ public class DecoderContext {
     private final HashMap<Long, HeicPicture> pictures;
 
     private final ResidualBuffers residualBuffers = new ResidualBuffers();
+    private final IntraPredictionBuffers intraPredictionBuffers = new IntraPredictionBuffers();
 
     // public boolean first_decoded_picture = true;
     public boolean noRaslOutputFlag = false;
@@ -173,6 +174,10 @@ public class DecoderContext {
     }
 
     private int currentQpY;
+
+    IntraPredictionBuffers getIntraPredictionBuffers() {
+        return intraPredictionBuffers;
+    }
 
     ResidualBuffers getResidualBuffers() {
         return residualBuffers;

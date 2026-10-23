@@ -55,6 +55,12 @@ final class LoopFilter {
     private byte[][][] pixels;
     private int[][][] pixelsHighColorRange;
 
+    // the four lines of a luma edge segment, three samples p0..p2 / q0..q2 on each side once filtered
+    private final int[][] edgeSamplesP = new int[4][4];
+    private final int[][] edgeSamplesQ = new int[4][4];
+    private final int[] filteredP = new int[3];
+    private final int[] filteredQ = new int[3];
+
     private LoopFilter(HeicPicture picture) {
         this.picture = picture;
         this.sps = picture.sps;
@@ -171,8 +177,8 @@ final class LoopFilter {
         int ax = ny;
         int ay = nx;
 
-        int[][] p = new int[4][4];
-        int[][] q = new int[4][4];
+        int[][] p = edgeSamplesP;
+        int[][] q = edgeSamplesQ;
         for (int k = 0; k < 4; k++) {
             for (int i = 0; i < 4; i++) {
                 p[k][i] = get(0, x - (i + 1) * nx + k * ax, y - (i + 1) * ny + k * ay);
@@ -203,8 +209,14 @@ final class LoopFilter {
             int[] qk = q[k];
             int p0 = pk[0], p1 = pk[1], p2 = pk[2], p3 = pk[3];
             int q0 = qk[0], q1 = qk[1], q2 = qk[2], q3 = qk[3];
-            int[] np = {p0, p1, p2};
-            int[] nq = {q0, q1, q2};
+            int[] np = filteredP;
+            int[] nq = filteredQ;
+            np[0] = p0;
+            np[1] = p1;
+            np[2] = p2;
+            nq[0] = q0;
+            nq[1] = q1;
+            nq[2] = q2;
 
             if (strong) {
                 np[0] = MathExtra.clip3(p0 - 2 * tc, p0 + 2 * tc, (p2 + 2 * p1 + 2 * p0 + 2 * q0 + q1 + 4) >> 3);

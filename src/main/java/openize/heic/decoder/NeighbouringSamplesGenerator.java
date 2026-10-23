@@ -60,10 +60,11 @@ class NeighbouringSamplesGenerator {
         yBLuma = this.y0 * subHeight;
     }
 
-    public static NeighbouringSamples generate(HeicPicture picture, int x0, int y0, int nTbS, int cIdx) {
+    public static NeighbouringSamples generate(
+            HeicPicture picture, int x0, int y0, int nTbS, int cIdx, IntraPredictionBuffers buffers) {
         NeighbouringSamplesGenerator gen = new NeighbouringSamplesGenerator(picture, x0, y0, nTbS, cIdx);
         gen.calculateFlags();
-        return gen.fillNeighbouringSamples();
+        return gen.fillNeighbouringSamples(buffers);
     }
 
     private void calculateFlags() {
@@ -120,7 +121,7 @@ class NeighbouringSamplesGenerator {
         return available;
     }
 
-    private NeighbouringSamples fillNeighbouringSamples() {
+    private NeighbouringSamples fillNeighbouringSamples(IntraPredictionBuffers buffers) {
         int nBottom = (int) picture.sps.picHeightInLumaSamples - y0 * subHeight;
         nBottom = (nBottom + subHeight - 1) / subHeight;
         if (nBottom > 2 * nTbS) {
@@ -142,8 +143,10 @@ class NeighbouringSamplesGenerator {
                         yBLuma >> (picture.sps.getMinTbLog2SizeY() & 0xFF)]
                 & 0xFFFFFFFFL;
 
-        NeighbouringSamples samples = new NeighbouringSamples(nTbS);
-        NeighbouringSamplesAvailability available = new NeighbouringSamplesAvailability(nTbS);
+        NeighbouringSamples samples = buffers.neighbouringSamples;
+        NeighbouringSamplesAvailability available = buffers.availability;
+        samples.prepare(nTbS);
+        available.prepare(nTbS);
 
         if (availableLeft) {
             for (int y = nBottom - 1; y >= 0; y -= 4) {
