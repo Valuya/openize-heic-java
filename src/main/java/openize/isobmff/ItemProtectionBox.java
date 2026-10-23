@@ -18,19 +18,7 @@ import openize.isobmff.io.BitStreamReader;
  * </p>
  */
 public class ItemProtectionBox extends FullBox {
-    /**
-     * <p>
-     * Count of protection information schemas.
-     * </p>
-     */
-    private final /*UInt16*/ int protectionCount;
-
-    /**
-     * <p>
-     * Array of protection information schemas.
-     * </p>
-     */
-    private final ProtectionSchemeInfoBox[] protectionInformation;
+    private final int protectionSchemeCount;
 
     /**
      * <p>
@@ -43,20 +31,14 @@ public class ItemProtectionBox extends FullBox {
     public ItemProtectionBox(BitStreamReader stream, /*UInt64*/ long size) {
         super(stream, BoxType.ipro, size);
 
-        protectionCount = stream.read(16) & 0xFFFF;
-        protectionInformation = new ProtectionSchemeInfoBox[protectionCount & 0xFFFF];
-
-        for (int i = 1; i <= (protectionCount & 0xFFFF); i++)
-            protectionInformation[i - 1] = new ProtectionSchemeInfoBox(stream);
+        // the protection scheme boxes that follow are skipped: protected items are not decoded
+        protectionSchemeCount = stream.read(16);
     }
 
     /**
-     * <p>
-     * Text summary of the box.
-     * </p>
+     * The number of protection schemes, each applied to the items that refer to it.
      */
-    @Override
-    public String toString() {
-        return type.name();
+    public int getProtectionSchemeCount() {
+        return protectionSchemeCount;
     }
 }

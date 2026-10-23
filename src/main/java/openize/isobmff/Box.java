@@ -187,9 +187,6 @@ public class Box {
             case iprp:
                 box = new ItemPropertiesBox(stream, size, startPosition);
                 break;
-            case dinf:
-                box = new DataInformationBox(stream, size);
-                break;
             case grpl:
                 box = new GroupsListBox(stream, size, startPosition);
                 break;
@@ -203,14 +200,8 @@ public class Box {
             case colr:
                 box = new ColourInformationBox(stream, size);
                 break;
-            case clli:
-                box = new ContentLightLevelInfo(stream, size);
-                break;
             case pixi:
                 box = new PixelInformationProperty(stream, size);
-                break;
-            case rloc:
-                box = new RelativeLocationProperty(stream, size);
                 break;
             case auxC:
                 box = new AuxiliaryTypeProperty(stream, size);
@@ -221,21 +212,9 @@ public class Box {
             case irot:
                 box = new ImageRotation(stream, size);
                 break;
-            case lsel:
-                box = new LayerSelectorProperty(stream, size);
-                break;
             case imir:
                 box = new ImageMirror(stream, size);
                 break;
-
-            case udes:
-                box = new UserDescriptionBox(stream, size, startPosition);
-                break;
-
-            case moov:
-                box = new MovieBox(stream, size, startPosition);
-                break;
-
             case hvcC:
             case av1C:
             default:

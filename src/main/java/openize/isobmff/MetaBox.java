@@ -42,7 +42,8 @@ public class MetaBox extends FullBox {
 
         boxes = new HashMap<>();
 
-        boxes.put(BoxType.hdlr, new HandlerBox(stream));
+        // the handler box comes first (ISO/IEC 14496-12, 8.11.1); nothing reads what it declares
+        new Box(stream, BoxType.hdlr).skipToEnd(stream);
 
         while (stream.getBitPosition() < startPos + size * 8) {
             Box box = Box.parseBox(stream);
@@ -54,20 +55,20 @@ public class MetaBox extends FullBox {
 
     /**
      * <p>
-     * Handler box.
-     * </p>
-     */
-    public final HandlerBox gethdlr() {
-        return (HandlerBox) tryGetBox(BoxType.hdlr);
-    }
-
-    /**
-     * <p>
      * Primary item box.
      * </p>
      */
     public final PrimaryItemBox getpitm() {
         return (PrimaryItemBox) tryGetBox(BoxType.pitm);
+    }
+
+    /**
+     * <p>
+     * Item protection box.
+     * </p>
+     */
+    public final ItemProtectionBox getipro() {
+        return (ItemProtectionBox) tryGetBox(BoxType.ipro);
     }
 
     /**

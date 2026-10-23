@@ -65,6 +65,9 @@ public class HeicHeader {
         if (meta.getiinf() == null) {
             throw new HeicFormatException("No item information box (iinf)");
         }
+        if (meta.getipro() != null && meta.getipro().getProtectionSchemeCount() > 0) {
+            throw new HeicFormatException("Protected items are not supported");
+        }
         this.meta = meta;
     }
 
