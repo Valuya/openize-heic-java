@@ -10,63 +10,36 @@
 
 package openize;
 
-/**
- * <p>
- *     Provides additional mathematics methods.
- * </p>
- */
 public final class MathUtils {
+    private MathUtils() {}
+
     /**
-     * <p>
-     *  Returns the natural logarithm (base {@code newBase}) of a double value.
-     * </p>
-     * @param value a value
-     * @param newBase a base
-     * @return the value of ln(value), the natural logarithm of value.
+     * The logarithm of {@code value} in base {@code base}; NaN in base 1.
      */
-    public static double log(double value, double newBase) {
-        if (newBase == 1.0) {
+    public static double log(double value, double base) {
+        if (base == 1.0) {
             return Double.NaN;
-        } else {
-            double result = Math.log(value) / Math.log(newBase);
-            return result == 0.0 ? 0.0 : result;
         }
+        double result = Math.log(value) / Math.log(base);
+        // no negative zero
+        return result == 0.0 ? 0.0 : result;
     }
 
     /**
-     * Returns the smallest (closest to negative infinity)
-     * {@code double} value that is greater than or equal to the
-     * argument and is equal to a mathematical integer.
-     *
-     *
-     * @param   value  a value.
-     * @return  the smallest (closest to negative infinity)
-     *          floating-point value that is greater than or equal to
-     *          the argument and is equal to a mathematical integer.
+     * The smallest integer value not less than {@code value}, as {@link Math#ceil} but never negative zero.
      */
     public static double ceiling(double value) {
-        if (!Double.isInfinite(value) && !Double.isNaN(value)) {
-            double result = Math.floor(value);
-            if (result != value) {
-                ++result;
-            }
-
-            return result;
-        } else {
+        if (Double.isInfinite(value) || Double.isNaN(value)) {
             return value;
         }
+        double result = Math.floor(value);
+        return result == value ? result : result + 1;
     }
 
     /**
-     * <p>
-     *     Converts the double value to int.
-     * </p>
-     * @param doubleValue The double value.
-     * @return The int value.
+     * {@code value} truncated to an int, or {@link Integer#MIN_VALUE} when it is NaN or outside the int range.
      */
-    public static int f64S32(double doubleValue) {
-        return (doubleValue == doubleValue && !(doubleValue < -2.147483647E9) && !(doubleValue > 2.147483647E9))
-                ? (int) doubleValue
-                : Integer.MIN_VALUE;
+    public static int f64S32(double value) {
+        return value >= -2.147483647E9 && value <= 2.147483647E9 ? (int) value : Integer.MIN_VALUE;
     }
 }
