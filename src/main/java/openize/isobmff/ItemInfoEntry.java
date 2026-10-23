@@ -26,7 +26,7 @@ public class ItemInfoEntry extends FullBox
      * the ID of the item for which the following information is defined.
      * </p>
      */
-    public final /*UInt32*/ long item_ID;
+    public final /*UInt32*/ long itemID;
 
     /**
      * <p>
@@ -35,21 +35,21 @@ public class ItemInfoEntry extends FullBox
      * protection box has the index 1).
      * </p>
      */
-    public final /*UInt16*/ int item_protection_index;
+    public final /*UInt16*/ int itemProtectionIndex;
 
     /**
      * <p>
      * A 32‐bit value, typically 4 printable characters, that is a defined valid item type indicator, such as 'mime'.
      * </p>
      */
-    public /*UInt32*/ long item_type;
+    public /*UInt32*/ long itemType;
 
     /**
      * <p>
      * A null‐terminated string in UTF‐8 characters containing a symbolic name of the item (source file for file delivery transmissions).
      * </p>
      */
-    public final String item_name;
+    public final String itemName;
 
     /**
      * <p>
@@ -57,14 +57,14 @@ public class ItemInfoEntry extends FullBox
      * If the item is content encoded (see below), then the content type refers to the item after content decoding.
      * </p>
      */
-    public String content_type;
+    public String contentType;
 
     /**
      * <p>
      * A string that is an absolute URI, that is used as a type indicator.
      * </p>
      */
-    public String item_uri_type;
+    public String itemUriType;
 
     /**
      * <p>
@@ -73,14 +73,14 @@ public class ItemInfoEntry extends FullBox
      * The values are as defined for Content‐Encoding for HTTP/1.1.
      * </p>
      */
-    public String content_encoding;
+    public String contentEncoding;
 
     /**
      * <p>
      * A bool value, that shows if item is hidden.
      * </p>
      */
-    public final boolean item_hidden;
+    public final boolean itemHidden;
 
     /**
      * <p>
@@ -93,16 +93,16 @@ public class ItemInfoEntry extends FullBox
     {
         super(stream, BoxType.infe);
 
-        item_hidden = flags.get(23);
+        itemHidden = flags.get(23);
 
         if ((version & 0xFF) < 2)
         {
-            item_ID = stream.read(16) & 0xFFFFFFFFL;
-            item_protection_index = stream.read(16) & 0xFFFF;
+            itemID = stream.read(16) & 0xFFFFFFFFL;
+            itemProtectionIndex = stream.read(16) & 0xFFFF;
 
-            item_name = stream.readString();
-            content_type = stream.readString();
-            content_encoding = stream.readString(); //optional
+            itemName = stream.readString();
+            contentType = stream.readString();
+            contentEncoding = stream.readString(); //optional
 
             if ((version & 0xFF) == 1)
             {
@@ -114,20 +114,20 @@ public class ItemInfoEntry extends FullBox
         }
         else
         {
-            item_ID = stream.read((version & 0xFF) == 2 ? 16 : 32) & 0xFFFFFFFFL;
-            item_protection_index = stream.read(16) & 0xFFFF;
-            item_type = stream.read(32) & 0xFFFFFFFFL;
+            itemID = stream.read((version & 0xFF) == 2 ? 16 : 32) & 0xFFFFFFFFL;
+            itemProtectionIndex = stream.read(16) & 0xFFFF;
+            itemType = stream.read(32) & 0xFFFFFFFFL;
 
-            item_name = stream.readString();
+            itemName = stream.readString();
 
-            if ((item_type & 0xFFFFFFFFL) == 0x6d696d65 /*mime*/)
+            if ((itemType & 0xFFFFFFFFL) == 0x6d696d65 /*mime*/)
             {
-                content_type = stream.readString();
+                contentType = stream.readString();
                 //content_encoding = stream.ReadString(); //optional
             }
-            else if ((item_type & 0xFFFFFFFFL) == 0x75726920 /*uri */)
+            else if ((itemType & 0xFFFFFFFFL) == 0x75726920 /*uri */)
             {
-                item_uri_type = stream.readString();
+                itemUriType = stream.readString();
             }
         }
 
@@ -141,8 +141,8 @@ public class ItemInfoEntry extends FullBox
     @Override
     public String toString()
     {
-        String nn = item_name == null ? "" : item_name;
-        String n2 = content_type == null ? "" : content_type;
-        return String.format("%s id: %d type: %s name: %s%s", this.type, item_ID, uintToString(item_type), nn, n2);
+        String nn = itemName == null ? "" : itemName;
+        String n2 = contentType == null ? "" : contentType;
+        return String.format("%s id: %d type: %s name: %s%s", this.type, itemID, uintToString(itemType), nn, n2);
     }
 }

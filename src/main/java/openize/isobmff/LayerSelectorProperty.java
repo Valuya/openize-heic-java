@@ -35,7 +35,7 @@ public class LayerSelectorProperty extends Box
      * the decoding of a multi-layer image item can result into more than one reconstructed images.
      * </p>
      */
-    public final /*UInt16*/ int layer_id;
+    public final /*UInt16*/ int layerId;
 
     /**
      * <p>
@@ -49,7 +49,7 @@ public class LayerSelectorProperty extends Box
     {
         super(BoxType.lsel, size);
 
-        layer_id = stream.read(16) & 0xFFFF;
+        layerId = stream.read(16) & 0xFFFF;
     }
 
     /**
@@ -60,6 +60,6 @@ public class LayerSelectorProperty extends Box
     @Override
     public String toString()
     {
-        return String.format("%s layer: %d", this.type, layer_id);
+        return String.format("%s layer: %d", this.type, layerId);
     }
 }

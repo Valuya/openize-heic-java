@@ -103,70 +103,70 @@ public class Cabac
     public static final  byte[] ctxIdxMap = {
             0, 1, 4, 5, 2, 3, 4, 5, 6, 6, 8, 8, 7, 7, 8
     };
-    private static final  byte[] init_value_sao_merge_flag = {(byte) 153, (byte) 153, (byte) 153};
-    private static final  byte[] init_value_sao_type_idx_flag = {(byte) 200, (byte) 185, (byte) 160};
-    private static final  byte[][] init_value_split_cu_flag = {
+    private static final  byte[] initValueSaoMergeFlag = {(byte) 153, (byte) 153, (byte) 153};
+    private static final  byte[] initValueSaoTypeIdxFlag = {(byte) 200, (byte) 185, (byte) 160};
+    private static final  byte[][] initValueSplitCuFlag = {
             new byte[]{(byte) 139, (byte) 141, (byte) 157},
             new byte[]{107, (byte) 139, 126},
             new byte[]{107, (byte) 139, 126},
     };
-    private static final  byte[] init_value_cu_transquant_bypass_flag = {(byte) 154, (byte) 154, (byte) 154};
-    private static final  byte[][] init_value_cu_skip_flag = {
+    private static final  byte[] initValueCuTransquantBypassFlag = {(byte) 154, (byte) 154, (byte) 154};
+    private static final  byte[][] initValueCuSkipFlag = {
             new byte[]{(byte) 197, (byte) 185, (byte) 201},
             new byte[]{(byte) 197, (byte) 185, (byte) 201},
     };
-    private static final  byte[] init_value_pred_mode_flag = {(byte) 149, (byte) 134};
+    private static final  byte[] initValuePredModeFlag = {(byte) 149, (byte) 134};
 
 
     // FL = fixed-length
     // TR = truncated Rice
     // EGk = k-th order Exp-Golomb
-    private static final  byte[][] init_value_part_mode = {
+    private static final  byte[][] initValuePartMode = {
             new byte[]{(byte) 184},
             new byte[]{(byte) 154, (byte) 139, (byte) 154, (byte) 154},
             new byte[]{(byte) 154, (byte) 139, (byte) 154, (byte) 154}
     };
-    private static final  byte[] init_value_prev_intra_luma_pred_flag = {(byte) 184, (byte) 154, (byte) 183};
-    private static final  byte[] init_value_intra_chroma_pred_mode = {63, (byte) 152, (byte) 152};
-    private static final  byte[] init_value_rqt_root_cbf = {79, 79};
-    private static final  byte[] init_value_merge_flag = {110, (byte) 154};
-    private static final  byte[] init_value_merge_idx = {122, (byte) 137};
-    private static final  byte[][] init_value_inter_pred_idc = {
+    private static final  byte[] initValuePrevIntraLumaPredFlag = {(byte) 184, (byte) 154, (byte) 183};
+    private static final  byte[] initValueIntraChromaPredMode = {63, (byte) 152, (byte) 152};
+    private static final  byte[] initValueRqtRootCbf = {79, 79};
+    private static final  byte[] initValueMergeFlag = {110, (byte) 154};
+    private static final  byte[] initValueMergeIdx = {122, (byte) 137};
+    private static final  byte[][] initValueInterPredIdc = {
             new byte[]{95, 79, 63, 31, 31},
             new byte[]{95, 79, 63, 31, 31}
     };
-    private static final  byte[][] init_value_ref_idx = {
+    private static final  byte[][] initValueRefIdx = {
             new byte[]{(byte) 153, (byte) 153},
             new byte[]{(byte) 153, (byte) 153}
     };
-    private static final  byte[] init_value_mvp_flag = {(byte) 168, (byte) 168};
-    private static final  byte[][] init_value_split_transform_flag = {
+    private static final  byte[] initValueMvpFlag = {(byte) 168, (byte) 168};
+    private static final  byte[][] initValueSplitTransformFlag = {
             new byte[]{(byte) 153, (byte) 138, (byte) 138},
             new byte[]{124, (byte) 138, 94},
             new byte[]{(byte) 224, (byte) 167, 122}
     };
-    private static final  byte[][] init_value_cbf_luma = {
+    private static final  byte[][] initValueCbfLuma = {
             new byte[]{111, (byte) 141},
             new byte[]{(byte) 153, 111},
             new byte[]{(byte) 153, 111}
     };
-    private static final  byte[][] init_value_cbf_chroma = {
+    private static final  byte[][] initValueCbfChroma = {
             new byte[]{94, (byte) 138, (byte) 182, (byte) 154, (byte) 154},
             new byte[]{(byte) 149, 107, (byte) 167, (byte) 154, (byte) 154},
             new byte[]{(byte) 149, 92, (byte) 167, (byte) 154, (byte) 154}
     };
-    private static final  byte[] init_value_abs_mvd_greater_flag = {(byte) 140, (byte) 198, (byte) 169, (byte) 198};
-    private static final  byte[][] init_value_last_sig_coeff_prefix = {
+    private static final  byte[] initValueAbsMvdGreaterFlag = {(byte) 140, (byte) 198, (byte) 169, (byte) 198};
+    private static final  byte[][] initValueLastSigCoeffPrefix = {
             new byte[]{110, 110, 124, 125, (byte) 140, (byte) 153, 125, 127, (byte) 140, 109, 111, (byte) 143, 127, 111, 79, 108, 123, 63},
             new byte[]{125, 110, 94, 110, 95, 79, 125, 111, 110, 78, 110, 111, 111, 95, 94, 108, 123, 108},
             new byte[]{125, 110, 124, 110, 95, 94, 125, 111, 111, 79, 125, 126, 111, 111, 79, 108, 123, 93}
     };
-    private static final  byte[][] init_value_coded_sub_block_flag = {
+    private static final  byte[][] initValueCodedSubBlockFlag = {
             new byte[]{91, (byte) 171, (byte) 134, (byte) 141},
             new byte[]{121, (byte) 140, 61, (byte) 154},
             new byte[]{121, (byte) 140, 61, (byte) 154}
     };
-    private static final  byte[][] init_value_sig_coeff_flag = {
+    private static final  byte[][] initValueSigCoeffFlag = {
             new byte[]{
                     111, 111, 125, 110, 110, 94, 124, 108, 124, 107, 125, (byte) 141, (byte) 179, (byte) 153, 125, 107,
                     125, (byte) 141, (byte) 179, (byte) 153, 125, 107, 125, (byte) 141, (byte) 179, (byte) 153, 125, (byte) 140, (byte) 139, (byte) 182, (byte) 182, (byte) 152, (byte)
@@ -183,7 +183,7 @@ public class Cabac
                     121, 122, 121, (byte) 167, (byte) 151, (byte) 183, (byte) 140, (byte) 151, (byte) 183, (byte) 140, (byte) 140, (byte) 140
             },
     };
-    private static final  byte[][] init_value_coeff_abs_level_greater1_flag = {
+    private static final  byte[][] initValueCoeffAbsLevelGreater1Flag = {
             new byte[]{(byte)
                     140, 92, (byte) 137, (byte) 138, (byte) 140, (byte) 152, (byte) 138, (byte) 139, (byte) 153, 74, (byte) 149, 92, (byte)
                     139, 107, 122, (byte) 152, (byte) 140, (byte) 179, (byte) 166, (byte) 182, (byte) 140, (byte) 227, 122, (byte) 197
@@ -197,7 +197,7 @@ public class Cabac
                     153, 121, (byte) 136, 122, (byte) 169, (byte) 208, (byte) 166, (byte) 167, (byte) 154, (byte) 152, (byte) 167, (byte) 182
             }
     };
-    private static final  byte[][] init_value_coeff_abs_level_greater2_flag = {
+    private static final  byte[][] initValueCoeffAbsLevelGreater2Flag = {
             new byte[]{(byte) 138, (byte) 153, (byte) 136, (byte) 167, (byte) 152, (byte) 152},
             new byte[]{107, (byte) 167, 91, 122, 107, (byte) 167},
             new byte[]{107, (byte) 167, 91, 107, 107, (byte) 167}
@@ -206,9 +206,9 @@ public class Cabac
     // sync section
     private final ContextVariable[][] contextTableSync = new ContextVariable[40][];
     final ContextVariable[][] contextTable = new ContextVariable[40][];
-    final byte[] StatCoeff = new byte[4];
+    final byte[] statCoeff = new byte[4];
     // not implemented
-    /*UInt32*/ long PredictorPaletteSize;
+    /*UInt32*/ long predictorPaletteSize;
     ///*UInt16*/ int[][] PredictorPaletteEntries;
     int ivlCurrRange;
     // not implemented
@@ -221,33 +221,33 @@ public class Cabac
         Scans.initialize();
     }
 
-    final boolean read_end_of_slice_segment_flag()
+    final boolean readEndOfSliceSegmentFlag()
     {
         //FL: cMax: 1
         //bin 1: terminate
         return decodeBeforeTermination() == 1;
     }
 
-    final int read_end_of_subset_one_bit()
+    final int readEndOfSubsetOneBit()
     {
         //FL: cMax: 1
         //bin 1: terminate
         return decodeBeforeTermination();
     }
 
-    final boolean read_sao_merge_flag()
+    final boolean readSaoMergeFlag()
     {
         //FL: cMax: 1
         //bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.sao_merge_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.saoMergeFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
-    final int read_sao_type_idx()
+    final int readSaoTypeIdx()
     {
         //TR: cMax: 2, cRiceParam: 0
         //bin 1: 0, bin 2: bypass
-        ContextVariable[] model = contextTable[CabacType.sao_type_idx.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.saoTypeIdx.ordinal()];
 
         int bin0 = decodeGeneralForBinaryDecision(model[0]);
 
@@ -268,7 +268,7 @@ public class Cabac
         }
     }
 
-    final int read_sao_offset_abs(int bitDepth)
+    final int readSaoOffsetAbs(int bitDepth)
     {
         //TR: cMax: defined next line, cRiceParam: 0
         //bin 1-5: bypass
@@ -283,66 +283,66 @@ public class Cabac
         return cMax;
     }
 
-    final int read_sao_offset_sign()
+    final int readSaoOffsetSign()
     {
         //FL: cMax: 1
         //bin 1: bypass
         return decodeBypass();
     }
 
-    final int read_sao_band_position()
+    final int readSaoBandPosition()
     {
         //FL: cMax: 31
         //bin 1-5+: bypass
         return decodeFixedLengthBypass(5);
     }
 
-    final byte read_sao_class()
+    final byte readSaoClass()
     {
         //FL: cMax: 3
         //bin 1-2: bypass
         return (byte) decodeFixedLengthBypass(2);
     }
 
-    final boolean read_split_cu_flag(int x0, int y0, HeicPicture picture, int cqtDepth)
+    final boolean readSplitCuFlag(int x0, int y0, HeicPicture picture, int cqtDepth)
     {
         // FL: cMax: 1
         // bin 1: clause 9.3.4.2.2
         int index = getContextIndexFromNeighborState(x0, y0, picture, cqtDepth);
-        ContextVariable[] model = contextTable[CabacType.split_cu_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.splitCuFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[index]) == 1;
     }
 
-    final boolean read_cu_transquant_bypass_flag()
+    final boolean readCuTransquantBypassFlag()
     {
         // FL: cMax: 1
         // bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.cu_transquant_bypass_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.cuTransquantBypassFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
-    final boolean read_cu_skip_flag(int x0, int y0, HeicPicture picture, int cqtDepth)
+    final boolean readCuSkipFlag(int x0, int y0, HeicPicture picture, int cqtDepth)
     {
         // FL: cMax: 1
         // bin 1: clause 9.3.4.2.2
         int index = getContextIndexFromNeighborState(x0, y0, picture, cqtDepth);
-        ContextVariable[] model = contextTable[CabacType.split_cu_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.splitCuFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[index]) == 1;
     }
 
-    final boolean read_palette_mode_flag()
+    final boolean readPaletteModeFlag()
     {
         // FL: cMax: 1
         // bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.palette_mode_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.paletteModeFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
-    final boolean read_pred_mode_flag()
+    final boolean readPredModeFlag()
     {
         // FL: cMax: 1
         // bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.pred_mode_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.predModeFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
@@ -355,7 +355,7 @@ public class Cabac
     // given in clauses 9.3.3.2 through 9.3.3.5, respectively.Other binarizations are specified in clauses 9.3.3.6
     // through 9.3.3.10.
 
-    final PartMode read_part_mode(HeicPicture picture, PredMode pred_mode, int cLog2CbSize)
+    final PartMode readPartMode(HeicPicture picture, PredMode predMode, int cLog2CbSize)
     {
         // 9.3.3.7
         // bin 1: 0
@@ -364,83 +364,83 @@ public class Cabac
         // bin 3: 3 (log2CbSize > MinCbLog2SizeY)
         // bin 4: bypass
 
-        ContextVariable[] model = contextTable[CabacType.part_mode.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.partMode.ordinal()];
 
-        if (pred_mode == PredMode.MODE_INTRA)
+        if (predMode == PredMode.MODE_INTRA)
         {
             int bit = decodeGeneralForBinaryDecision(model[0]);
-            return bit == 1 ? PartMode.PART_2Nx2N : PartMode.PART_NxN;
+            return bit == 1 ? PartMode.part2Nx2N : PartMode.partNxN;
         }
         else // MODE_INTER
         {
-            seq_parameter_set_rbsp sps = picture.sps;
+            SeqParameterSetRbsp sps = picture.sps;
 
             int bit0 = decodeGeneralForBinaryDecision(model[0]);
             if (bit0 == 1)
             {
-                return PartMode.PART_2Nx2N;
+                return PartMode.part2Nx2N;
             }
 
             int bit1 = decodeGeneralForBinaryDecision(model[1]);
 
             if (cLog2CbSize > (sps.getMinCbLog2SizeY() & 0xFF))
             {
-                if (!sps.amp_enabled_flag)
+                if (!sps.ampEnabledFlag)
                 {
-                    return bit1 == 1 ? PartMode.PART_2NxN : PartMode.PART_Nx2N;
+                    return bit1 == 1 ? PartMode.part2NxN : PartMode.partNx2N;
                 }
 
                 int bit2 = decodeGeneralForBinaryDecision(model[3]);
 
                 if (bit2 == 1)
                 {
-                    return bit1 == 1 ? PartMode.PART_2NxN : PartMode.PART_Nx2N;
+                    return bit1 == 1 ? PartMode.part2NxN : PartMode.partNx2N;
                 }
 
                 int bit3 = decodeBypass();
                 if (bit1 == 1)
                 {
-                    return bit3 == 0 ? PartMode.PART_2NxnU : PartMode.PART_2NxnD;
+                    return bit3 == 0 ? PartMode.part2NxnU : PartMode.part2NxnD;
                 }
                 else
                 {
-                    return bit3 == 0 ? PartMode.PART_nLx2N : PartMode.PART_nRx2N;
+                    return bit3 == 0 ? PartMode.partNLx2N : PartMode.partNRx2N;
                 }
             }
             else
             {
                 if (bit1 == 1)
                 {
-                    return PartMode.PART_2NxN;
+                    return PartMode.part2NxN;
                 }
 
                 if (cLog2CbSize == 3)
                 {
-                    return PartMode.PART_Nx2N;
+                    return PartMode.partNx2N;
                 }
 
                 int bit2 = decodeGeneralForBinaryDecision(model[2]);
-                return bit2 == 1 ? PartMode.PART_Nx2N : PartMode.PART_NxN;
+                return bit2 == 1 ? PartMode.partNx2N : PartMode.partNxN;
             }
         }
     }
 
-    final boolean read_pcm_flag()
+    final boolean readPcmFlag()
     {
         // FL: cMax: 1
         // bin 1: terminate
         return decodeBeforeTermination() == 1;
     }
 
-    final boolean read_prev_intra_luma_pred_flag()
+    final boolean readPrevIntraLumaPredFlag()
     {
         // FL: cMax: 1
         // bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.prev_intra_luma_pred_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.prevIntraLumaPredFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
-    final int read_mpm_idx()
+    final int readMpmIdx()
     {
         // TR: cMax: 2, cRiceParam: 0
         // bin 1: bypass, bin 2: bypass
@@ -454,19 +454,19 @@ public class Cabac
         return 2;
     }
 
-    final IntraPredMode read_rem_intra_luma_pred_mode()
+    final IntraPredMode readRemIntraLumaPredMode()
     {
         // FL: cMax: 31
         // bin 1-5+: bypass
         return IntraPredMode.get(decodeFixedLengthBypass(5));
     }
 
-    final byte read_intra_chroma_pred_mode()
+    final byte readIntraChromaPredMode()
     {
         // 9.3.3.8
         // bin 1: 0
         // bin 2-3: bypass
-        ContextVariable[] model = contextTable[CabacType.intra_chroma_pred_mode.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.intraChromaPredMode.ordinal()];
 
         int bin0 = decodeGeneralForBinaryDecision(model[0]);
 
@@ -480,54 +480,54 @@ public class Cabac
         }
     }
 
-    final boolean read_rqt_root_cbf()
+    final boolean readRqtRootCbf()
     {
         // FL: cMax: 1
         // bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.rqt_root_cbf.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.rqtRootCbf.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
-    final boolean read_split_transform_flag(int log2TrafoSize)
+    final boolean readSplitTransformFlag(int log2TrafoSize)
     {
         // FL: cMax: 1
         // bin 1: 5 − log2TrafoSize
         int index = 5 - log2TrafoSize;
-        ContextVariable[] model = contextTable[CabacType.split_transform_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.splitTransformFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[index]) == 1;
     }
 
-    final boolean read_cbf_luma(int trafoDepth)
+    final boolean readCbfLuma(int trafoDepth)
     {
         // FL: cMax: 1
         // bin 1: trafoDepth == 0 ? 1 : 0
-        ContextVariable[] model = contextTable[CabacType.cbf_luma.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.cbfLuma.ordinal()];
         return decodeGeneralForBinaryDecision(model[trafoDepth == 0 ? 1 : 0]) == 1;
     }
 
-    final boolean read_cbf_chroma(int trafoDepth)
+    final boolean readCbfChroma(int trafoDepth)
     {
         // FL: cMax: 1
         // bin 1: trafoDepth
-        ContextVariable[] model = contextTable[CabacType.cbf_chroma.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.cbfChroma.ordinal()];
         return decodeGeneralForBinaryDecision(model[trafoDepth]) == 1;
     }
 
-    final boolean read_tu_residual_act_flag()
+    final boolean readTuResidualActFlag()
     {
         // FL: cMax: 1
         // bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.tu_residual_act_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.tuResidualActFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
-    final int read_cu_qp_delta_abs()
+    final int readCuQpDeltaAbs()
     {
         // 9.3.3.10
         // bin 1: 0
         // bin 2-5: 1
         // bin 5+: bypass
-        ContextVariable[] model = contextTable[CabacType.cu_qp_delta_abs.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.cuQpDeltaAbs.ordinal()];
 
         if (decodeGeneralForBinaryDecision(model[0]) == 0)
         {
@@ -550,26 +550,26 @@ public class Cabac
         return value + decodeExpGolombBypass(0);
     }
 
-    final boolean read_cu_qp_delta_sign_flag()
+    final boolean readCuQpDeltaSignFlag()
     {
         // FL: cMax: 1
         // bin 1: bypass
         return decodeBypass() == 1;
     }
 
-    final boolean read_cu_chroma_qp_offset_flag()
+    final boolean readCuChromaQpOffsetFlag()
     {
         // FL: cMax: 1
         // bin 1: 0
-        ContextVariable[] model = contextTable[CabacType.cu_chroma_qp_offset_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.cuChromaQpOffsetFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[0]) == 1;
     }
 
-    final int read_cu_chroma_qp_offset_idx(int cMax)
+    final int readCuChromaQpOffsetIdx(int cMax)
     {
         // TR: cMax: chroma_qp_offset_list_len_minus1, cRiceParam = 0
         // bin 0-4: 0
-        ContextVariable[] model = contextTable[CabacType.cu_chroma_qp_offset_idx.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.cuChromaQpOffsetIdx.ordinal()];
 
         for (int i = 0; i < cMax; i++)
             if (decodeGeneralForBinaryDecision(model[0]) == 0)
@@ -582,11 +582,11 @@ public class Cabac
         // return DecodeGeneralForBinaryDecision(model[0]);
     }
 
-    final int read_log2_res_scale_abs_plus1(int c)
+    final int readLog2ResScaleAbsPlus1(int c)
     {
         // TR cMax = 4, cRiceParam = 0
         // bin n: 4 * c + n
-        ContextVariable[] model = contextTable[CabacType.log2_res_scale_abs_plus1.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.log2ResScaleAbsPlus1.ordinal()];
         int value = 0;
 
         for (int n = 0; n < 4; n++)
@@ -602,42 +602,42 @@ public class Cabac
         return value;
     }
 
-    final boolean read_res_scale_sign_flag(int c)
+    final boolean readResScaleSignFlag(int c)
     {
         // FL cMax = 1
         // bin 0: c
-        ContextVariable[] model = contextTable[CabacType.res_scale_sign_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.resScaleSignFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[c]) == 1;
     }
 
-    final boolean read_transform_skip_flag(int cIdx)
+    final boolean readTransformSkipFlag(int cIdx)
     {
         // FL cMax = 1
         // bin 0: 0
         int index = cIdx == 0 ? 0 : 1;
-        ContextVariable[] model = contextTable[CabacType.transform_skip_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.transformSkipFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[index]) == 1;
     }
 
-    final boolean read_explicit_rdpcm_flag(int cIdx)
+    final boolean readExplicitRdpcmFlag(int cIdx)
     {
         // FL cMax = 1
         // bin 0: 0
         int index = (cIdx == 0) ? 0 : 1;
-        ContextVariable[] model = contextTable[CabacType.explicit_rdpcm_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.explicitRdpcmFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[index]) == 1;
     }
 
-    final boolean read_explicit_rdpcm_dir_flag(int cIdx)
+    final boolean readExplicitRdpcmDirFlag(int cIdx)
     {
         // FL cMax = 1
         // bin 0: 0
         int index = (cIdx == 0) ? 0 : 1;
-        ContextVariable[] model = contextTable[CabacType.explicit_rdpcm_dir_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.explicitRdpcmDirFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[index]) == 1;
     }
 
-    final int read_last_sig_coeff_prefix(int log2TrafoSize, int cIdx, CabacType type)
+    final int readLastSigCoeffPrefix(int log2TrafoSize, int cIdx, CabacType type)
     {
         // TR cMax = (log2TrafoSize << 1 ) − 1, cRiceParam = 0
         // 0..17 (clause 9.3.4.2.3)
@@ -672,30 +672,30 @@ public class Cabac
         return cMax;
     }
 
-    final int read_last_sig_coeff_suffix(int last_significant_coeff_prefix)
+    final int readLastSigCoeffSuffix(int lastSignificantCoeffPrefix)
     {
         // FL cMax = ( 1 << ((last_sig_coeff_x_prefix >> 1 ) − 1 ) − 1 )
         // bin 0-2: bypass
-        return decodeFixedLengthBypass((last_significant_coeff_prefix >> 1) - 1);
+        return decodeFixedLengthBypass((lastSignificantCoeffPrefix >> 1) - 1);
     }
 
-    final boolean read_coded_sub_block_flag(/*UInt32*/long xS, /*UInt32*/long yS,
-                                                      boolean[][] coded_sub_block_flag, int cIdx, int log2TrafoSize)
+    final boolean readCodedSubBlockFlag(/*UInt32*/long xS, /*UInt32*/long yS,
+                                                      boolean[][] codedSubBlockFlag, int cIdx, int log2TrafoSize)
     {
         // FL cMax = 1
         // bin 0: 0..3 (clause 9.3.4.2.4)
-        ContextVariable[] model = contextTable[CabacType.coded_sub_block_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.codedSubBlockFlag.ordinal()];
 
         int csbfCtx = 0;
 
         if ((xS & 0xFFFFFFFFL) < (1L << (log2TrafoSize - 2)) - 1)
         {
-            csbfCtx += coded_sub_block_flag[(int) (((xS & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)][(int) (yS)] ? 1 : 0;
+            csbfCtx += codedSubBlockFlag[(int) (((xS & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)][(int) (yS)] ? 1 : 0;
         }
 
         if ((yS & 0xFFFFFFFFL) < (1L << (log2TrafoSize - 2)) - 1)
         {
-            csbfCtx += coded_sub_block_flag[(int) (xS)][(int) (((yS & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)] ? 1 : 0;
+            csbfCtx += codedSubBlockFlag[(int) (xS)][(int) (((yS & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)] ? 1 : 0;
         }
 
         int ctxInc = Math.min(csbfCtx, 1);
@@ -708,20 +708,20 @@ public class Cabac
         return decodeGeneralForBinaryDecision(model[ctxInc]) == 1;
     }
 
-    final boolean read_sig_coeff_flag(HeicPicture picture,
-                                      boolean transform_skip_flag,
+    final boolean readSigCoeffFlag(HeicPicture picture,
+                                      boolean transformSkipFlag,
                                       int xC, int yC,
-                                      boolean[][] coded_sub_block_flag,
+                                      boolean[][] codedSubBlockFlag,
                                       int cIdx, int log2TrafoSize, int scanIdx)
     {
         // FL cMax = 1
         // bin 0: 0..43 (clause 9.3.4.2.5)
-        seq_parameter_set_rbsp sps = picture.sps;
+        SeqParameterSetRbsp sps = picture.sps;
 
         int sigCtx;
 
-        if (sps.sps_range_ext.transform_skip_context_enabled_flag &&
-                (transform_skip_flag || stream.getContext().cu_transquant_bypass_flag))
+        if (sps.spsRangeExt.transformSkipContextEnabledFlag &&
+                (transformSkipFlag || stream.getContext().cuTransquantBypassFlag))
         {
             sigCtx = (cIdx == 0) ? 42 : 16;
         }
@@ -741,11 +741,11 @@ public class Cabac
             int prevCsbf = 0;
             if (xS < (1 << (log2TrafoSize - 2)) - 1)
             {
-                prevCsbf += coded_sub_block_flag[xS + 1][yS] ? 1 : 0;
+                prevCsbf += codedSubBlockFlag[xS + 1][yS] ? 1 : 0;
             }
             if (yS < (1 << (log2TrafoSize - 2)) - 1)
             {
-                prevCsbf += coded_sub_block_flag[xS][yS + 1] ? 2 : 0;
+                prevCsbf += codedSubBlockFlag[xS][yS + 1] ? 2 : 0;
             }
 
             int xP = xC & 3;
@@ -798,17 +798,17 @@ public class Cabac
 
         int ctxInc = sigCtx + (cIdx == 0 ? 0 : 27);
 
-        ContextVariable[] model = contextTable[CabacType.sig_coeff_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.sigCoeffFlag.ordinal()];
         return decodeGeneralForBinaryDecision(model[ctxInc]) == 1;
     }
 
-    final boolean read_coeff_abs_level_greater1_flag(int cIdx, int i,
+    final boolean readCoeffAbsLevelGreater1Flag(int cIdx, int i,
                                                      boolean firstCoeffInSubblock,
                                                      boolean firstSubblock,
-                                                     int lastSubblock_greater1Ctx,
-            /*ref*/ int[] lastInvocation_ctxSet,
-            /*ref*/ int[] lastInvocation_greater1Ctx,
-            /*ref*/ boolean[] lastInvocation_coeff_abs_level_greater1_flag)
+                                                     int lastSubblockGreater1Ctx,
+            /*ref*/ int[] lastInvocationCtxSet,
+            /*ref*/ int[] lastInvocationGreater1Ctx,
+            /*ref*/ boolean[] lastInvocationCoeffAbsLevelGreater1Flag)
     {
         // FL cMax = 1
         // bin 0: 0..23 (clause 9.3.4.2.6)
@@ -827,11 +827,11 @@ public class Cabac
             }
             else
             {
-                lastGreater1Ctx = lastSubblock_greater1Ctx;
+                lastGreater1Ctx = lastSubblockGreater1Ctx;
 
                 if (lastGreater1Ctx > 0)
                 {
-                    if (lastInvocation_coeff_abs_level_greater1_flag[0])
+                    if (lastInvocationCoeffAbsLevelGreater1Flag[0])
                     {
                         lastGreater1Ctx = 0;
                     }
@@ -852,13 +852,13 @@ public class Cabac
         }
         else
         {
-            ctxSet = lastInvocation_ctxSet[0];
+            ctxSet = lastInvocationCtxSet[0];
 
-            greater1Ctx = lastInvocation_greater1Ctx[0];
+            greater1Ctx = lastInvocationGreater1Ctx[0];
 
             if (greater1Ctx > 0)
             {
-                if (lastInvocation_coeff_abs_level_greater1_flag[0])
+                if (lastInvocationCoeffAbsLevelGreater1Flag[0])
                 {
                     greater1Ctx = 0;
                 }
@@ -876,26 +876,26 @@ public class Cabac
             ctxIdxInc += 16;
         }
 
-        ContextVariable[] model = contextTable[CabacType.coeff_abs_level_greater1_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.coeffAbsLevelGreater1Flag.ordinal()];
         boolean value = decodeGeneralForBinaryDecision(model[ctxIdxInc]) == 1;
 
-        lastInvocation_greater1Ctx[0] = greater1Ctx;
-        lastInvocation_coeff_abs_level_greater1_flag[0] = value;
-        lastInvocation_ctxSet[0] = ctxSet;
+        lastInvocationGreater1Ctx[0] = greater1Ctx;
+        lastInvocationCoeffAbsLevelGreater1Flag[0] = value;
+        lastInvocationCtxSet[0] = ctxSet;
 
         return value;
     }
 
-    final boolean read_coeff_abs_level_greater2_flag(int cIdx, int ctxSet)
+    final boolean readCoeffAbsLevelGreater2Flag(int cIdx, int ctxSet)
     {
         // FL cMax = 1
         // bin 0: 0..5 (clause 9.3.4.2.7)
-        ContextVariable[] model = contextTable[CabacType.coeff_abs_level_greater2_flag.ordinal()];
+        ContextVariable[] model = contextTable[CabacType.coeffAbsLevelGreater2Flag.ordinal()];
         int index = ctxSet + (cIdx > 0 ? 4 : 0);
         return decodeGeneralForBinaryDecision(model[index]) == 1;
     }
 
-    final int read_coeff_abs_level_remaining(int cRiceParam)
+    final int readCoeffAbsLevelRemaining(int cRiceParam)
     {
         // 9.3.3.11 current sub-block scan index i, baseLevel
         // all bins: bypass
@@ -925,7 +925,7 @@ public class Cabac
         return (((1 << (prefix - 3)) + 3 - 1) << cRiceParam) + decodeFixedLengthBypass(prefix - 3 + cRiceParam);
     }
 
-    final boolean read_coeff_sign_flag()
+    final boolean readCoeffSignFlag()
     {
         // FL cMax = 1
         // bin 0: bypass
@@ -1061,8 +1061,8 @@ public class Cabac
         boolean availableL = picture.checkZScanAvailability(x0, y0, x0 - 1, y0);
         boolean availableA = picture.checkZScanAvailability(x0, y0, x0, y0 - 1);
 
-        boolean condL = x0 > 0 && picture.CtDepth[x0 - 1][y0] > cqtDepth;
-        boolean condA = y0 > 0 && picture.CtDepth[x0][y0 - 1] > cqtDepth;
+        boolean condL = x0 > 0 && picture.ctDepthByPosition[x0 - 1][y0] > cqtDepth;
+        boolean condA = y0 > 0 && picture.ctDepthByPosition[x0][y0 - 1] > cqtDepth;
 
         return (condL && availableL ? 1 : 0) + (condA && availableA ? 1 : 0);
     }
@@ -1081,7 +1081,7 @@ public class Cabac
             }
         }
 
-        System.arraycopy(StatCoeff, 0, tableStatCoeffSync, 0, 4);
+        System.arraycopy(statCoeff, 0, tableStatCoeffSync, 0, 4);
     }
 
     public final void restoreSyncedTables()
@@ -1098,28 +1098,28 @@ public class Cabac
             }
         }
 
-        System.arraycopy(tableStatCoeffSync, 0, StatCoeff, 0, 4);
+        System.arraycopy(tableStatCoeffSync, 0, statCoeff, 0, 4);
     }
 
     // 9.3.2.6 Initialization process for the arithmetic decoding engine
-    public final void initialization(slice_segment_header slice_header)
+    public final void initialization(SliceSegmentHeader sliceHeader)
     {
 
         // The bitstream shall not contain data that result in a value of ivlOffset being equal to 510 or 511.
         ivlCurrRange = 510;
         ivlOffset = stream.read(9);
 
-        int SliceQpY = slice_header.getSliceQPY();
-        int initType = slice_header.getInitType();
+        int sliceQpY = sliceHeader.getSliceQPY();
+        int initType = sliceHeader.getInitType();
 
-        initializationOfContextVariables(SliceQpY, initType);
+        initializationOfContextVariables(sliceQpY, initType);
 
-        StatCoeff[0] = 0;
-        StatCoeff[1] = 0;
-        StatCoeff[2] = 0;
-        StatCoeff[3] = 0;
+        statCoeff[0] = 0;
+        statCoeff[1] = 0;
+        statCoeff[2] = 0;
+        statCoeff[3] = 0;
 
-        initializationOfPalettePredictorEntries(slice_header);
+        initializationOfPalettePredictorEntries(sliceHeader);
     }
 
     public final void resetStreamState()
@@ -1131,22 +1131,22 @@ public class Cabac
     // LPS = Least Probable Symbol
     // MPS = Most Probable Symbol
 
-    private void initializationOfPalettePredictorEntries(slice_segment_header slice_header)
+    private void initializationOfPalettePredictorEntries(SliceSegmentHeader sliceHeader)
     {
         // Outputs of this process are the initialized palette predictor variables
         // PredictorPaletteSize and PredictorPaletteEntries
 
-        pic_parameter_set_rbsp pps = slice_header.pps;
-        seq_parameter_set_rbsp sps = pps.sps;
+        PicParameterSetRbsp pps = sliceHeader.pps;
+        SeqParameterSetRbsp sps = pps.sps;
 
         
         byte numComps = ((int) sps.getChromaArrayType() == 0) ? (byte) 1 : (byte) 3;
 
-        boolean tmp0 = (pps.pps_scc_ext != null && pps.pps_scc_ext.pps_palette_predictor_initializers_present_flag);
+        boolean tmp0 = (pps.ppsSccExt != null && pps.ppsSccExt.ppsPalettePredictorInitializersPresentFlag);
 
         if (tmp0)
         {
-            PredictorPaletteSize = pps.pps_scc_ext.pps_num_palette_predictor_initializers;
+            predictorPaletteSize = pps.ppsSccExt.ppsNumPalettePredictorInitializers;
 
 //            PredictorPaletteEntries = new /*UInt16*/int[numComps & 0xFF][(int) (PredictorPaletteSize & 0xFFFFFFFFL)];
 //
@@ -1154,9 +1154,9 @@ public class Cabac
 //                for (int i = 0; i < (PredictorPaletteSize & 0xFFFFFFFFL); i++)
 //                    PredictorPaletteEntries[comp][i] = pps.pps_scc_ext.pps_palette_predictor_initializer[comp][i];
         }
-        else if ((sps.sps_scc_ext != null && sps.sps_scc_ext.sps_palette_predictor_initializers_present_flag))
+        else if ((sps.spsSccExt != null && sps.spsSccExt.spsPalettePredictorInitializersPresentFlag))
         {
-            PredictorPaletteSize = ((sps.sps_scc_ext.sps_num_palette_predictor_initializers_minus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL;
+            predictorPaletteSize = ((sps.spsSccExt.spsNumPalettePredictorInitializersMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL;
 
 //            PredictorPaletteEntries = new /*UInt16*/int[numComps & 0xFF][(int) (PredictorPaletteSize & 0xFFFFFFFFL)];
 //
@@ -1166,28 +1166,28 @@ public class Cabac
         }
         else
         {
-            PredictorPaletteSize = 0;
+            predictorPaletteSize = 0;
 //            PredictorPaletteEntries = new /*UInt16*/int[numComps & 0xFF][0];
         }
 
     }
 
-    private void initializationOfContextVariables(int SliceQpY, int initType)
+    private void initializationOfContextVariables(int sliceQpY, int initType)
     {
         final CabacType[] cabacTypes = CabacType.getValues();
         for (int cabacType = 0; cabacType < 40; cabacType++)
         {
-            byte[] init_value = getinit_valueByType(cabacTypes[cabacType], initType);
-            contextTable[cabacType] = new ContextVariable[init_value.length];
+            byte[] initValue = getinitValueByType(cabacTypes[cabacType], initType);
+            contextTable[cabacType] = new ContextVariable[initValue.length];
 
-            for (int i = 0; i < init_value.length; i++)
+            for (int i = 0; i < initValue.length; i++)
             {
-                contextTable[cabacType][i] = initContextVariable(SliceQpY, init_value[i]);
+                contextTable[cabacType][i] = initContextVariable(sliceQpY, initValue[i]);
             }
         }
     }
 
-    private ContextVariable initContextVariable(int SliceQpY, byte init_value)
+    private ContextVariable initContextVariable(int sliceQpY, byte initValue)
     {
         // Outputs of this process are the initialized CABAC context variables indexed by ctxTable and ctxIdx.
         //
@@ -1197,13 +1197,13 @@ public class Cabac
 
 
         
-        byte slopeIdx = (byte) ((init_value & 0xFF) >> 4);  // 4 bit
+        byte slopeIdx = (byte) ((initValue & 0xFF) >> 4);  // 4 bit
         
-        byte offsetIdx = (byte) ((init_value & 0xFF) & 15); // 4 bit
+        byte offsetIdx = (byte) ((initValue & 0xFF) & 15); // 4 bit
         byte m = (byte) ((slopeIdx & 0xFF) * 5 - 45);
         byte n = (byte) (((offsetIdx & 0xFF) << 3) - 16);
 
-        int preCtxState = MathExtra.clip3(1, 126, ((m * MathExtra.clip3(0, 51, SliceQpY)) >> 4) + n);
+        int preCtxState = MathExtra.clip3(1, 126, ((m * MathExtra.clip3(0, 51, sliceQpY)) >> 4) + n);
 
         // the value of the most probable symbol as further described in clause 9.3.4.3
         boolean valMps = preCtxState > 63;
@@ -1217,22 +1217,22 @@ public class Cabac
         return tmp0;
     }
 
-    private byte[] getinit_valueByType(CabacType type, int initType)
+    private byte[] getinitValueByType(CabacType type, int initType)
     {
         if (initType == 0)
         {
-            if (type == CabacType.pred_mode_flag ||
-                    type == CabacType.rqt_root_cbf ||
-                    type == CabacType.merge_flag ||
-                    type == CabacType.merge_idx ||
-                    type == CabacType.mvp_flag ||
-                    type == CabacType.abs_mvd_greater0_flag ||
-                    type == CabacType.abs_mvd_greater1_flag ||
-                    type == CabacType.cu_skip_flag ||
-                    type == CabacType.inter_pred_idc ||
-                    type == CabacType.ref_idx ||
-                    type == CabacType.explicit_rdpcm_flag ||
-                    type == CabacType.explicit_rdpcm_dir_flag)
+            if (type == CabacType.predModeFlag ||
+                    type == CabacType.rqtRootCbf ||
+                    type == CabacType.mergeFlag ||
+                    type == CabacType.mergeIdx ||
+                    type == CabacType.mvpFlag ||
+                    type == CabacType.absMvdGreater0Flag ||
+                    type == CabacType.absMvdGreater1Flag ||
+                    type == CabacType.cuSkipFlag ||
+                    type == CabacType.InterPredIdc ||
+                    type == CabacType.refIdx ||
+                    type == CabacType.explicitRdpcmFlag ||
+                    type == CabacType.explicitRdpcmDirFlag)
             {
                 return new byte[0];
             }
@@ -1242,77 +1242,77 @@ public class Cabac
         {
             // variables
 
-            case sao_merge_flag:
-                return new byte[]{init_value_sao_merge_flag[initType]};
-            case sao_type_idx:
-                return new byte[]{init_value_sao_type_idx_flag[initType]};
-            case cu_transquant_bypass_flag:
-                return new byte[]{init_value_cu_transquant_bypass_flag[initType]};
-            case pred_mode_flag:
-                return new byte[]{init_value_pred_mode_flag[initType - 1]};
-            case prev_intra_luma_pred_flag:
-                return new byte[]{init_value_prev_intra_luma_pred_flag[initType]};
-            case intra_chroma_pred_mode:
-                return new byte[]{init_value_intra_chroma_pred_mode[initType]};
-            case rqt_root_cbf:
-                return new byte[]{init_value_rqt_root_cbf[initType - 1]};
-            case merge_flag:
-                return new byte[]{init_value_merge_flag[initType - 1]};
-            case merge_idx:
-                return new byte[]{init_value_merge_idx[initType - 1]};
-            case mvp_flag:
-                return new byte[]{init_value_mvp_flag[initType - 1]};
-            case abs_mvd_greater0_flag:
-                return new byte[]{init_value_abs_mvd_greater_flag[(initType - 1) * 2]};
-            case abs_mvd_greater1_flag:
-                return new byte[]{init_value_abs_mvd_greater_flag[(initType - 1) * 2 + 1]};
-            case transform_skip_flag:
-            case explicit_rdpcm_flag:
-            case explicit_rdpcm_dir_flag:
+            case saoMergeFlag:
+                return new byte[]{initValueSaoMergeFlag[initType]};
+            case saoTypeIdx:
+                return new byte[]{initValueSaoTypeIdxFlag[initType]};
+            case cuTransquantBypassFlag:
+                return new byte[]{initValueCuTransquantBypassFlag[initType]};
+            case predModeFlag:
+                return new byte[]{initValuePredModeFlag[initType - 1]};
+            case prevIntraLumaPredFlag:
+                return new byte[]{initValuePrevIntraLumaPredFlag[initType]};
+            case intraChromaPredMode:
+                return new byte[]{initValueIntraChromaPredMode[initType]};
+            case rqtRootCbf:
+                return new byte[]{initValueRqtRootCbf[initType - 1]};
+            case mergeFlag:
+                return new byte[]{initValueMergeFlag[initType - 1]};
+            case mergeIdx:
+                return new byte[]{initValueMergeIdx[initType - 1]};
+            case mvpFlag:
+                return new byte[]{initValueMvpFlag[initType - 1]};
+            case absMvdGreater0Flag:
+                return new byte[]{initValueAbsMvdGreaterFlag[(initType - 1) * 2]};
+            case absMvdGreater1Flag:
+                return new byte[]{initValueAbsMvdGreaterFlag[(initType - 1) * 2 + 1]};
+            case transformSkipFlag:
+            case explicitRdpcmFlag:
+            case explicitRdpcmDirFlag:
                 return new byte[]{(byte) 139, (byte) 139};
-            case palette_mode_flag:
-            case tu_residual_act_flag:
-            case copy_above_palette_indices_flag:
-            case copy_above_indices_for_final_run_flag:
-            case palette_transpose_flag:
-            case cu_chroma_qp_offset_flag:
-            case cu_chroma_qp_offset_idx:
+            case paletteModeFlag:
+            case tuResidualActFlag:
+            case copyAbovePaletteIndicesFlag:
+            case copyAboveIndicesForFinalRunFlag:
+            case paletteTransposeFlag:
+            case cuChromaQpOffsetFlag:
+            case cuChromaQpOffsetIdx:
                 return new byte[]{(byte) 154};
 
             // arrays
 
-            case split_cu_flag:
-                return init_value_split_cu_flag[initType];
-            case cu_skip_flag:
-                return init_value_cu_skip_flag[initType - 1];
-            case part_mode:
-                return init_value_part_mode[initType];
-            case inter_pred_idc:
-                return init_value_inter_pred_idc[initType - 1];
-            case ref_idx:
-                return init_value_ref_idx[initType - 1];
-            case split_transform_flag:
-                return init_value_split_transform_flag[initType];
-            case cbf_luma:
-                return init_value_cbf_luma[initType];
-            case cbf_chroma:
-                return init_value_cbf_chroma[initType];
-            case last_sig_coeff_x_prefix:
-            case last_sig_coeff_y_prefix:
-                return init_value_last_sig_coeff_prefix[initType];
-            case coded_sub_block_flag:
-                return init_value_coded_sub_block_flag[initType];
-            case sig_coeff_flag:
-                return init_value_sig_coeff_flag[initType];
-            case coeff_abs_level_greater1_flag:
-                return init_value_coeff_abs_level_greater1_flag[initType];
-            case coeff_abs_level_greater2_flag:
-                return init_value_coeff_abs_level_greater2_flag[initType];
-            case palette_run_prefix:
-            case log2_res_scale_abs_plus1:
+            case splitCuFlag:
+                return initValueSplitCuFlag[initType];
+            case cuSkipFlag:
+                return initValueCuSkipFlag[initType - 1];
+            case partMode:
+                return initValuePartMode[initType];
+            case InterPredIdc:
+                return initValueInterPredIdc[initType - 1];
+            case refIdx:
+                return initValueRefIdx[initType - 1];
+            case splitTransformFlag:
+                return initValueSplitTransformFlag[initType];
+            case cbfLuma:
+                return initValueCbfLuma[initType];
+            case cbfChroma:
+                return initValueCbfChroma[initType];
+            case lastSigCoeffXPrefix:
+            case lastSigCoeffYPrefix:
+                return initValueLastSigCoeffPrefix[initType];
+            case codedSubBlockFlag:
+                return initValueCodedSubBlockFlag[initType];
+            case sigCoeffFlag:
+                return initValueSigCoeffFlag[initType];
+            case coeffAbsLevelGreater1Flag:
+                return initValueCoeffAbsLevelGreater1Flag[initType];
+            case coeffAbsLevelGreater2Flag:
+                return initValueCoeffAbsLevelGreater2Flag[initType];
+            case paletteRunPrefix:
+            case log2ResScaleAbsPlus1:
                 return new byte[]{(byte) 154, (byte) 154, (byte) 154, (byte) 154, (byte) 154, (byte) 154, (byte) 154, (byte) 154};
-            case cu_qp_delta_abs:
-            case res_scale_sign_flag:
+            case cuQpDeltaAbs:
+            case resScaleSignFlag:
                 return new byte[]{(byte) 154, (byte) 154};
             default:
                 throw new IndexOutOfBoundsException("type");

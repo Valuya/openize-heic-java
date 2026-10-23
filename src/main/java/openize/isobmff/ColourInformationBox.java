@@ -27,35 +27,35 @@ public class ColourInformationBox extends Box
      * An indication of the type of colour information supplied.
      * </p>
      */
-    public final /*UInt32*/ long colour_type;
+    public final /*UInt32*/ long colourType;
 
     /**
      * <p>
      * Indicates the chromaticity coordinates of the source primaries.
      * </p>
      */
-    public /*UInt16*/ int colour_primaries;
+    public /*UInt16*/ int colourPrimaries;
 
     /**
      * <p>
      * Indicates the reference opto-electronic transfer characteristic.
      * </p>
      */
-    public /*UInt16*/ int transfer_characteristics;
+    public /*UInt16*/ int transferCharacteristics;
 
     /**
      * <p>
      * Describes the matrix coefficients used in deriving luma and chroma signals from the green, blue, and red.
      * </p>
      */
-    public /*UInt16*/ int matrix_coefficients;
+    public /*UInt16*/ int matrixCoefficients;
 
     /**
      * <p>
      * Indicates the black level and range of the luma and chroma signals as derived from E′Y, E′PB, and E′PR or E′R, E′G, and E′B real-valued component signals.
      * </p>
      */
-    public boolean full_range_flag;
+    public boolean fullRangeFlag;
 
     /**
      * <p>
@@ -69,14 +69,14 @@ public class ColourInformationBox extends Box
     {
         super(BoxType.colr, size);
 
-        colour_type = stream.read(32) & 0xFFFFFFFFL;
+        colourType = stream.read(32) & 0xFFFFFFFFL;
 
-        if ((colour_type & 0xFFFFFFFFL) == 0x6e636c78) /* nclx; on-screen colours */
+        if ((colourType & 0xFFFFFFFFL) == 0x6e636c78) /* nclx; on-screen colours */
         {
-            colour_primaries = stream.read(16) & 0xFFFF;
-            transfer_characteristics = stream.read(16) & 0xFFFF;
-            matrix_coefficients = stream.read(16) & 0xFFFF;
-            full_range_flag = stream.readFlag();
+            colourPrimaries = stream.read(16) & 0xFFFF;
+            transferCharacteristics = stream.read(16) & 0xFFFF;
+            matrixCoefficients = stream.read(16) & 0xFFFF;
+            fullRangeFlag = stream.readFlag();
             stream.skipBits(7);
         }
       /*  else if ((colour_type & 0xFFFFFFFFL) == 0x72494343) // rICC
@@ -99,7 +99,7 @@ public class ColourInformationBox extends Box
     @Override
     public String toString()
     {
-        return String.format("%s Color type: %s", this.type, uintToString(colour_type));
+        return String.format("%s Color type: %s", this.type, uintToString(colourType));
     }
 
     /**
@@ -109,6 +109,6 @@ public class ColourInformationBox extends Box
      */
     public final String getColourType()
     {
-        return uintToString(colour_type);
+        return uintToString(colourType);
     }
 }

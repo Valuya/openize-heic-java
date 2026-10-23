@@ -26,14 +26,14 @@ public class AuxiliaryTypeProperty extends FullBox
      * A null-terminated UTF-8 character string of the Uniform Resource Name (URN) used to identify the type of the associated auxiliary image item.
      * </p>
      */
-    public final String aux_type;
+    public final String auxType;
 
     /**
      * <p>
      * Zero or more bytes until the end of the box. The semantics of these bytes depend on the value of aux_type.
      * </p>
      */
-    public final byte[] aux_subtype;
+    public final byte[] auxSubtype;
 
     /**
      * <p>
@@ -47,13 +47,13 @@ public class AuxiliaryTypeProperty extends FullBox
     {
         super(stream, BoxType.auxC, size);
 
-        aux_type = stream.readString();
+        auxType = stream.readString();
 
         /*UInt64*/
-        long count = size - (long) aux_type.length() - 12;
-        aux_subtype = new byte[(int) (count)];
+        long count = size - (long) auxType.length() - 12;
+        auxSubtype = new byte[(int) (count)];
         for (/*UInt64*/long i = 0; i < count; i++)
-            aux_subtype[(int) (i)] = (byte) stream.read(8);
+            auxSubtype[(int) (i)] = (byte) stream.read(8);
     }
 
     /**
@@ -64,6 +64,6 @@ public class AuxiliaryTypeProperty extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s type: %s", this.type, aux_type);
+        return String.format("%s type: %s", this.type, auxType);
     }
 }

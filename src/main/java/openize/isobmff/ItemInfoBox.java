@@ -25,7 +25,7 @@ public class ItemInfoBox extends FullBox
      * A count of the number of entries in the info entry array.
      * </p>
      */
-    public final /*UInt32*/ long entry_count;
+    public final /*UInt32*/ long entryCount;
 
     /**
      * <p>
@@ -33,7 +33,7 @@ public class ItemInfoBox extends FullBox
      * This array is sorted by increasing item_ID in the entry records.
      * </p>
      */
-    public final ItemInfoEntry[] item_infos;
+    public final ItemInfoEntry[] itemInfos;
     private ObservableCollection<ItemInfoEntry> children;
 
     /**
@@ -48,13 +48,13 @@ public class ItemInfoBox extends FullBox
     {
         super(stream, BoxType.iinf, size);
 
-        entry_count = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
+        entryCount = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
 
-        item_infos = new ItemInfoEntry[(int) (entry_count & 0xFFFFFFFFL)];
-        for (int i = 0; i < (entry_count & 0xFFFFFFFFL); i++)
-            item_infos[i] = new ItemInfoEntry(stream);
+        itemInfos = new ItemInfoEntry[(int) (entryCount & 0xFFFFFFFFL)];
+        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++)
+            itemInfos[i] = new ItemInfoEntry(stream);
 
-        setChildren(new ObservableCollection<>(item_infos));
+        setChildren(new ObservableCollection<>(itemInfos));
     }
 
     /**
@@ -65,7 +65,7 @@ public class ItemInfoBox extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s count: %d", this.type, entry_count);
+        return String.format("%s count: %d", this.type, entryCount);
     }
 
     /**

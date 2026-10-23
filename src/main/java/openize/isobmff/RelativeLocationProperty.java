@@ -29,7 +29,7 @@ public class RelativeLocationProperty extends FullBox
      * pixel column of the reconstructed image of the related image item has a horizontal offset equal to 0.
      * </p>
      */
-    public final /*UInt32*/ long horizontal_offset;
+    public final /*UInt32*/ long horizontalOffset;
 
     /**
      * <p>
@@ -38,7 +38,7 @@ public class RelativeLocationProperty extends FullBox
      * pixel row of the reconstructed image of the related image item has a vertical offset equal to 0.
      * </p>
      */
-    public final /*UInt32*/ long vertical_offset;
+    public final /*UInt32*/ long verticalOffset;
 
     /**
      * <p>
@@ -52,8 +52,8 @@ public class RelativeLocationProperty extends FullBox
     {
         super(stream, BoxType.rloc, size);
 
-        horizontal_offset = stream.read(32) & 0xFFFFFFFFL;
-        vertical_offset = stream.read(32) & 0xFFFFFFFFL;
+        horizontalOffset = stream.read(32) & 0xFFFFFFFFL;
+        verticalOffset = stream.read(32) & 0xFFFFFFFFL;
     }
 
     /**
@@ -64,6 +64,6 @@ public class RelativeLocationProperty extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s horiz offset: %d vert offset: %d", this.type, horizontal_offset, vertical_offset);
+        return String.format("%s horiz offset: %d vert offset: %d", this.type, horizontalOffset, verticalOffset);
     }
 }

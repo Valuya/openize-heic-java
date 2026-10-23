@@ -26,14 +26,14 @@ public class PixelInformationProperty extends FullBox
      * This field signals the number of channels by each pixel of the reconstructed image ofthe associated image item.
      * </p>
      */
-    public final byte num_channels;
+    public final byte numChannels;
 
     /**
      * <p>
      * This field indicates the bits per channel for the pixels of the reconstructed image of the associated image item.
      * </p>
      */
-    public final byte[] bits_per_channel;
+    public final byte[] bitsPerChannel;
 
     /**
      * <p>
@@ -47,10 +47,10 @@ public class PixelInformationProperty extends FullBox
     {
         super(stream, BoxType.pixi, size);
 
-        num_channels = (byte) stream.read(8);
-        bits_per_channel = new byte[num_channels & 0xFF];
-        for (int i = 0; i < (num_channels & 0xFF); i++)
-            bits_per_channel[i] = (byte) stream.read(8);
+        numChannels = (byte) stream.read(8);
+        bitsPerChannel = new byte[numChannels & 0xFF];
+        for (int i = 0; i < (numChannels & 0xFF); i++)
+            bitsPerChannel[i] = (byte) stream.read(8);
     }
 
     /**
@@ -62,8 +62,8 @@ public class PixelInformationProperty extends FullBox
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%s ch: %d bits:", type, num_channels));
-        for (byte b : bits_per_channel)
+        sb.append(String.format("%s ch: %d bits:", type, numChannels));
+        for (byte b : bitsPerChannel)
         {
             sb.append(' ').append(String.format("%x", b));
         }

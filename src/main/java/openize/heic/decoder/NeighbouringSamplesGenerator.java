@@ -20,8 +20,8 @@ class NeighbouringSamplesGenerator
     private final int cIdx;
     private final int ctbLog2Size;
     private final /*UInt32*/ long picWidthInCtbs;
-    private final int SubWidth;
-    private final int SubHeight;
+    private final int subWidth;
+    private final int subHeight;
     private final int xBLuma;
     private final int yBLuma;
     private boolean availableLeft;
@@ -56,11 +56,11 @@ class NeighbouringSamplesGenerator
 //            }
 //        }
 
-        SubWidth = (cIdx == 0) ? 1 : picture.sps.getSubWidthC();
-        SubHeight = (cIdx == 0) ? 1 : picture.sps.getSubHeightC();
+        subWidth = (cIdx == 0) ? 1 : picture.sps.getSubWidthC();
+        subHeight = (cIdx == 0) ? 1 : picture.sps.getSubHeightC();
 
-        xBLuma = this.x0 * SubWidth;
-        yBLuma = this.y0 * SubHeight;
+        xBLuma = this.x0 * subWidth;
+        yBLuma = this.y0 * subHeight;
     }
 
     public static NeighbouringSamples generate(HeicPicture picture, int x0, int y0, int nTbS, int cIdx)
@@ -90,7 +90,7 @@ class NeighbouringSamplesGenerator
             availableTopRight = false;
         }
 
-        if (xBLuma + (long) nTbS * SubWidth >= (picture.sps.pic_width_in_luma_samples & 0xFFFFFFFFL))
+        if (xBLuma + (long) nTbS * subWidth >= (picture.sps.picWidthInLumaSamples & 0xFFFFFFFFL))
         {
             availableTopRight = false;
         }
@@ -100,11 +100,11 @@ class NeighbouringSamplesGenerator
         int xCurrCtb = xBLuma >> ctbLog2Size;
         int yCurrCtb = yBLuma >> ctbLog2Size;
         int xLeftCtb = (xBLuma - 1) >> ctbLog2Size;
-        int xRightCtb = (xBLuma + nTbS * SubWidth) >> ctbLog2Size;
+        int xRightCtb = (xBLuma + nTbS * subWidth) >> ctbLog2Size;
         int yTopCtb = (yBLuma - 1) >> ctbLog2Size;
 
-        currCTBSlice = picture.SliceAddrRs[xCurrCtb][yCurrCtb];
-        currCTBTileId = (int) picture.pps.TileIdFromRs[(int) (xCurrCtb + ((yCurrCtb * (picWidthInCtbs & 0xFFFFFFFFL)) & 0xFFFFFFFFL))];
+        currCTBSlice = picture.sliceAddrRs[xCurrCtb][yCurrCtb];
+        currCTBTileId = (int) picture.pps.tileIdFromRs[(int) (xCurrCtb + ((yCurrCtb * (picWidthInCtbs & 0xFFFFFFFFL)) & 0xFFFFFFFFL))];
 
         availableLeft = reCheckFlag(availableLeft, xLeftCtb, yCurrCtb);
         availableTop = reCheckFlag(availableTop, xCurrCtb, yTopCtb);
@@ -116,8 +116,8 @@ class NeighbouringSamplesGenerator
     {
         if (available)
         {
-            if (currCTBSlice != (picture.SliceAddrRs[x][y] & 0xFFFFFFFFL) ||
-                    currCTBTileId != (picture.pps.TileIdFromRs[(int) (x + ((y * (picWidthInCtbs & 0xFFFFFFFFL)) & 0xFFFFFFFFL))] & 0xFFFFFFFFL))
+            if (currCTBSlice != (picture.sliceAddrRs[x][y] & 0xFFFFFFFFL) ||
+                    currCTBTileId != (picture.pps.tileIdFromRs[(int) (x + ((y * (picWidthInCtbs & 0xFFFFFFFFL)) & 0xFFFFFFFFL))] & 0xFFFFFFFFL))
             {
                 return false;
             }
@@ -128,15 +128,15 @@ class NeighbouringSamplesGenerator
 
     private NeighbouringSamples fillNeighbouringSamples()
     {
-        int nBottom = (int) picture.sps.pic_height_in_luma_samples - y0 * SubHeight;
-        nBottom = (nBottom + SubHeight - 1) / SubHeight;
+        int nBottom = (int) picture.sps.picHeightInLumaSamples - y0 * subHeight;
+        nBottom = (nBottom + subHeight - 1) / subHeight;
         if (nBottom > 2 * nTbS)
         {
             nBottom = 2 * nTbS;
         }
 
-        int nRight = (int) picture.sps.pic_width_in_luma_samples - x0 * SubWidth;
-        nRight = (nRight + SubWidth - 1) / SubWidth;
+        int nRight = (int) picture.sps.picWidthInLumaSamples - x0 * subWidth;
+        nRight = (nRight + subWidth - 1) / subWidth;
         if (nRight > 2 * nTbS)
         {
             nRight = 2 * nTbS;
@@ -146,7 +146,7 @@ class NeighbouringSamplesGenerator
         boolean availableN;
 
         /*UInt32*/
-        long currBlockAddr = picture.pps.MinTbAddrZs[
+        long currBlockAddr = picture.pps.minTbAddrZs[
                 xBLuma >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][yBLuma >> (picture.sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
 
 
@@ -158,14 +158,14 @@ class NeighbouringSamplesGenerator
             for (int y = nBottom - 1; y >= 0; y -= 4)
             {
                 /*UInt32*/
-                long NBlockAddr = picture.pps.MinTbAddrZs[
-                        ((x0 - 1) * SubWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][((y0 + y) * SubHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
+                long nBlockAddr = picture.pps.minTbAddrZs[
+                        ((x0 - 1) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][((y0 + y) * subHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
 
-                availableN = (NBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
+                availableN = (nBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
 
-                if (picture.pps.constrained_intra_pred_flag)
+                if (picture.pps.constrainedIntraPredFlag)
                 {
-                    if (picture.CuPredMode[(x0 - 1) * SubWidth][(y0 + y) * SubHeight] != PredMode.MODE_INTRA)
+                    if (picture.cuPredModeByPosition[(x0 - 1) * subWidth][(y0 + y) * subHeight] != PredMode.MODE_INTRA)
                     {
                         availableN = false;
                     }
@@ -176,12 +176,12 @@ class NeighbouringSamplesGenerator
                     if ((picture.sps.getBitDepthY() & 0xFF) > 8 || (picture.sps.getBitDepthC() & 0xFF) > 8)
                     {
                         if (nAvail == 0)
-                            firstValue = picture.pixels_high_color_range[cIdx][x0 - 1][y0 + y];
+                            firstValue = picture.pixelsHighColorRange[cIdx][x0 - 1][y0 + y];
 
                         for (int i = 0; i < 4; i++)
                         {
                             available.set(-1, y - i, true);
-                            samples.set(-1, y - i, picture.pixels_high_color_range[cIdx][x0 - 1][y0 + y - i]);
+                            samples.set(-1, y - i, picture.pixelsHighColorRange[cIdx][x0 - 1][y0 + y - i]);
                             nAvail++;
                         }
                     }
@@ -204,14 +204,14 @@ class NeighbouringSamplesGenerator
         if (availableTopLeft)
         {
             /*UInt32*/
-            long NBlockAddr = picture.pps.MinTbAddrZs[
-                    ((x0 - 1) * SubWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][((y0 - 1) * SubHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
+            long nBlockAddr = picture.pps.minTbAddrZs[
+                    ((x0 - 1) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][((y0 - 1) * subHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
 
-            availableN = (NBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
+            availableN = (nBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
 
-            if (picture.pps.constrained_intra_pred_flag)
+            if (picture.pps.constrainedIntraPredFlag)
             {
-                if (picture.CuPredMode[(x0 - 1) * SubWidth][(y0 - 1) * SubHeight] != PredMode.MODE_INTRA)
+                if (picture.cuPredModeByPosition[(x0 - 1) * subWidth][(y0 - 1) * subHeight] != PredMode.MODE_INTRA)
                 {
                     availableN = false;
                 }
@@ -222,10 +222,10 @@ class NeighbouringSamplesGenerator
                 if ((picture.sps.getBitDepthY() & 0xFF) > 8 || (picture.sps.getBitDepthC() & 0xFF) > 8)
                 {
                     if (nAvail == 0)
-                        firstValue = picture.pixels_high_color_range[cIdx][x0 - 1][y0 - 1];
+                        firstValue = picture.pixelsHighColorRange[cIdx][x0 - 1][y0 - 1];
 
                     available.set(-1, -1, true);
-                    samples.set(-1, -1, picture.pixels_high_color_range[cIdx][x0 - 1][y0 - 1]);
+                    samples.set(-1, -1, picture.pixelsHighColorRange[cIdx][x0 - 1][y0 - 1]);
                     nAvail++;
                 }
                 else
@@ -245,14 +245,14 @@ class NeighbouringSamplesGenerator
             if (x < nTbS ? availableTop : availableTopRight)
             {
                 /*UInt32*/
-                long NBlockAddr = picture.pps.MinTbAddrZs[
-                        ((x0 + x) * SubWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][((y0 - 1) * SubHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
+                long nBlockAddr = picture.pps.minTbAddrZs[
+                        ((x0 + x) * subWidth) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)][((y0 - 1) * subHeight) >> (picture.sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
 
-                availableN = (NBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
+                availableN = (nBlockAddr & 0xFFFFFFFFL) <= (currBlockAddr & 0xFFFFFFFFL);
 
-                if (picture.pps.constrained_intra_pred_flag)
+                if (picture.pps.constrainedIntraPredFlag)
                 {
-                    if (picture.CuPredMode[(x0 + x) * SubWidth][(y0 - 1) * SubHeight] != PredMode.MODE_INTRA)
+                    if (picture.cuPredModeByPosition[(x0 + x) * subWidth][(y0 - 1) * subHeight] != PredMode.MODE_INTRA)
                     {
                         availableN = false;
                     }
@@ -262,12 +262,12 @@ class NeighbouringSamplesGenerator
                 {
                     if ((picture.sps.getBitDepthY() & 0xFF) > 8 || (picture.sps.getBitDepthC() & 0xFF) > 8)
                     {
-                        if (nAvail == 0) firstValue = picture.pixels_high_color_range[cIdx][x0 + x][y0 - 1];
+                        if (nAvail == 0) firstValue = picture.pixelsHighColorRange[cIdx][x0 + x][y0 - 1];
 
                         for (int i = 0; i < 4; i++)
                         {
                             available.set(x + i, -1, true);
-                            samples.set(x + i, -1, picture.pixels_high_color_range[cIdx][x0 + x + i][y0 - 1]);
+                            samples.set(x + i, -1, picture.pixelsHighColorRange[cIdx][x0 + x + i][y0 - 1]);
                             nAvail++;
                         }
                     }

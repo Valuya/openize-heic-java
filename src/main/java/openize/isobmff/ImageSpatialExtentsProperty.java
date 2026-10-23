@@ -27,14 +27,14 @@ public class ImageSpatialExtentsProperty extends FullBox
      * The width of the reconstructed image in pixels.
      * </p>
      */
-    public final /*UInt32*/ long image_width;
+    public final /*UInt32*/ long imageWidth;
 
     /**
      * <p>
      * The height of the reconstructed image in pixels.
      * </p>
      */
-    public final /*UInt32*/ long image_height;
+    public final /*UInt32*/ long imageHeight;
 
     /**
      * <p>
@@ -48,8 +48,8 @@ public class ImageSpatialExtentsProperty extends FullBox
     {
         super(stream, BoxType.ispe, size);
 
-        image_width = stream.read(32) & 0xFFFFFFFFL;
-        image_height = stream.read(32) & 0xFFFFFFFFL;
+        imageWidth = stream.read(32) & 0xFFFFFFFFL;
+        imageHeight = stream.read(32) & 0xFFFFFFFFL;
     }
 
     /**
@@ -60,6 +60,6 @@ public class ImageSpatialExtentsProperty extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s width: %d height: %d", this.type, image_width, image_height);
+        return String.format("%s width: %d height: %d", this.type, imageWidth, imageHeight);
     }
 }

@@ -41,11 +41,11 @@ class YuvConverter
 
     public YuvConverter(HeicImageFrame picture)
     {
-        fullRangeFlag = picture.hvcConfig.getSPS().vui_parameters.video_full_range_flag;
+        fullRangeFlag = picture.hvcConfig.getSPS().VuiParameters.videoFullRangeFlag;
 
         this.picture = picture;
 
-        defineCoefficients(picture.hvcConfig.getSPS().vui_parameters);
+        defineCoefficients(picture.hvcConfig.getSPS().VuiParameters);
     }
 
 
@@ -61,16 +61,16 @@ class YuvConverter
     public final byte[][][] getRgbaByteArray()
     {
         /*UInt32*/
-        int width = (int) (picture.hvcConfig.getSPS().pic_width_in_luma_samples & 0xFFFFFFFFL);
+        int width = (int) (picture.hvcConfig.getSPS().picWidthInLumaSamples & 0xFFFFFFFFL);
         /*UInt32*/
-        int height = (int) (picture.hvcConfig.getSPS().pic_height_in_luma_samples & 0xFFFFFFFFL);
+        int height = (int) (picture.hvcConfig.getSPS().picHeightInLumaSamples & 0xFFFFFFFFL);
 
         byte[][][] pixels = new byte[width][height][4];
 
         if (picture.rawPixels == null && picture.rawPixelsHighColorRange == null)
             return pixels;
 
-        double Y, Cr, Cb, R, G, B;
+        double Y, cr, cb, R, G, B;
         double[] rgb = new double[3];
 
         int chromaHalfRange = 1 << ((picture.hvcConfig.getSPS().getBitDepthC() & 0xFF) - 1);
@@ -80,8 +80,8 @@ class YuvConverter
         double tvRangeCoeffChroma = 255.0 / 224;
 
         // conversion to 8 bit
-        double BitKoefY = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthY() & 0xFF));
-        double BitKoefC = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthC() & 0xFF));
+        double bitKoefY = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthY() & 0xFF));
+        double bitKoefC = 256.0 / (1 << (picture.hvcConfig.getSPS().getBitDepthC() & 0xFF));
         final boolean isNotChroma = (picture.hvcConfig.getSPS()
                                                       .getChromaArrayType() & 0xFFFFFFFFL) == 0;
         final int configSpsSubWidthC = picture.hvcConfig.getSPS()
@@ -115,30 +115,30 @@ class YuvConverter
                 {
                     if (highColorRange)
                     {
-                        Cb = (picture.rawPixelsHighColorRange[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFFFF) - chromaHalfRange;
-                        Cr = (picture.rawPixelsHighColorRange[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFFFF) - chromaHalfRange;
+                        cb = (picture.rawPixelsHighColorRange[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFFFF) - chromaHalfRange;
+                        cr = (picture.rawPixelsHighColorRange[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFFFF) - chromaHalfRange;
                     }
                     else
                     {
-                        Cb = (picture.rawPixels[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF) - chromaHalfRange;
-                        Cr = (picture.rawPixels[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF) - chromaHalfRange;
+                        cb = (picture.rawPixels[1][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF) - chromaHalfRange;
+                        cr = (picture.rawPixels[2][col / configSpsSubWidthC][row / configSpsSubHeightC] & 0xFF) - chromaHalfRange;
                     }
 
                     if (!fullRangeFlag)
                     {
-                        Cb = tvRangeCoeffChroma * Cb;
-                        Cr = tvRangeCoeffChroma * Cr;
+                        cb = tvRangeCoeffChroma * cb;
+                        cr = tvRangeCoeffChroma * cr;
                     }
 
-                    YCrCb2RGB(Y * BitKoefY, Cb * BitKoefC, Cr * BitKoefC, rgb);
+                    YCrCb2RGB(Y * bitKoefY, cb * bitKoefC, cr * bitKoefC, rgb);
                     R = rgb[0];
                     G = rgb[1];
                     B = rgb[2];
                 }
 
-                pixels[col][row][0] = (byte) MathExtra.clip3(0, 255, MathUtils.f64_s32(R));
-                pixels[col][row][1] = (byte) MathExtra.clip3(0, 255, MathUtils.f64_s32(G));
-                pixels[col][row][2] = (byte) MathExtra.clip3(0, 255, MathUtils.f64_s32(B));
+                pixels[col][row][0] = (byte) MathExtra.clip3(0, 255, MathUtils.f64S32(R));
+                pixels[col][row][1] = (byte) MathExtra.clip3(0, 255, MathUtils.f64S32(G));
+                pixels[col][row][2] = (byte) MathExtra.clip3(0, 255, MathUtils.f64S32(B));
                 pixels[col][row][3] = (byte) 255;
             }
         }
@@ -153,11 +153,11 @@ class YuvConverter
     /// <param name="Cb">Chroma blue value.</param>
     /// <param name="Cr">Chroma red value.</param>
     /// <returns>Red, Green and Blue values.</returns>
-    private void YCrCb2RGB(double Y, double Cb, double Cr, double[] outRef)
+    private void YCrCb2RGB(double Y, double cb, double cr, double[] outRef)
     {
-        outRef[0] = Y + cooffCrToR * Cr;
-        outRef[1] = Y - cooffCrToG * Cr - cooffCbToG * Cb;
-        outRef[2] = Y + cooffCbToB * Cb;
+        outRef[0] = Y + cooffCrToR * cr;
+        outRef[1] = Y - cooffCrToG * cr - cooffCbToG * cb;
+        outRef[2] = Y + cooffCbToB * cb;
     }
 
     /**
@@ -167,7 +167,7 @@ class YuvConverter
      *
      * @param vui_parameters Image usability information data.
      */
-    private void defineCoefficients(vui_parameters vui_parameters)
+    private void defineCoefficients(VuiParameters VuiParameters)
     {
         //vui_parameters.video_full_range_flag;
         //vui_parameters.colour_primaries;
@@ -176,7 +176,7 @@ class YuvConverter
 
         double kr;
         double kb;
-        switch (vui_parameters.matrix_coeffs)
+        switch (VuiParameters.matrixCoeffs)
         {
             case 1:
                 kr = 0.2126;
@@ -203,21 +203,21 @@ class YuvConverter
 
             case 12:
             case 13:
-                ColorPrimaries p = ColorPrimaries.getSpecified(vui_parameters.colour_primaries & 0xFF);
+                ColorPrimaries p = ColorPrimaries.getSpecified(VuiParameters.colourPrimaries & 0xFF);
 
                 double zR = 1 - (p.xR + p.yR);
                 double zG = 1 - (p.xG + p.yG);
                 double zB = 1 - (p.xB + p.yB);
                 double zW = 1 - (p.xW + p.yW);
 
-                final double tmpGmB_BmG = p.yG * zB - p.yB * zG;
-                final double tmpRmG_GmR = p.yR * zG - p.yG * zR;
-                double denom = p.yW * (p.xR * tmpGmB_BmG + p.xG * (p.yB * zR - p.yR * zB) + p.xB * tmpRmG_GmR);
+                final double tmpGmBBmG = p.yG * zB - p.yB * zG;
+                final double tmpRmGGmR = p.yR * zG - p.yG * zR;
+                double denom = p.yW * (p.xR * tmpGmBBmG + p.xG * (p.yB * zR - p.yR * zB) + p.xB * tmpRmGGmR);
 
                 try
                 {
-                    kr = (p.yR * (p.xW * tmpGmB_BmG + p.yW * (p.xB * zG - p.xG * zB) + zW * (p.xG * p.yB - p.xB * p.yG))) / denom;
-                    kb = (p.yB * (p.xW * tmpRmG_GmR + p.yW * (p.xG * zR - p.xR * zG) + zW * (p.xR * p.yG - p.xG * p.yR))) / denom;
+                    kr = (p.yR * (p.xW * tmpGmBBmG + p.yW * (p.xB * zG - p.xG * zB) + zW * (p.xG * p.yB - p.xB * p.yG))) / denom;
+                    kb = (p.yB * (p.xW * tmpRmGGmR + p.yW * (p.xG * zR - p.xR * zG) + zW * (p.xR * p.yG - p.xG * p.yR))) / denom;
                 }
                 catch (java.lang.RuntimeException e)
                 {

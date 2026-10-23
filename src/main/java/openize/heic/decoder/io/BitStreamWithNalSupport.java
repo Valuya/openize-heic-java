@@ -43,19 +43,19 @@ public class BitStreamWithNalSupport extends BitStreamReader
      * Nal Unit reader mode.
      * </p>
      */
-    private boolean _nalMode = false;
+    private boolean nalMode = false;
     /**
      * <p>
      * Previous read byte.
      * </p>
      */
-    private  short _prevReadByte = (short) 0xFF;
+    private  short prevReadByte = (short) 0xFF;
     /**
      * <p>
      * The byte read before previous.
      * </p>
      */
-    private  short _prevPrevReadByte = (short) 0xFF;
+    private  short prevPrevReadByte = (short) 0xFF;
 
     public BitStreamWithNalSupport(IOStream stream)
     {
@@ -160,9 +160,9 @@ public class BitStreamWithNalSupport extends BitStreamReader
      */
     public final void turnOnNalUnitMode()
     {
-        _nalMode = true;
-        _prevReadByte = (short) 0xFF;
-        _prevPrevReadByte = (short) 0xFF;
+        nalMode = true;
+        prevReadByte = (short) 0xFF;
+        prevPrevReadByte = (short) 0xFF;
     }
 
     /**
@@ -172,7 +172,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
      */
     public final void turnOffNulUnitMode()
     {
-        _nalMode = false;
+        nalMode = false;
     }
 
     // shall not occur 
@@ -219,10 +219,10 @@ public class BitStreamWithNalSupport extends BitStreamReader
         {
             if (state.getBitIndex() == 8)
             {
-                if (_nalMode)
+                if (nalMode)
                 {
-                    _prevPrevReadByte = _prevReadByte;
-                    _prevReadByte = (short)(state.getBuffer()[state.getBufferPosition()] & 0xFF);
+                    prevPrevReadByte = prevReadByte;
+                    prevReadByte = (short)(state.getBuffer()[state.getBufferPosition()] & 0xFF);
                 }
 
                 state.setBitIndex(0);
@@ -234,14 +234,14 @@ public class BitStreamWithNalSupport extends BitStreamReader
                 }
             }
 
-            if (_nalMode)
+            if (nalMode)
             {
-                if ((_prevPrevReadByte & 0xFF) == 0x00 &&
-                        (_prevReadByte & 0xFF) == 0x00 &&
+                if ((prevPrevReadByte & 0xFF) == 0x00 &&
+                        (prevReadByte & 0xFF) == 0x00 &&
                         (state.getBuffer()[state.getBufferPosition()] & 0xFF) == 0x03)
                 {
-                    _prevPrevReadByte = _prevReadByte;
-                    _prevReadByte = (short)(state.getBuffer()[state.getBufferPosition()] & 0xFF);
+                    prevPrevReadByte = prevReadByte;
+                    prevReadByte = (short)(state.getBuffer()[state.getBufferPosition()] & 0xFF);
                     state.setBufferPosition(state.getBufferPosition() + 1)/*Property++*/;
                     if (state.getBufferPosition() == state.getBufferActiveLength())
                     {
@@ -315,7 +315,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
             return;
         }
 
-        if (_nalMode)
+        if (nalMode)
         {
             while (remainingBits >= 32)
             {
@@ -372,7 +372,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
 
     public final int readAev()
     {
-        return readAev(CabacType.sao_merge_flag);
+        return readAev(CabacType.saoMergeFlag);
     }
 
     /**
@@ -387,7 +387,7 @@ public class BitStreamWithNalSupport extends BitStreamReader
 
     public final boolean readAevFlag()
     {
-        return readAevFlag(CabacType.sao_merge_flag);
+        return readAevFlag(CabacType.saoMergeFlag);
     }
 
     /**

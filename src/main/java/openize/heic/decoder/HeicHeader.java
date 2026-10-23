@@ -46,7 +46,7 @@ public class HeicHeader
      * @return The identifier of the default frame.
      */
     public final /*UInt32*/long getDefaultFrameId() {
-        return (meta.getpitm() != null ? meta.getpitm().item_ID : 0);
+        return (meta.getpitm() != null ? meta.getpitm().itemID : 0);
     }
 
     /**
@@ -80,9 +80,9 @@ public class HeicHeader
      */
     final ItemInfoEntry getInfoBoxById(/*UInt32*/long id)
     {
-        for (ItemInfoEntry info : meta.getiinf().item_infos)
+        for (ItemInfoEntry info : meta.getiinf().itemInfos)
         {
-            if (info.item_ID == id)
+            if (info.itemID == id)
                 return info;
         }
         throw new IllegalStateException();
@@ -99,7 +99,7 @@ public class HeicHeader
     {
         for (IlocItem item : meta.getiloc().items)
         {
-            if (item.item_ID == id)
+            if (item.itemID == id)
             {
                 return item;
             }
@@ -140,13 +140,13 @@ public class HeicHeader
             return new /*UInt32*/long[0];
         }
         final Optional<SingleItemTypeReferenceBox> firstItem =
-                getiref.references.stream().filter((i) -> i.from_item_ID == id).findFirst();
+                getiref.references.stream().filter((i) -> i.fromItemID == id).findFirst();
         if (!firstItem.isPresent())
         {
             return new /*UInt32*/long[0];
         }
 
-        return firstItem.get().to_item_ID;
+        return firstItem.get().toItemID;
     }
 
     /**
@@ -163,7 +163,7 @@ public class HeicHeader
         {
             return null;
         }
-        final Optional<SingleItemTypeReferenceBox> firstItem = getiref.references.stream().filter((i) -> i.from_item_ID == id).findFirst();
+        final Optional<SingleItemTypeReferenceBox> firstItem = getiref.references.stream().filter((i) -> i.fromItemID == id).findFirst();
         return firstItem.map(singleItemTypeReferenceBox -> singleItemTypeReferenceBox.type).orElse(null);
     }
 

@@ -16,13 +16,13 @@ final class Scans
     public static byte[][][][] getScanOrder(){ return scanOrder; }
     private static byte[][][][] scanOrder;
 
-    private static boolean _initialised = false;
+    private static boolean initialised = false;
 
     static synchronized void initialize()
     {
-        if (_initialised) return;
+        if (initialised) return;
 
-        _initialised = true;
+        initialised = true;
         scanOrderInitialize();
     }
 

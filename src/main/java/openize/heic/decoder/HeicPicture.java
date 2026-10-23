@@ -14,63 +14,63 @@ import java.util.HashMap;
 
 public class HeicPicture
 {
-    public final HashMap<Integer, slice_segment_header> getSliceHeaders(){ return sliceHeaders; }
-    private final HashMap<Integer,slice_segment_header> sliceHeaders;
-    public final HashMap<Integer, slice_segment_data> getSliceUnits(){ return sliceUnits; }
-    private final HashMap<Integer,slice_segment_data> sliceUnits;
+    public final HashMap<Integer, SliceSegmentHeader> getSliceHeaders(){ return sliceHeaders; }
+    private final HashMap<Integer,SliceSegmentHeader> sliceHeaders;
+    public final HashMap<Integer, SliceSegmentData> getSliceUnits(){ return sliceUnits; }
+    private final HashMap<Integer,SliceSegmentData> sliceUnits;
 
-    public final video_parameter_set_rbsp vps;
-    public final seq_parameter_set_rbsp sps;
-    public final pic_parameter_set_rbsp pps;
-    public final NalHeader NalHeader = new NalHeader();
+    public final VideoParameterSetRbsp vps;
+    public final SeqParameterSetRbsp sps;
+    public final PicParameterSetRbsp pps;
+    public final NalHeader nalHeader = new NalHeader();
 
-    public int PicOrderCntVal;
-    public int picture_order_cnt_lsb;
+    public int picOrderCntVal;
+    public int pictureOrderCntLsb;
 
-    public int[][][] SaoTypeIdx;
-    public int[][][][] SaoOffsetVal;
-    public int[][][] SaoEoClass;
+    public int[][][] saoTypeIdx;
+    public int[][][][] saoOffsetVal;
+    public int[][][] saoEoClass;
 
-    public int[][][] ResScaleVal;
+    public int[][][] resScaleVal;
 
-    public int[][][][] sao_offset_abs;
-    public int[][][][] sao_offset_sign;
-    public int[][][] sao_band_position;
+    public int[][][][] saoOffsetAbs;
+    public int[][][][] saoOffsetSign;
+    public int[][][] saoBandPosition;
 
-    public /*UInt32*/int[][] SliceAddrRs;
-    public int[][] SliceHeaderIndex;
-    public IntraPredMode[][] IntraPredModeY;
-    public IntraPredMode[][] IntraPredModeC;
+    public /*UInt32*/int[][] sliceAddrRs;
+    public int[][] sliceHeaderIndex;
+    public IntraPredMode[][] intraPredModeY;
+    public IntraPredMode[][] intraPredModeC;
 
-    public int[][][] TransCoeffLevel;
+    public int[][][] transCoeffLevel;
 
-    public int[][] CtDepth;
-    public PredMode[][] CuPredMode;
-    public int[][] QpY;
-    public int[][] Log2CbSize;
-    public boolean[][] merge_flag;
+    public int[][] ctDepthByPosition;
+    public PredMode[][] cuPredModeByPosition;
+    public int[][] qpYByPosition;
+    public int[][] log2CbSizeByPosition;
+    public boolean[][] mergeFlag;
 
-    public boolean[][] cu_skip_flag;
-    public boolean[][] palette_mode_flag;
-    public boolean[][] pcm_flag;
-    public boolean[][] prev_intra_luma_pred_flag;
-    public int[][] mpm_idx;
-    public IntraPredMode[][] rem_intra_luma_pred_mode;
-    public byte[][] intra_chroma_pred_mode;
+    public boolean[][] cuSkipFlag;
+    public boolean[][] paletteModeFlag;
+    public boolean[][] pcmFlag;
+    public boolean[][] prevIntraLumaPredFlag;
+    public int[][] mpmIdx;
+    public IntraPredMode[][] remIntraLumaPredMode;
+    public byte[][] intraChromaPredMode;
 
-    public boolean[][] tu_residual_act_flag;
+    public boolean[][] tuResidualActFlag;
 
     //public bool[,][] split_transform_flag;
-    public boolean[][][] cbf_cb;
-    public boolean[][][] cbf_cr;
-    public boolean[][][] cbf_luma;
+    public boolean[][][] cbfCb;
+    public boolean[][][] cbfCr;
+    public boolean[][][] cbfLuma;
 
     //public bool[,][] transform_skip_flag;
-    public boolean[][][] explicit_rdpcm_flag;
-    public boolean[][][] explicit_rdpcm_dir_flag;
+    public boolean[][][] explicitRdpcmFlag;
+    public boolean[][][] explicitRdpcmDirFlag;
 
-    public int[] pcm_sample_luma;
-    public int[] pcm_sample_chroma;
+    public int[] pcmSampleLuma;
+    public int[] pcmSampleChroma;
 
     // per 4x4 luma block: LoopFilter.VERTICAL_EDGE, HORIZONTAL_EDGE and NO_FILTER bits
     public byte[][] blockFlags;
@@ -79,20 +79,20 @@ public class HeicPicture
     final int[][][][] scalingFactor;
 
     public /*Byte*/byte[][][] pixels;
-    public /*UInt16*/int[][][] pixels_high_color_range;
+    public /*UInt16*/int[][][] pixelsHighColorRange;
 
-    public HeicPicture(slice_segment_header slice_header, NalHeader nal_header)
+    public HeicPicture(SliceSegmentHeader sliceHeader, NalHeader nalHeader)
     {
         sliceHeaders = new HashMap<>();
         sliceUnits = new HashMap<>();
 
-        pps = slice_header.pps;
+        pps = sliceHeader.pps;
         sps = pps.sps;
         vps = sps.vps;
-        nal_header.cloneTo(NalHeader);
+        nalHeader.cloneTo(this.nalHeader);
 
-        scaling_list_data scalingList = pps.pps_scaling_list_data_present_flag ? pps.pps_scaling_list_data :
-            sps.sps_scaling_list_data_present_flag ? sps.scaling_list_data : scaling_list_data.DEFAULT;
+        ScalingListData scalingList = pps.ppsScalingListDataPresentFlag ? pps.ppsScalingListData :
+            sps.spsScalingListDataPresentFlag ? sps.ScalingListData : ScalingListData.DEFAULT;
         scalingFactor = scalingList.getScalingFactor(sps.getChromaArrayType());
 
         /*UInt32*/long widthMax;
@@ -101,106 +101,106 @@ public class HeicPicture
         widthMax = ((sps.getPicWidthInCtbsY() & 0xFFFFFFFFL) << ( (sps.getCtbLog2SizeY() & 0xFF) & 0x1F)) & 0xFFFFFFFFL;
         heightMax = ((sps.getPicHeightInCtbsY() & 0xFFFFFFFFL) << ( (sps.getCtbLog2SizeY() & 0xFF) & 0x1F)) & 0xFFFFFFFFL;
 
-        int chroma_count = (sps.getChromaArrayType() & 0xFFFFFFFFL) != 0 ? 3 : 1;
+        int chromaCount = (sps.getChromaArrayType() & 0xFFFFFFFFL) != 0 ? 3 : 1;
 
-        SaoTypeIdx = new int[chroma_count][][];
-        SaoEoClass = new int[chroma_count][][];
-        ResScaleVal = new int[chroma_count][][];
-        SaoOffsetVal = new int[chroma_count][][][];
-        sao_offset_abs = new int[chroma_count][][][];
-        sao_offset_sign = new int[chroma_count][][][];
-        sao_band_position = new int[chroma_count][][];
-        TransCoeffLevel = new int[chroma_count][][];
+        saoTypeIdx = new int[chromaCount][][];
+        saoEoClass = new int[chromaCount][][];
+        resScaleVal = new int[chromaCount][][];
+        saoOffsetVal = new int[chromaCount][][][];
+        saoOffsetAbs = new int[chromaCount][][][];
+        saoOffsetSign = new int[chromaCount][][][];
+        saoBandPosition = new int[chromaCount][][];
+        transCoeffLevel = new int[chromaCount][][];
 
         if ((sps.getBitDepthY() & 0xFF) > 8 || (sps.getBitDepthC() & 0xFF) > 8)
-            pixels_high_color_range = new /*UInt16*/int[chroma_count][][];
+            pixelsHighColorRange = new /*UInt16*/int[chromaCount][][];
         else
-            pixels = new /*Byte*/byte[chroma_count][][];
+            pixels = new /*Byte*/byte[chromaCount][][];
 
-        for (int i = 0; i < chroma_count; i++)
+        for (int i = 0; i < chromaCount; i++)
         {
-            SaoTypeIdx[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
-            SaoEoClass[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
-            ResScaleVal[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
-            SaoOffsetVal[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())][];
-            sao_offset_abs[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())][];
-            sao_offset_sign[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())][];
-            sao_band_position[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
+            saoTypeIdx[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
+            saoEoClass[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
+            resScaleVal[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
+            saoOffsetVal[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())][];
+            saoOffsetAbs[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())][];
+            saoOffsetSign[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())][];
+            saoBandPosition[i] = new int[(int)(sps.getPicWidthInCtbsY())][(int)(sps.getPicHeightInCtbsY())];
 
-            TransCoeffLevel[i] = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+            transCoeffLevel[i] = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
 
             if ((sps.getBitDepthY() & 0xFF) > 8 || (sps.getBitDepthC() & 0xFF) > 8)
-                pixels_high_color_range[i] = new /*UInt16*/int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+                pixelsHighColorRange[i] = new /*UInt16*/int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
             else
                 pixels[i] = new /*Byte*/byte[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
         }
 
         blockFlags = new byte[(int)(widthMax >> 2)][(int)(heightMax >> 2)];
-        CtDepth = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        CuPredMode = PredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
-        QpY = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        Log2CbSize = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        IntraPredModeY = IntraPredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
-        IntraPredModeC = IntraPredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
+        ctDepthByPosition = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        cuPredModeByPosition = PredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
+        qpYByPosition = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        log2CbSizeByPosition = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        intraPredModeY = IntraPredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
+        intraPredModeC = IntraPredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
 
 
-        merge_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        cu_skip_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        palette_mode_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        pcm_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        prev_intra_luma_pred_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        mergeFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        cuSkipFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        paletteModeFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        pcmFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        prevIntraLumaPredFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
 
-        mpm_idx = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
-        rem_intra_luma_pred_mode = IntraPredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
-        intra_chroma_pred_mode = new byte[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        mpmIdx = new int[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        remIntraLumaPredMode = IntraPredMode.createArray2D((int)(widthMax & 0xFFFFFFFFL), (int)(heightMax & 0xFFFFFFFFL));
+        intraChromaPredMode = new byte[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
 
-        tu_residual_act_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
+        tuResidualActFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)];
 
         //split_transform_flag = new bool[xMax, yMax][];
-        cbf_cb = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
-        cbf_cr = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
-        cbf_luma = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
+        cbfCb = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
+        cbfCr = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
+        cbfLuma = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
 
         //transform_skip_flag = new bool[xMax, yMax][];
-        explicit_rdpcm_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
-        explicit_rdpcm_dir_flag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
+        explicitRdpcmFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
+        explicitRdpcmDirFlag = new boolean[(int)(widthMax & 0xFFFFFFFFL)][(int)(heightMax & 0xFFFFFFFFL)][];
     }
 
     public final void cleanMemory()
     {
-        SaoTypeIdx = null;
-        SaoOffsetVal = null;
-        SaoEoClass = null;
-        ResScaleVal = null;
-        sao_offset_abs = null;
-        sao_offset_sign = null;
-        sao_band_position = null;
-        SliceAddrRs = null;
-        SliceHeaderIndex = null;
+        saoTypeIdx = null;
+        saoOffsetVal = null;
+        saoEoClass = null;
+        resScaleVal = null;
+        saoOffsetAbs = null;
+        saoOffsetSign = null;
+        saoBandPosition = null;
+        sliceAddrRs = null;
+        sliceHeaderIndex = null;
         blockFlags = null;
-        IntraPredModeY = null;
-        IntraPredModeC = null;
-        TransCoeffLevel = null;
-        CtDepth = null;
-        CuPredMode = null;
-        QpY = null;
-        Log2CbSize = null;
-        merge_flag = null;
-        cu_skip_flag = null;
-        palette_mode_flag = null;
-        pcm_flag = null;
-        prev_intra_luma_pred_flag = null;
-        mpm_idx = null;
-        rem_intra_luma_pred_mode = null;
-        intra_chroma_pred_mode = null;
-        tu_residual_act_flag = null;
-        cbf_cb = null;
-        cbf_cr = null;
-        cbf_luma = null;
-        explicit_rdpcm_flag = null;
-        explicit_rdpcm_dir_flag = null;
-        pcm_sample_luma = null;
-        pcm_sample_chroma = null;
+        intraPredModeY = null;
+        intraPredModeC = null;
+        transCoeffLevel = null;
+        ctDepthByPosition = null;
+        cuPredModeByPosition = null;
+        qpYByPosition = null;
+        log2CbSizeByPosition = null;
+        mergeFlag = null;
+        cuSkipFlag = null;
+        paletteModeFlag = null;
+        pcmFlag = null;
+        prevIntraLumaPredFlag = null;
+        mpmIdx = null;
+        remIntraLumaPredMode = null;
+        intraChromaPredMode = null;
+        tuResidualActFlag = null;
+        cbfCb = null;
+        cbfCr = null;
+        cbfLuma = null;
+        explicitRdpcmFlag = null;
+        explicitRdpcmDirFlag = null;
+        pcmSampleLuma = null;
+        pcmSampleChroma = null;
     }
 
     // 6.4.1 Derivation process for z-scan order block availability
@@ -215,14 +215,14 @@ public class HeicPicture
         if (xNbY < 0 || yNbY < 0)
             return false;
 
-        if (xNbY >= (sps.pic_width_in_luma_samples & 0xFFFFFFFFL) || yNbY >= (sps.pic_height_in_luma_samples & 0xFFFFFFFFL))
+        if (xNbY >= (sps.picWidthInLumaSamples & 0xFFFFFFFFL) || yNbY >= (sps.picHeightInLumaSamples & 0xFFFFFFFFL))
             return false;
 
         // The minimum luma block address in z-scan order minBlockAddrCurr of the current block
-        /*UInt32*/long minBlockAddrCurr = pps.MinTbAddrZs[xCurr >> (sps.getMinTbLog2SizeY() & 0xFF)][yCurr >> (sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
+        /*UInt32*/long minBlockAddrCurr = pps.minTbAddrZs[xCurr >> (sps.getMinTbLog2SizeY() & 0xFF)][yCurr >> (sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
 
         // The minimum luma block address in z-scan order minBlockAddrN of the neighbouring block covering the location (xNbY, yNbY)
-        /*UInt32*/long minBlockAddrN = pps.MinTbAddrZs[xNbY >> (sps.getMinTbLog2SizeY() & 0xFF)][yNbY >> (sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
+        /*UInt32*/long minBlockAddrN = pps.minTbAddrZs[xNbY >> (sps.getMinTbLog2SizeY() & 0xFF)][yNbY >> (sps.getMinTbLog2SizeY() & 0xFF)] & 0xFFFFFFFFL;
 
         if ((minBlockAddrN & 0xFFFFFFFFL) > (minBlockAddrCurr & 0xFFFFFFFFL))
             return false;
@@ -238,11 +238,11 @@ public class HeicPicture
         int ctbNbAddrRs = yNbCtb * (int)sps.getPicWidthInCtbsY() + xNbCtb;
 
         // the current block and the neighbouring block are in the same slice
-        if ((SliceAddrRs[xCurrCtb][yCurrCtb] & 0xFFFFFFFFL) != (SliceAddrRs[xNbCtb][yNbCtb] & 0xFFFFFFFFL))
+        if ((sliceAddrRs[xCurrCtb][yCurrCtb] & 0xFFFFFFFFL) != (sliceAddrRs[xNbCtb][yNbCtb] & 0xFFFFFFFFL))
             return false;
 
         // the neighbouring block is contained in a different tile than the current block
-        return (pps.TileIdFromRs[ctbCurrAddrRs] & 0xFFFFFFFFL) == (pps.TileIdFromRs[ctbNbAddrRs] & 0xFFFFFFFFL);
+        return (pps.tileIdFromRs[ctbCurrAddrRs] & 0xFFFFFFFFL) == (pps.tileIdFromRs[ctbNbAddrRs] & 0xFFFFFFFFL);
     }
 
     // 6.4.2 Derivation process for prediction block availability
@@ -284,7 +284,7 @@ public class HeicPicture
                     xCb + nPbW <= xNbY;
         }
 
-        if (availableN && CuPredMode[xNbY][yNbY] == PredMode.MODE_INTRA)
+        if (availableN && cuPredModeByPosition[xNbY][yNbY] == PredMode.MODE_INTRA)
             availableN = false;
 
         return availableN;
@@ -295,7 +295,7 @@ public class HeicPicture
         int nCbS = 1 << log2CbSize;
         for (int i = x0; i < x0 + nCbS; i++)
             for (int j = y0; j < y0 + nCbS; j++)
-                CtDepth[i][j] = cqtDepth;
+                ctDepthByPosition[i][j] = cqtDepth;
     }
     final void setCuPredMode(int x0, int y0, int nCbS, PredMode mode)
     {
@@ -303,10 +303,10 @@ public class HeicPicture
         {
             for (int j = y0; j < y0 + nCbS; j++)
             {
-                CuPredMode[i][j] = mode;
+                cuPredModeByPosition[i][j] = mode;
 
                 if(mode == PredMode.MODE_SKIP)
-                    merge_flag[i][j] = true;
+                    mergeFlag[i][j] = true;
             }
         }
     }
@@ -314,14 +314,14 @@ public class HeicPicture
     {
         for (int i = x0; i < x0 + nCbS; i++)
             for (int j = y0; j < y0 + nCbS; j++)
-                pcm_flag[i][j] = value;
+                pcmFlag[i][j] = value;
     }
     final void setQpY(int x0, int y0, int log2CbSize, int qpY)
     {
         int nCbS = 1 << log2CbSize;
         for (int i = x0; i < x0 + nCbS; i++)
             for (int j = y0; j < y0 + nCbS; j++)
-                QpY[i][j] = qpY;
+                qpYByPosition[i][j] = qpY;
     }
     // Marks the left and top edges of a transform (or coding) block for the deblocking filter
     final void markTransformBlock(int x0, int y0, int size)
@@ -353,7 +353,7 @@ public class HeicPicture
         int nCbS = 1 << log2CbSize;
         for (int i = x0; i < x0 + nCbS; i++)
             for (int j = y0; j < y0 + nCbS; j++)
-                Log2CbSize[i][j] = log2CbSize;
+                log2CbSizeByPosition[i][j] = log2CbSize;
     }
 
     // 8.4.2 Derivation process for luma intra prediction mode
@@ -365,20 +365,20 @@ public class HeicPicture
         {
             candIntraPredModeA = IntraPredMode.INTRA_DC;
         }
-        else if (CuPredMode[xPb - 1][yPb] != PredMode.MODE_INTRA || pcm_flag[xPb - 1][yPb])
+        else if (cuPredModeByPosition[xPb - 1][yPb] != PredMode.MODE_INTRA || pcmFlag[xPb - 1][yPb])
         {
             candIntraPredModeA = IntraPredMode.INTRA_DC;
         }
         else
         {
-            candIntraPredModeA = IntraPredModeY[xPb - 1][yPb];
+            candIntraPredModeA = intraPredModeY[xPb - 1][yPb];
         }
 
         if (!availableB)
         {
             candIntraPredModeB = IntraPredMode.INTRA_DC;
         }
-        else if (CuPredMode[xPb][yPb - 1] != PredMode.MODE_INTRA || pcm_flag[xPb][yPb - 1])
+        else if (cuPredModeByPosition[xPb][yPb - 1] != PredMode.MODE_INTRA || pcmFlag[xPb][yPb - 1])
         {
             candIntraPredModeB = IntraPredMode.INTRA_DC;
         }
@@ -388,7 +388,7 @@ public class HeicPicture
         }
         else
         {
-            candIntraPredModeB = IntraPredModeY[xPb][yPb - 1];
+            candIntraPredModeB = intraPredModeY[xPb][yPb - 1];
         }
 
         IntraPredMode[] candModeList = IntraPredMode.createArray(3);
@@ -434,9 +434,9 @@ public class HeicPicture
     {
         IntraPredMode mode;
 
-        if (prev_intra_luma_pred_flag[xPb][yPb])
+        if (prevIntraLumaPredFlag[xPb][yPb])
         {
-            mode = candModeList[mpm_idx[xPb][yPb]];
+            mode = candModeList[mpmIdx[xPb][yPb]];
         }
         else
         {
@@ -461,7 +461,7 @@ public class HeicPicture
                 candModeList[2] = tmp;
             }
 
-            mode = rem_intra_luma_pred_mode[xPb][yPb];
+            mode = remIntraLumaPredMode[xPb][yPb];
 
             int intMode = mode.ordinal();
             for (int i = 0; i < 3; i++)
@@ -476,7 +476,7 @@ public class HeicPicture
         {
             for (int j = yPb; j < yPb + pbSize; j++)
             {
-                IntraPredModeY[i][j] = mode;
+                intraPredModeY[i][j] = mode;
             }
         }
 
@@ -486,7 +486,7 @@ public class HeicPicture
     {
         for (int i = xPb; i < xPb + pbSize; i++)
             for (int j = yPb; j < yPb + pbSize; j++)
-                IntraPredModeC[i][j] = mode;
+                intraPredModeC[i][j] = mode;
     }
 
     final IntraPredMode deriveIntraPredModeIndex(IntraPredMode intraLumaPredMode, byte intraChromaPredMode)

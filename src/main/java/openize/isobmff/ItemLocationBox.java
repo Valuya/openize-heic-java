@@ -26,35 +26,35 @@ public class ItemLocationBox extends FullBox
      * Indicates the length in bytes of the offset field.
      * </p>
      */
-    public final byte offset_size;
+    public final byte offsetSize;
 
     /**
      * <p>
      * Indicates the length in bytes of the length field.
      * </p>
      */
-    public final byte length_size;
+    public final byte lengthSize;
 
     /**
      * <p>
      * Indicates the length in bytes of the base_offset field.
      * </p>
      */
-    public final byte base_offset_size;
+    public final byte baseOffsetSize;
 
     /**
      * <p>
      * Indicates the length in bytes of the extent.index field.
      * </p>
      */
-    public byte index_size;
+    public byte indexSize;
 
     /**
      * <p>
      * Counts the number of items in the location item array.
      * </p>
      */
-    public /*UInt32*/ long item_count;
+    public /*UInt32*/ long itemCount;
 
     /**
      * <p>
@@ -76,13 +76,13 @@ public class ItemLocationBox extends FullBox
     {
         super(stream, BoxType.iloc, size);
 
-        offset_size = (byte) stream.read(4);
-        length_size = (byte) stream.read(4);
-        base_offset_size = (byte) stream.read(4);
+        offsetSize = (byte) stream.read(4);
+        lengthSize = (byte) stream.read(4);
+        baseOffsetSize = (byte) stream.read(4);
 
         if (((version & 0xFF) == 1) || ((version & 0xFF) == 2))
         {
-            index_size = (byte) stream.read(4);
+            indexSize = (byte) stream.read(4);
         }
         else
         {
@@ -91,49 +91,49 @@ public class ItemLocationBox extends FullBox
 
         if ((version & 0xFF) < 2)
         {
-            item_count = stream.read(16) & 0xFFFFFFFFL;
+            itemCount = stream.read(16) & 0xFFFFFFFFL;
         }
         else if ((version & 0xFF) == 2)
         {
-            item_count = stream.read(32) & 0xFFFFFFFFL;
+            itemCount = stream.read(32) & 0xFFFFFFFFL;
         }
 
-        items = new IlocItem[(int) (item_count & 0xFFFFFFFFL)];
+        items = new IlocItem[(int) (itemCount & 0xFFFFFFFFL)];
 
-        for (int i = 0; i < (item_count & 0xFFFFFFFFL); i++)
+        for (int i = 0; i < (itemCount & 0xFFFFFFFFL); i++)
         {
             items[i] = new IlocItem();
             if ((version & 0xFF) < 2)
             {
-                items[i].item_ID = stream.read(16) & 0xFFFFFFFFL;
+                items[i].itemID = stream.read(16) & 0xFFFFFFFFL;
             }
             else if ((version & 0xFF) == 2)
             {
-                items[i].item_ID = stream.read(32) & 0xFFFFFFFFL;
+                items[i].itemID = stream.read(32) & 0xFFFFFFFFL;
             }
 
             if (((version & 0xFF) == 1) || ((version & 0xFF) == 2))
             {
                 stream.skipBits(12); //0x000
-                items[i].construction_method = (byte) stream.read(4);
+                items[i].constructionMethod = (byte) stream.read(4);
             }
 
-            items[i].data_reference_index = stream.read(16) & 0xFFFFFFFFL;
-            items[i].base_offset = stream.read((base_offset_size & 0xFF) * 8) & 0xFFFFFFFFL;
-            items[i].extent_count = stream.read(16) & 0xFFFFFFFFL;
-            items[i].extents = new IlocItemExtent[(int) (items[i].extent_count)];
+            items[i].dataReferenceIndex = stream.read(16) & 0xFFFFFFFFL;
+            items[i].baseOffset = stream.read((baseOffsetSize & 0xFF) * 8) & 0xFFFFFFFFL;
+            items[i].extentCount = stream.read(16) & 0xFFFFFFFFL;
+            items[i].extents = new IlocItemExtent[(int) (items[i].extentCount)];
 
-            for (int j = 0; j < (items[i].extent_count & 0xFFFFFFFFL); j++)
+            for (int j = 0; j < (items[i].extentCount & 0xFFFFFFFFL); j++)
             {
                 items[i].extents[j] = new IlocItemExtent();
 
-                if ((((version & 0xFF) == 1) || ((version & 0xFF) == 2)) && ((index_size & 0xFF) > 0))
+                if ((((version & 0xFF) == 1) || ((version & 0xFF) == 2)) && ((indexSize & 0xFF) > 0))
                 {
-                    items[i].extents[j].index = stream.read((index_size & 0xFF) * 8) & 0xFFFFFFFFL;
+                    items[i].extents[j].index = stream.read((indexSize & 0xFF) * 8) & 0xFFFFFFFFL;
                 }
 
-                items[i].extents[j].offset = stream.read((offset_size & 0xFF) * 8) & 0xFFFFFFFFL;
-                items[i].extents[j].length = stream.read((length_size & 0xFF) * 8) & 0xFFFFFFFFL;
+                items[i].extents[j].offset = stream.read((offsetSize & 0xFF) * 8) & 0xFFFFFFFFL;
+                items[i].extents[j].length = stream.read((lengthSize & 0xFF) * 8) & 0xFFFFFFFFL;
             }
         }
 
@@ -148,7 +148,7 @@ public class ItemLocationBox extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s count: %d", this.type, item_count);
+        return String.format("%s count: %d", this.type, itemCount);
     }
 
     /**

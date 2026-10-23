@@ -146,8 +146,8 @@ public class HeicImageFrame
         locationBox = parent.getHeader().getLocationBoxById(id);
 
         this.auxiliaryReferenceType = AuxiliaryReferenceType.Undefined;
-        imageType = ImageFrameType.codeToType(informationBox.item_type & 0xFFFFFFFFL);
-        isHidden = informationBox.item_hidden;
+        imageType = ImageFrameType.codeToType(informationBox.itemType & 0xFFFFFFFFL);
+        isHidden = informationBox.itemHidden;
 
         this.id = id;
         this.stream = stream;
@@ -322,7 +322,7 @@ public class HeicImageFrame
      * Exchangeable image frame metadata.
      * </p>
      */
-    public ExifData Exif = null;
+    public ExifData exif = null;
 
     /**
      * <p>
@@ -510,7 +510,7 @@ public class HeicImageFrame
         IlocItem location = null;
         for (IlocItem item : parent.getHeader().getMeta().getiloc().items)
         {
-            if (item.item_ID == id)
+            if (item.itemID == id)
             {
                 location = item;
                 break;
@@ -522,7 +522,7 @@ public class HeicImageFrame
             return "";
         }
 
-        stream.setBytePosition(location.base_offset + location.extents[0].offset);
+        stream.setBytePosition(location.baseOffset + location.extents[0].offset);
         return stream.readString();
     }
 
@@ -565,8 +565,8 @@ public class HeicImageFrame
                     break;
                 case ispe:
                     ImageSpatialExtentsProperty ispe = (ImageSpatialExtentsProperty) item;
-                    ispeWidth = ispe.image_width;
-                    ispeHeight = ispe.image_height;
+                    ispeWidth = ispe.imageWidth;
+                    ispeHeight = ispe.imageHeight;
                     break;
                 case pasp:
                     pasp = (PixelAspectRatioBox) item;
@@ -576,8 +576,8 @@ public class HeicImageFrame
                     break;
                 case pixi:
                     PixelInformationProperty pixi = (PixelInformationProperty) item;
-                    this.numberOfChannels = pixi.num_channels;
-                    this.bitsPerChannel = pixi.bits_per_channel;
+                    this.numberOfChannels = pixi.numChannels;
+                    this.bitsPerChannel = pixi.bitsPerChannel;
                     break;
 //                case rloc:
 //                    RelativeLocationProperty rloc = (RelativeLocationProperty) item;
@@ -587,7 +587,7 @@ public class HeicImageFrame
 
                     this.auxiliaryReferenceType = AuxiliaryReferenceType.Undefined;
 
-                    switch (gStringSwitchMap.indexOf(auxC.aux_type))
+                    switch (gStringSwitchMap.indexOf(auxC.auxType))
                     {
                         case /*"urn:mpeg:hevc:2015:auxid:1\u0000"*/0:
                             this.auxiliaryReferenceType = AuxiliaryReferenceType.Alpha;
@@ -596,9 +596,9 @@ public class HeicImageFrame
                             this.auxiliaryReferenceType = AuxiliaryReferenceType.DepthMap;
                             break;
                         default:
-                            if (auxC.aux_type.contains("apple") && auxC.aux_type.contains(":aux:"))
+                            if (auxC.auxType.contains("apple") && auxC.auxType.contains(":aux:"))
                             {
-                                switch (gStringSwitchMap.indexOf(auxC.aux_type.substring(auxC.aux_type.indexOf(":aux:") + 5)))
+                                switch (gStringSwitchMap.indexOf(auxC.auxType.substring(auxC.auxType.indexOf(":aux:") + 5)))
                                 {
                                     case /*"portraiteffectsmatte\u0000"*/2:
                                         this.auxiliaryReferenceType = AuxiliaryReferenceType.PortraitEffectsMatte;
@@ -673,9 +673,9 @@ public class HeicImageFrame
         byte[][][] rgba;
 
         
-        byte[] databox = (locationBox.construction_method & 0xFF) == 1 ?
+        byte[] databox = (locationBox.constructionMethod & 0xFF) == 1 ?
                 parent.getHeader().getItemDataBoxContent(
-                        ((locationBox.base_offset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL,
+                        ((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL,
                         locationBox.extents[0].length) :
                 new byte[0];
 
@@ -879,9 +879,9 @@ public class HeicImageFrame
     private void loadHvcRawPixels()
     {
         stream.setCurrentImageId(id);
-        stream.setBytePosition(((locationBox.base_offset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+        stream.setBytePosition(((locationBox.baseOffset & 0xFFFFFFFFL) + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
 
-        /*UInt32*/long end = ((((locationBox.base_offset & 0xFFFFFFFFL)
+        /*UInt32*/long end = ((((locationBox.baseOffset & 0xFFFFFFFFL)
             + (locationBox.extents[0].offset & 0xFFFFFFFFL)) & 0xFFFFFFFFL)
             + (locationBox.extents[0].length & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
 
@@ -894,7 +894,7 @@ public class HeicImageFrame
         {
             stream.getContext().getPictures().get(id).applyLoopFilters();
             rawPixels = stream.getContext().getPictures().get(id).pixels;
-            rawPixelsHighColorRange = stream.getContext().getPictures().get(id).pixels_high_color_range;
+            rawPixelsHighColorRange = stream.getContext().getPictures().get(id).pixelsHighColorRange;
         }
         else
         {
@@ -983,13 +983,13 @@ public class HeicImageFrame
         long outputHeight = getByteFromIdatField(databox, index + iovlFieldLength, iovlFieldLength) & 0xFFFFFFFFL;
         index += 2 * iovlFieldLength;
 
-        int[] horizontal_offset = new int[derived.length];
-        int[] vertical_offset = new int[derived.length];
+        int[] horizontalOffset = new int[derived.length];
+        int[] verticalOffset = new int[derived.length];
 
         for (int i = 0; i < derived.length; i++)
         {
-            horizontal_offset[i] = getByteFromIdatField(databox, index, iovlFieldLength);
-            vertical_offset[i] = getByteFromIdatField(databox, index + iovlFieldLength, iovlFieldLength);
+            horizontalOffset[i] = getByteFromIdatField(databox, index, iovlFieldLength);
+            verticalOffset[i] = getByteFromIdatField(databox, index + iovlFieldLength, iovlFieldLength);
             index += 2 * iovlFieldLength;
         }
 
@@ -1020,12 +1020,12 @@ public class HeicImageFrame
             {
                 for (int l = 0; l < frameWidth; l++)
                 {
-                    if (horizontal_offset[i] + l < outputWidth && vertical_offset[i] + k < outputHeight)
+                    if (horizontalOffset[i] + l < outputWidth && verticalOffset[i] + k < outputHeight)
                     {
-                        output[horizontal_offset[i] + l][vertical_offset[i] + k][0] = framePixels[l][k][0];
-                        output[horizontal_offset[i] + l][vertical_offset[i] + k][1] = framePixels[l][k][1];
-                        output[horizontal_offset[i] + l][vertical_offset[i] + k][2] = framePixels[l][k][2];
-                        output[horizontal_offset[i] + l][vertical_offset[i] + k][3] = framePixels[l][k][3];
+                        output[horizontalOffset[i] + l][verticalOffset[i] + k][0] = framePixels[l][k][0];
+                        output[horizontalOffset[i] + l][verticalOffset[i] + k][1] = framePixels[l][k][1];
+                        output[horizontalOffset[i] + l][verticalOffset[i] + k][2] = framePixels[l][k][2];
+                        output[horizontalOffset[i] + l][verticalOffset[i] + k][3] = framePixels[l][k][3];
                     }
                 }
             }

@@ -57,7 +57,7 @@ public enum ImageFrameType /*: uint*/
      * Exchangeable image file format metadata.
      * </p>
      */
-    Exif(0x45786966L),
+    exif(0x45786966L),
 
     /**
      * <p>
@@ -110,7 +110,7 @@ public enum ImageFrameType /*: uint*/
      */
     public static ImageFrameType codeToType(long code)
     {
-        for (ImageFrameType type : _values)
+        for (ImageFrameType type : values)
         {
             if (type.code == code)
             {
@@ -136,5 +136,5 @@ public enum ImageFrameType /*: uint*/
      *     The cached values.
      * </p>
      */
-    private static final ImageFrameType[] _values = ImageFrameType.values();
+    private static final ImageFrameType[] values = ImageFrameType.values();
 }

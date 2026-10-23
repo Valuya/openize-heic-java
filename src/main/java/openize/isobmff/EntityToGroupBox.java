@@ -28,14 +28,14 @@ public class EntityToGroupBox extends FullBox
      * GroupsListBox is contained in the file level).
      * </p>
      */
-    public final /*UInt32*/ long group_id;
+    public final /*UInt32*/ long groupId;
 
     /**
      * <p>
      * The number of entity_id values mapped to this entity group.
      * </p>
      */
-    public final /*UInt32*/ long num_entities_in_group;
+    public final /*UInt32*/ long numEntitiesInGroup;
 
     /**
      * <p>
@@ -57,11 +57,11 @@ public class EntityToGroupBox extends FullBox
     {
         super(stream);
 
-        group_id = stream.read(32) & 0xFFFFFFFFL;
-        num_entities_in_group = stream.read(32) & 0xFFFFFFFFL;
-        entities = new /*UInt32*/long[(int) (num_entities_in_group & 0xFFFFFFFFL)];
+        groupId = stream.read(32) & 0xFFFFFFFFL;
+        numEntitiesInGroup = stream.read(32) & 0xFFFFFFFFL;
+        entities = new /*UInt32*/long[(int) (numEntitiesInGroup & 0xFFFFFFFFL)];
 
-        for (int i = 0; i < (num_entities_in_group & 0xFFFFFFFFL); i++)
+        for (int i = 0; i < (numEntitiesInGroup & 0xFFFFFFFFL); i++)
             entities[i] = stream.read(32) & 0xFFFFFFFFL;
     }
 
@@ -74,7 +74,7 @@ public class EntityToGroupBox extends FullBox
     public String toString()
     {
         StringBuilder str = new StringBuilder(50);
-        str.append(String.format("%s group: %d count: %d", this.type, group_id, num_entities_in_group));
+        str.append(String.format("%s group: %d count: %d", this.type, groupId, numEntitiesInGroup));
         for (/*UInt32*/long id : entities)
         {
             str.append(" ").append(id);

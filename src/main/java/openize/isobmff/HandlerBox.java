@@ -27,7 +27,7 @@ public class HandlerBox extends FullBox
      * The value 'null' can be used in the primary meta box to indicate that it is merely being used to hold resources.
      * </p>
      */
-    public final /*UInt32*/ long handler_type;
+    public final /*UInt32*/ long handlerType;
 
     /**
      * <p>
@@ -50,7 +50,7 @@ public class HandlerBox extends FullBox
         long pos = stream.getBitPosition();
         stream.read(32);
 
-        handler_type = stream.read(32) & 0xFFFFFFFFL;
+        handlerType = stream.read(32) & 0xFFFFFFFFL;
 
         for (int i = 0; i < 3; i++)
             stream.read(32);
@@ -69,6 +69,6 @@ public class HandlerBox extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s\ndata: %s", this.type, uintToString(handler_type));
+        return String.format("%s\ndata: %s", this.type, uintToString(handlerType));
     }
 }

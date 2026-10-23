@@ -15,16 +15,16 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
 
 public class NalUnit
 {
-    public final NalHeader NalHeader;
-    public final /*UInt64*/ long StartPosition;
-    public final int Size;
+    public final NalHeader nalHeader;
+    public final /*UInt64*/ long startPosition;
+    public final int size;
 
     public NalUnit(BitStreamWithNalSupport stream, /*UInt64*/long startPosition, int size)
     {
-        NalHeader = new NalHeader(stream);
+        nalHeader = new NalHeader(stream);
 
-        StartPosition = startPosition;
-        Size = size;
+        this.startPosition = startPosition;
+        this.size = size;
     }
 
     public static NalUnit parseKnownUnit(BitStreamWithNalSupport stream, int size, NalUnitType type)
@@ -42,7 +42,7 @@ public class NalUnit
         if (type.getUnitCode() < 32)
         {
             // VCL
-            nalUnit = new slice_segment_layer_rbsp(stream, startPosition, size);
+            nalUnit = new SliceSegmentLayerRbsp(stream, startPosition, size);
         }
         else
         {
@@ -50,17 +50,17 @@ public class NalUnit
             switch (type)
             {
                 case VPS_NUT:     // 32
-                    nalUnit = new video_parameter_set_rbsp(stream, startPosition, size);
+                    nalUnit = new VideoParameterSetRbsp(stream, startPosition, size);
                     break;
                 case SPS_NUT:     // 33
-                    nalUnit = new seq_parameter_set_rbsp(stream, startPosition, size);
+                    nalUnit = new SeqParameterSetRbsp(stream, startPosition, size);
                     break;
                 case PPS_NUT:     // 34
-                    nalUnit = new pic_parameter_set_rbsp(stream, startPosition, size);
+                    nalUnit = new PicParameterSetRbsp(stream, startPosition, size);
                     break;
                 case PREFIX_SEI_NUT: // 39
                 case SUFFIX_SEI_NUT: // 40
-                    nalUnit = new sei_payload_rbsp(stream, startPosition, size);
+                    nalUnit = new SeiPayloadRbsp(stream, startPosition, size);
                     break;
                 default:
                     nalUnit = new NalUnit(stream, startPosition, size);
@@ -95,12 +95,12 @@ public class NalUnit
 
     public final /*UInt64*/long getEndPosition()
     {
-        return StartPosition + (Size & 0xFFFFFFFFL) * 8L;
+        return startPosition + (size & 0xFFFFFFFFL) * 8L;
     }
 
     @Override
     public String toString()
     {
-        return "NAL Unit " + NalHeader.type;
+        return "NAL Unit " + nalHeader.type;
     }
 }

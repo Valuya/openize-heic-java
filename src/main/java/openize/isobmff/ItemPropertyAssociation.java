@@ -25,7 +25,7 @@ public class ItemPropertyAssociation extends FullBox
      * Count of entries.
      * </p>
      */
-    public final /*UInt32*/ long entry_count;
+    public final /*UInt32*/ long entryCount;
 
     /**
      * <p>
@@ -46,22 +46,22 @@ public class ItemPropertyAssociation extends FullBox
     {
         super(stream, BoxType.ipma);
 
-        entry_count = stream.read(32) & 0xFFFFFFFFL;
-        entries = new ItemPropertyEntry[(int) (entry_count & 0xFFFFFFFFL)];
+        entryCount = stream.read(32) & 0xFFFFFFFFL;
+        entries = new ItemPropertyEntry[(int) (entryCount & 0xFFFFFFFFL)];
 
-        for (int i = 0; i < (entry_count & 0xFFFFFFFFL); i++)
+        for (int i = 0; i < (entryCount & 0xFFFFFFFFL); i++)
         {
             entries[i] = new ItemPropertyEntry();
 
-            entries[i].item_ID = stream.read((version & 0xFF) < 1 ? 16 : 32) & 0xFFFFFFFFL;
-            entries[i].association_count = (byte) stream.read(8);
+            entries[i].itemID = stream.read((version & 0xFF) < 1 ? 16 : 32) & 0xFFFFFFFFL;
+            entries[i].associationCount = (byte) stream.read(8);
 
-            entries[i].associations = new ItemPropertyEntryAssociation[entries[i].association_count];
-            for (int j = 0; j < (entries[i].association_count & 0xFF); j++)
+            entries[i].associations = new ItemPropertyEntryAssociation[entries[i].associationCount];
+            for (int j = 0; j < (entries[i].associationCount & 0xFF); j++)
             {
                 entries[i].associations[j] = new ItemPropertyEntryAssociation();
                 entries[i].associations[j].essential = stream.readFlag();
-                entries[i].associations[j].property_index = stream.read(flags.get(0) ? 15 : 7) & 0xFFFF;
+                entries[i].associations[j].propertyIndex = stream.read(flags.get(0) ? 15 : 7) & 0xFFFF;
             }
         }
 
@@ -76,7 +76,7 @@ public class ItemPropertyAssociation extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s count: %d", this.type, entry_count);
+        return String.format("%s count: %d", this.type, entryCount);
     }
 
     /**
@@ -111,14 +111,14 @@ public class ItemPropertyAssociation extends FullBox
          * Identifies the item with which property is associated.
          * </p>
          */
-        public /*UInt32*/ long item_ID;
+        public /*UInt32*/ long itemID;
 
         /**
          * <p>
          * Count of associations.
          * </p>
          */
-        public  byte association_count;
+        public  byte associationCount;
 
         /**
          * <p>
@@ -136,7 +136,7 @@ public class ItemPropertyAssociation extends FullBox
         public String toString()
         {
             StringBuilder str = new StringBuilder(500);
-            str.append(String.format("entry:: id: %d count: %d data: ", item_ID, association_count));
+            str.append(String.format("entry:: id: %d count: %d data: ", itemID, associationCount));
             for (ItemPropertyAssociation.ItemPropertyEntryAssociation item : associations)
                 str.append(item.toString()).append(", ");
             return str.toString();
@@ -164,7 +164,7 @@ public class ItemPropertyAssociation extends FullBox
          * contained in the same ItemPropertiesBox.
          * </p>
          */
-        public /*UInt16*/ int property_index;
+        public /*UInt16*/ int propertyIndex;
 
         /**
          * <p>
@@ -174,7 +174,7 @@ public class ItemPropertyAssociation extends FullBox
         @Override
         public String toString()
         {
-            return String.format("%d %d", (essential ? 1 : 0), property_index);
+            return String.format("%d %d", (essential ? 1 : 0), propertyIndex);
         }
     }
 }

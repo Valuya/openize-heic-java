@@ -31,7 +31,7 @@ public class ItemPropertiesBox extends Box
      * Contains an implicitly indexed list of item properties.
      * </p>
      */
-    private final ItemPropertyContainerBox property_container;
+    private final ItemPropertyContainerBox propertyContainer;
 
     /**
      * <p>
@@ -54,9 +54,9 @@ public class ItemPropertiesBox extends Box
     {
         super(BoxType.iprp, size);
 
-        property_container = new ItemPropertyContainerBox(stream, stream.getBitPosition());
+        propertyContainer = new ItemPropertyContainerBox(stream, stream.getBitPosition());
         ObservableCollection<Box> tmp0 = new ObservableCollection<>();
-        tmp0.add(property_container);
+        tmp0.add(propertyContainer);
 
         setChildren(tmp0);
 
@@ -125,7 +125,7 @@ public class ItemPropertiesBox extends Box
 
                 for (ItemPropertyAssociation.ItemPropertyEntryAssociation prop : itemProperty.associations)
                 {
-                    all.add(property_container.getPropertyByIndex(prop.property_index & 0xFFFF));
+                    all.add(propertyContainer.getPropertyByIndex(prop.propertyIndex & 0xFFFF));
 //                    if (prop.essential)
 //                    {
 //                        essential.add(property_container.getPropertyByIndex(prop.property_index & 0xFFFF));
@@ -136,7 +136,7 @@ public class ItemPropertiesBox extends Box
 //                    }
                 }
 
-                properties.put(itemProperty.item_ID, all);
+                properties.put(itemProperty.itemID, all);
             //    essentialProperties.put(itemProperty.item_ID, essential);
                 //nonEssentialProperties.put(itemProperty.item_ID, nonEssential);
             }

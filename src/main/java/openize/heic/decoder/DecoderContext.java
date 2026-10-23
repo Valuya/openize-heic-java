@@ -17,27 +17,27 @@ import java.util.HashMap;
 
 public class DecoderContext
 {
-    public final HashMap<Integer, video_parameter_set_rbsp> getVPS(){ return vPS; }
-    private final HashMap<Integer,video_parameter_set_rbsp> vPS;
-    public final HashMap<Integer, seq_parameter_set_rbsp> getSPS(){ return sPS; }
-    private final HashMap<Integer,seq_parameter_set_rbsp> sPS;
-    public final HashMap<Integer, pic_parameter_set_rbsp> getPPS(){ return pPS; }
-    private final HashMap<Integer,pic_parameter_set_rbsp> pPS;
+    public final HashMap<Integer, VideoParameterSetRbsp> getVPS(){ return vPS; }
+    private final HashMap<Integer,VideoParameterSetRbsp> vPS;
+    public final HashMap<Integer, SeqParameterSetRbsp> getSPS(){ return sPS; }
+    private final HashMap<Integer,SeqParameterSetRbsp> sPS;
+    public final HashMap<Integer, PicParameterSetRbsp> getPPS(){ return pPS; }
+    private final HashMap<Integer,PicParameterSetRbsp> pPS;
     public final HashMap<Long, HeicPicture> getPictures(){ return pictures; }
     private final HashMap<Long,HeicPicture> pictures;
 
     //public boolean first_decoded_picture = true;
-    public boolean NoRaslOutputFlag = false;
-    public boolean HandleCraAsBlaFlag = false;
-    public boolean FirstAfterEndOfSequenceNAL = false;
+    public boolean noRaslOutputFlag = false;
+    public boolean handleCraAsBlaFlag = false;
+    public boolean firstAfterEndOfSequenceNAL = false;
 
-    public int PicOrderCntMsb;
+    public int picOrderCntMsb;
     public int prevPicOrderCntLsb;  // at precTid0Pic
     public int prevPicOrderCntMsb;  // at precTid0Pic
 
     // coding_unit
-    boolean cu_transquant_bypass_flag;
-    final boolean[] transform_skip_flag = new boolean[3];
+    boolean cuTransquantBypassFlag;
+    final boolean[] transformSkipFlag = new boolean[3];
 
     // CuQp
     public final boolean isCuQpDeltaCoded(){ return isCuQpDeltaCoded; }
@@ -97,13 +97,13 @@ public class DecoderContext
         switch (type)
         {
             case VPS_NUT:
-                getVPS().put(((video_parameter_set_rbsp)nalUnit).vps_video_parameter_set_id & 0xFF, (video_parameter_set_rbsp)nalUnit);
+                getVPS().put(((VideoParameterSetRbsp)nalUnit).vpsVideoParameterSetId & 0xFF, (VideoParameterSetRbsp)nalUnit);
                 break;
             case SPS_NUT:
-                getSPS().put(((seq_parameter_set_rbsp)nalUnit).sps_seq_parameter_set_id & 0xFF, (seq_parameter_set_rbsp)nalUnit);
+                getSPS().put(((SeqParameterSetRbsp)nalUnit).spsSeqParameterSetId & 0xFF, (SeqParameterSetRbsp)nalUnit);
                 break;
             case PPS_NUT:
-                getPPS().put(((pic_parameter_set_rbsp)nalUnit).pps_pic_parameter_set_id & 0xFF, (pic_parameter_set_rbsp)nalUnit);
+                getPPS().put(((PicParameterSetRbsp)nalUnit).ppsPicParameterSetId & 0xFF, (PicParameterSetRbsp)nalUnit);
                 break;
         }
     }
@@ -111,44 +111,44 @@ public class DecoderContext
     // 8.3.1 Decoding process for picture order count
     public final void decodingPictureOrderCount(HeicPicture picture)
     {
-        NalHeader header = picture.NalHeader.copy();
-        slice_segment_header slice_header = picture.getSliceHeaders().get(0);
+        NalHeader header = picture.nalHeader.copy();
+        SliceSegmentHeader sliceHeader = picture.getSliceHeaders().get(0);
 
-        if (header.isIrapPicture() && NoRaslOutputFlag)
+        if (header.isIrapPicture() && noRaslOutputFlag)
         {
-            PicOrderCntMsb = 0;
+            picOrderCntMsb = 0;
         }
         else
         {
-            int MaxPicOrderCntLsb = (int)picture.sps.getMaxPicOrderCntLsb();
+            int maxPicOrderCntLsb = (int)picture.sps.getMaxPicOrderCntLsb();
 
-            if ((slice_header.slice_pic_order_cnt_lsb < prevPicOrderCntLsb) &&
-                ((prevPicOrderCntLsb - slice_header.slice_pic_order_cnt_lsb) >= (MaxPicOrderCntLsb / 2)))
+            if ((sliceHeader.slicePicOrderCntLsb < prevPicOrderCntLsb) &&
+                ((prevPicOrderCntLsb - sliceHeader.slicePicOrderCntLsb) >= (maxPicOrderCntLsb / 2)))
             {
-                PicOrderCntMsb = prevPicOrderCntMsb + MaxPicOrderCntLsb;
+                picOrderCntMsb = prevPicOrderCntMsb + maxPicOrderCntLsb;
             }
-            else if ((slice_header.slice_pic_order_cnt_lsb > prevPicOrderCntLsb) &&
-                    ((slice_header.slice_pic_order_cnt_lsb - prevPicOrderCntLsb) > (MaxPicOrderCntLsb / 2)))
+            else if ((sliceHeader.slicePicOrderCntLsb > prevPicOrderCntLsb) &&
+                    ((sliceHeader.slicePicOrderCntLsb - prevPicOrderCntLsb) > (maxPicOrderCntLsb / 2)))
             {
-                PicOrderCntMsb = prevPicOrderCntMsb - MaxPicOrderCntLsb;
+                picOrderCntMsb = prevPicOrderCntMsb - maxPicOrderCntLsb;
             }
             else
             {
-                PicOrderCntMsb = prevPicOrderCntMsb;
+                picOrderCntMsb = prevPicOrderCntMsb;
             }
         }
 
 
-        picture.PicOrderCntVal = PicOrderCntMsb + slice_header.slice_pic_order_cnt_lsb;
-        picture.picture_order_cnt_lsb = slice_header.slice_pic_order_cnt_lsb;
+        picture.picOrderCntVal = picOrderCntMsb + sliceHeader.slicePicOrderCntLsb;
+        picture.pictureOrderCntLsb = sliceHeader.slicePicOrderCntLsb;
 
-        if ((header.nuh_temporal_id_plus1 & 0xFF) == 1 &&
+        if ((header.nuhTemporalIdPlus1 & 0xFF) == 1 &&
                 !header.isSublayerNonReference() &&
                 !header.isRaslPicture() &&
                 !header.isRadlPicture())
         {
-            prevPicOrderCntLsb = slice_header.slice_pic_order_cnt_lsb;
-            prevPicOrderCntMsb = PicOrderCntMsb;
+            prevPicOrderCntLsb = sliceHeader.slicePicOrderCntLsb;
+            prevPicOrderCntMsb = picOrderCntMsb;
         }
     }
 
@@ -161,7 +161,7 @@ public class DecoderContext
         // In this process, the variable QpY, the luma quantization parameter Qp′Y and
         // the chroma quantization parameters Qp′Cb and Qp′Cr are derived.
 
-        slice_segment_header slice_header = picture.getSliceHeaders().get(picture.SliceHeaderIndex[xCb][yCb]);
+        SliceSegmentHeader sliceHeader = picture.getSliceHeaders().get(picture.sliceHeaderIndex[xCb][yCb]);
 
         int xQg = xCb - (xCb & ((1 << (int)picture.pps.getLog2MinCuQpDeltaSize()) - 1));
         int yQg = yCb - (yCb & ((1 << (int)picture.pps.getLog2MinCuQpDeltaSize()) - 1));
@@ -173,21 +173,21 @@ public class DecoderContext
             stream.getContext().setCurrentQgY(yQg);
         }
 
-        int qPY_PREV, qPY_PRED;
+        int qPYPREV, qPYPRED;
 
         int ctbLSBMask = ((1 << (picture.sps.getCtbLog2SizeY() & 0xFF)) - 1);
         boolean firstInCTBRow = (xQg == 0 && ((yQg & ctbLSBMask) == 0));
 
-        /*UInt32*/long first_ctb_in_slice_RS = slice_header.getSliceAddrRs();
+        /*UInt32*/long firstCtbInSliceRS = sliceHeader.getSliceAddrRs();
 
-        /*UInt32*/long SliceStartX = ((((first_ctb_in_slice_RS & 0xFFFFFFFFL) % (picture.sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL) * (picture.sps.getCtbSizeY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
-        /*UInt32*/long SliceStartY = ((((first_ctb_in_slice_RS & 0xFFFFFFFFL) / (picture.sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL) * (picture.sps.getCtbSizeY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
+        /*UInt32*/long sliceStartX = ((((firstCtbInSliceRS & 0xFFFFFFFFL) % (picture.sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL) * (picture.sps.getCtbSizeY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
+        /*UInt32*/long sliceStartY = ((((firstCtbInSliceRS & 0xFFFFFFFFL) / (picture.sps.getPicWidthInCtbsY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL) * (picture.sps.getCtbSizeY() & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
 
-        boolean firstQgInSlice = ((int)SliceStartX == xQg && (int)SliceStartY == yQg);
+        boolean firstQgInSlice = ((int)sliceStartX == xQg && (int)sliceStartY == yQg);
 
         boolean firstQgInTile = false;
 
-        if (picture.pps.tiles_enabled_flag)
+        if (picture.pps.tilesEnabledFlag)
         {
             //firstQgInTile recalculated
             if ((xQg & ctbLSBMask) == 0 && (yQg & ctbLSBMask) == 0)
@@ -195,46 +195,46 @@ public class DecoderContext
                 int tileX = xQg >> picture.sps.getCtbLog2SizeY();
                 int tileY = yQg >> picture.sps.getCtbLog2SizeY();
 
-                firstQgInTile = picture.pps.check_if_tile_is_first(tileX, tileY);
+                firstQgInTile = picture.pps.checkIfTileIsFirst(tileX, tileY);
             }
         }
 
-        if (firstQgInSlice || firstQgInTile || (firstInCTBRow && picture.pps.entropy_coding_sync_enabled_flag))
+        if (firstQgInSlice || firstQgInTile || (firstInCTBRow && picture.pps.entropyCodingSyncEnabledFlag))
         {
-            qPY_PREV = slice_header.getSliceQPY();
+            qPYPREV = sliceHeader.getSliceQPY();
         }
         else
         {
-            qPY_PREV = stream.getContext().getLastQpYPrev();
+            qPYPREV = stream.getContext().getLastQpYPrev();
         }
 
-        int qPY_A = getNeighbouringQpY(picture, slice_header, qPY_PREV, xQg, yQg, xQg - 1, yQg);
-        int qPY_B = getNeighbouringQpY(picture, slice_header, qPY_PREV, xQg, yQg, xQg, yQg - 1);
+        int qPYA = getNeighbouringQpY(picture, sliceHeader, qPYPREV, xQg, yQg, xQg - 1, yQg);
+        int qPYB = getNeighbouringQpY(picture, sliceHeader, qPYPREV, xQg, yQg, xQg, yQg - 1);
 
-        qPY_PRED = (qPY_A + qPY_B + 1) >> 1;
+        qPYPRED = (qPYA + qPYB + 1) >> 1;
 
-        int QpY = ((qPY_PRED + stream.getContext().getCuQpDeltaVal() + 52 + 2 * (picture.sps.getQpBdOffsetY() & 0xFF)) %
+        int qpYByPosition = ((qPYPRED + stream.getContext().getCuQpDeltaVal() + 52 + 2 * (picture.sps.getQpBdOffsetY() & 0xFF)) %
             (52 + (picture.sps.getQpBdOffsetY() & 0xFF))) - (picture.sps.getQpBdOffsetY() & 0xFF);
 
-        stream.getContext().setQpY(QpY + (picture.sps.getQpBdOffsetY() & 0xFF));
-        stream.getContext().setCurrentQpY(QpY);
+        stream.getContext().setQpY(qpYByPosition + (picture.sps.getQpBdOffsetY() & 0xFF));
+        stream.getContext().setCurrentQpY(qpYByPosition);
 
         int qPiCb, qPiCr, qPCb, qPCr;
         if ((picture.sps.getChromaArrayType() & 0xFFFFFFFFL) != 0)
         {
-            if (!picture.tu_residual_act_flag[xCb][yCb])
+            if (!picture.tuResidualActFlag[xCb][yCb])
             {
                 qPiCb = MathExtra.clip3(-(picture.sps.getQpBdOffsetC() & 0xFF), 57,
-                    QpY + picture.pps.pps_cb_qp_offset + slice_header.slice_cb_qp_offset + stream.getContext().getCuQpOffsetCb());
+                    qpYByPosition + picture.pps.ppsCbQpOffset + sliceHeader.sliceCbQpOffset + stream.getContext().getCuQpOffsetCb());
                 qPiCr = MathExtra.clip3(-(picture.sps.getQpBdOffsetC() & 0xFF), 57,
-                    QpY + picture.pps.pps_cr_qp_offset + slice_header.slice_cr_qp_offset + stream.getContext().getCuQpOffsetCr());
+                    qpYByPosition + picture.pps.ppsCrQpOffset + sliceHeader.sliceCrQpOffset + stream.getContext().getCuQpOffsetCr());
             }
             else
             {
                 qPiCb = MathExtra.clip3(-(picture.sps.getQpBdOffsetC() & 0xFF), 57,
-                    QpY + picture.pps.getPpsActQpOffsetCb() + slice_header.slice_act_cb_qp_offset + stream.getContext().getCuQpOffsetCb());
+                    qpYByPosition + picture.pps.getPpsActQpOffsetCb() + sliceHeader.sliceActCbQpOffset + stream.getContext().getCuQpOffsetCb());
                 qPiCr = MathExtra.clip3(-(picture.sps.getQpBdOffsetC() & 0xFF), 57,
-                    QpY + picture.pps.getPpsActQpOffsetCr() + slice_header.slice_act_cr_qp_offset + stream.getContext().getCuQpOffsetCr());
+                    qpYByPosition + picture.pps.getPpsActQpOffsetCr() + sliceHeader.sliceActCrQpOffset + stream.getContext().getCuQpOffsetCr());
             }
 
             if ((picture.sps.getChromaArrayType() & 0xFFFFFFFFL) == 1)
@@ -253,7 +253,7 @@ public class DecoderContext
         }
 
 
-        int log2CbSize = picture.Log2CbSize[xCUBase][yCUBase];
+        int log2CbSize = picture.log2CbSizeByPosition[xCUBase][yCUBase];
 
         if (log2CbSize < 3)
             log2CbSize = 3;
@@ -261,27 +261,27 @@ public class DecoderContext
         picture.setQpY(xCUBase, yCUBase, log2CbSize, stream.getContext().getQpY());
     }
 
-    private int getNeighbouringQpY(HeicPicture picture, slice_segment_header slice_header, int qPY_PREV,
+    private int getNeighbouringQpY(HeicPicture picture, SliceSegmentHeader sliceHeader, int qPYPREV,
         int xQg, int yQg, int xQgN, int yQgN)
     {
         if (!picture.checkZScanAvailability(xQg, yQg, xQgN, yQgN))
         {
-            return qPY_PREV;
+            return qPYPREV;
         }
         else
         {
             int xTmp = xQgN >> (picture.sps.getMinTbLog2SizeY() & 0xFF);
             int yTmp = yQgN >> (picture.sps.getMinTbLog2SizeY() & 0xFF);
-            int minTbAddrA = picture.pps.MinTbAddrZs[xTmp][yTmp];
+            int minTbAddrA = picture.pps.minTbAddrZs[xTmp][yTmp];
             int ctbAddrA = minTbAddrA >> (2 * ((picture.sps.getCtbLog2SizeY() & 0xFF) - (picture.sps.getMinTbLog2SizeY() & 0xFF)));
 
-            if (ctbAddrA != (slice_header.getCtbAddrInTs() & 0xFFFFFFFFL))
+            if (ctbAddrA != (sliceHeader.getCtbAddrInTs() & 0xFFFFFFFFL))
             {
-                return qPY_PREV;
+                return qPYPREV;
             }
             else
             {
-                return picture.QpY[xQgN][yQgN];
+                return picture.qpYByPosition[xQgN][yQgN];
             }
         }
     }

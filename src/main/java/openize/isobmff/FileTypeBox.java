@@ -26,7 +26,7 @@ public class FileTypeBox extends Box
      * <p>Each brand is a printable four‐character code, registered with ISO, that identifies a precise specification.</p>
      * </p>
      */
-    public final /*UInt32*/ long major_brand;
+    public final /*UInt32*/ long majorBrand;
 
     /**
      * <p>
@@ -34,7 +34,7 @@ public class FileTypeBox extends Box
      * <p>Each brand is a printable four‐character code, registered with ISO, that identifies a precise specification.</p>
      * </p>
      */
-    public final /*UInt32*/ long minor_version;
+    public final /*UInt32*/ long minorVersion;
 
     /**
      * <p>
@@ -42,7 +42,7 @@ public class FileTypeBox extends Box
      * <p>Each brand is a printable four‐character code, registered with ISO, that identifies a precise specification.</p>
      * </p>
      */
-    public final /*UInt32*/ long[] compatible_brands;
+    public final /*UInt32*/ long[] compatibleBrands;
 
     /**
      * <p>
@@ -56,12 +56,12 @@ public class FileTypeBox extends Box
     {
         super(BoxType.ftyp, size);
 
-        major_brand = stream.read(32) & 0xFFFFFFFFL;
-        minor_version = stream.read(32) & 0xFFFFFFFFL;
+        majorBrand = stream.read(32) & 0xFFFFFFFFL;
+        minorVersion = stream.read(32) & 0xFFFFFFFFL;
 
-        compatible_brands = new /*UInt32*/long[(int) (size / 4 - 4)];
+        compatibleBrands = new /*UInt32*/long[(int) (size / 4 - 4)];
         for (/*UInt64*/long i = 4; i < size / 4; i++)
-            compatible_brands[(int) (i - 4)] = stream.read(32) & 0xFFFFFFFFL;
+            compatibleBrands[(int) (i - 4)] = stream.read(32) & 0xFFFFFFFFL;
     }
 
     /**
@@ -73,8 +73,8 @@ public class FileTypeBox extends Box
     public String toString()
     {
         StringBuilder str = new StringBuilder(50);
-        str.append(String.format("{%s}\nmajor: %s \nminor: %s \ncompatible:", this.type, uintToString(major_brand), uintToString(minor_version)));
-        for (/*UInt32*/long b : compatible_brands)
+        str.append(String.format("{%s}\nmajor: %s \nminor: %s \ncompatible:", this.type, uintToString(majorBrand), uintToString(minorVersion)));
+        for (/*UInt32*/long b : compatibleBrands)
         {
             str.append(' ').append(uintToString(b));
         }
@@ -92,17 +92,17 @@ public class FileTypeBox extends Box
      */
     public final boolean isBrandSupported(/*UInt32*/long brand)
     {
-        if (major_brand == brand)
+        if (majorBrand == brand)
         {
             return true;
         }
 
-        if (minor_version == brand)
+        if (minorVersion == brand)
         {
             return true;
         }
 
-        for (long compatibleBrand : compatible_brands)
+        for (long compatibleBrand : compatibleBrands)
         {
             if (compatibleBrand == brand)
             {

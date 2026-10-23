@@ -44,8 +44,8 @@ final class LoopFilter
     private static final int[][] SAO_V_POS = { { 0, 0 }, { -1, 1 }, { -1, 1 }, { -1, 1 } };
 
     private final HeicPicture picture;
-    private final seq_parameter_set_rbsp sps;
-    private final pic_parameter_set_rbsp pps;
+    private final SeqParameterSetRbsp sps;
+    private final PicParameterSetRbsp pps;
     private final int width;
     private final int height;
     private final int ctbLog2Size;
@@ -61,14 +61,14 @@ final class LoopFilter
         this.picture = picture;
         this.sps = picture.sps;
         this.pps = picture.pps;
-        this.width = (int) sps.pic_width_in_luma_samples;
-        this.height = (int) sps.pic_height_in_luma_samples;
+        this.width = (int) sps.picWidthInLumaSamples;
+        this.height = (int) sps.picHeightInLumaSamples;
         this.ctbLog2Size = sps.getCtbLog2SizeY() & 0xFF;
         this.chromaCount = sps.getChromaArrayType() != 0 ? 3 : 1;
         this.subWidthC = sps.getSubWidthC() & 0xFF;
         this.subHeightC = sps.getSubHeightC() & 0xFF;
         this.pixels = picture.pixels;
-        this.pixelsHighColorRange = picture.pixels_high_color_range;
+        this.pixelsHighColorRange = picture.pixelsHighColorRange;
     }
 
     static void apply(HeicPicture picture)
@@ -79,11 +79,11 @@ final class LoopFilter
         LoopFilter filter = new LoopFilter(picture);
 
         boolean deblock = false;
-        boolean sao = false;
-        for (slice_segment_header header : picture.getSliceHeaders().values())
+        boolean Sao = false;
+        for (SliceSegmentHeader header : picture.getSliceHeaders().values())
         {
-            deblock |= !header.slice_deblocking_filter_disabled_flag;
-            sao |= header.slice_sao_luma_flag || header.slice_sao_chroma_flag;
+            deblock |= !header.sliceDeblockingFilterDisabledFlag;
+            Sao |= header.sliceSaoLumaFlag || header.sliceSaoChromaFlag;
         }
 
         if (deblock)
@@ -92,7 +92,7 @@ final class LoopFilter
             filter.deblock(false);
         }
 
-        if (sao && picture.sps.sample_adaptive_offset_enabled_flag)
+        if (Sao && picture.sps.sampleAdaptiveOffsetEnabledFlag)
             filter.sampleAdaptiveOffset();
     }
 
@@ -115,11 +115,11 @@ final class LoopFilter
 
                 int xp = x - nx;
                 int yp = y - ny;
-                slice_segment_header header = sliceHeaderAt(x, y);
+                SliceSegmentHeader header = sliceHeaderAt(x, y);
                 if (!filterEdge(header, x, y, xp, yp))
                     continue;
 
-                int qpL = ((picture.QpY[x][y] - qpBdOffsetY) + (picture.QpY[xp][yp] - qpBdOffsetY) + 1) >> 1;
+                int qpL = ((picture.qpYByPosition[x][y] - qpBdOffsetY) + (picture.qpYByPosition[xp][yp] - qpBdOffsetY) + 1) >> 1;
                 filterLumaEdge(x, y, nx, ny, qpL, header, noFilter(xp, yp), noFilter(x, y));
             }
         }
@@ -134,7 +134,7 @@ final class LoopFilter
 
         for (int cIdx = 1; cIdx < chromaCount; cIdx++)
         {
-            int cQpPicOffset = cIdx == 1 ? pps.pps_cb_qp_offset : pps.pps_cr_qp_offset;
+            int cQpPicOffset = cIdx == 1 ? pps.ppsCbQpOffset : pps.ppsCrQpOffset;
 
             for (int yc = vertical ? 0 : 8; yc < heightC; yc += vertical ? 1 : 8)
             {
@@ -147,13 +147,13 @@ final class LoopFilter
 
                     int xp = x - nx;
                     int yp = y - ny;
-                    slice_segment_header header = sliceHeaderAt(x, y);
+                    SliceSegmentHeader header = sliceHeaderAt(x, y);
                     if (!filterEdge(header, x, y, xp, yp))
                         continue;
 
-                    int qpi = (((picture.QpY[x][y] - qpBdOffsetY) + (picture.QpY[xp][yp] - qpBdOffsetY) + 1) >> 1) + cQpPicOffset;
+                    int qpi = (((picture.qpYByPosition[x][y] - qpBdOffsetY) + (picture.qpYByPosition[xp][yp] - qpBdOffsetY) + 1) >> 1) + cQpPicOffset;
                     int qpC = sps.getChromaArrayType() == 1 ? chromaQp(qpi) : Math.min(qpi, 51);
-                    int q = MathExtra.clip3(0, 53, qpC + 2 * (INTRA_BS - 1) + (header.slice_tc_offset_div2 << 1));
+                    int q = MathExtra.clip3(0, 53, qpC + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2 << 1));
                     int tc = TC_TABLE[q] * (1 << (bitDepthC - 8));
 
                     filterChromaLine(cIdx, xc, yc, nx, ny, tc, bitDepthC, noFilter(xp, yp), noFilter(x, y));
@@ -163,9 +163,9 @@ final class LoopFilter
     }
 
     // filterEdgeFlag (8.7.2.3): picture borders are never reached by the loops above
-    private boolean filterEdge(slice_segment_header header, int xq, int yq, int xp, int yp)
+    private boolean filterEdge(SliceSegmentHeader header, int xq, int yq, int xp, int yp)
     {
-        if (header.slice_deblocking_filter_disabled_flag)
+        if (header.sliceDeblockingFilterDisabledFlag)
             return false;
 
         int ctbQ = ctbAddrRs(xq, yq);
@@ -173,19 +173,19 @@ final class LoopFilter
         if (ctbQ == ctbP)
             return true;
 
-        if (!pps.loop_filter_across_tiles_enabled_flag && tileId(ctbQ) != tileId(ctbP))
+        if (!pps.loopFilterAcrossTilesEnabledFlag && tileId(ctbQ) != tileId(ctbP))
             return false;
 
-        return header.slice_loop_filter_across_slices_enabled_flag || sliceAddr(xq, yq) == sliceAddr(xp, yp);
+        return header.sliceLoopFilterAcrossSlicesEnabledFlag || sliceAddr(xq, yq) == sliceAddr(xp, yp);
     }
 
     // 8.7.2.5.3 Decision process for luma block edges, 8.7.2.5.7 luma sample filtering
-    private void filterLumaEdge(int x, int y, int nx, int ny, int qpL, slice_segment_header header,
+    private void filterLumaEdge(int x, int y, int nx, int ny, int qpL, SliceSegmentHeader header,
                                 boolean noFilterP, boolean noFilterQ)
     {
         int bitDepth = sps.getBitDepthY() & 0xFF;
-        int beta = BETA_TABLE[MathExtra.clip3(0, 51, qpL + (header.slice_beta_offset_div2 << 1))] * (1 << (bitDepth - 8));
-        int tc = TC_TABLE[MathExtra.clip3(0, 53, qpL + 2 * (INTRA_BS - 1) + (header.slice_tc_offset_div2 << 1))] * (1 << (bitDepth - 8));
+        int beta = BETA_TABLE[MathExtra.clip3(0, 51, qpL + (header.sliceBetaOffsetDiv2 << 1))] * (1 << (bitDepth - 8));
+        int tc = TC_TABLE[MathExtra.clip3(0, 53, qpL + 2 * (INTRA_BS - 1) + (header.sliceTcOffsetDiv2 << 1))] * (1 << (bitDepth - 8));
 
         // along the edge: perpendicular to the normal
         int ax = ny;
@@ -346,14 +346,14 @@ final class LoopFilter
         {
             for (int rx = 0; rx < widthInCtbs; rx++)
             {
-                slice_segment_header header = sliceHeaderAt(rx << ctbLog2Size, ry << ctbLog2Size);
+                SliceSegmentHeader header = sliceHeaderAt(rx << ctbLog2Size, ry << ctbLog2Size);
 
                 for (int cIdx = 0; cIdx < chromaCount; cIdx++)
                 {
-                    if (!(cIdx == 0 ? header.slice_sao_luma_flag : header.slice_sao_chroma_flag))
+                    if (!(cIdx == 0 ? header.sliceSaoLumaFlag : header.sliceSaoChromaFlag))
                         continue;
 
-                    int saoType = picture.SaoTypeIdx[cIdx][rx][ry];
+                    int saoType = picture.saoTypeIdx[cIdx][rx][ry];
                     if (saoType == 0)
                         continue;
 
@@ -383,26 +383,26 @@ final class LoopFilter
         int yEnd = Math.min(yCtb + ctbHeight, compHeight);
 
         int log2OffsetScale = 0;
-        if (pps.pps_range_ext != null)
+        if (pps.ppsRangeExt != null)
         {
             log2OffsetScale = (int) (cIdx == 0 ?
-                pps.pps_range_ext.log2_sao_offset_scale_luma :
-                pps.pps_range_ext.log2_sao_offset_scale_chroma);
+                pps.ppsRangeExt.log2SaoOffsetScaleLuma :
+                pps.ppsRangeExt.log2SaoOffsetScaleChroma);
         }
 
-        int[] offsetAbs = picture.sao_offset_abs[cIdx][rx][ry];
-        int[] offsetSign = picture.sao_offset_sign[cIdx][rx][ry];
+        int[] offsetAbs = picture.saoOffsetAbs[cIdx][rx][ry];
+        int[] offsetSign = picture.saoOffsetSign[cIdx][rx][ry];
         int[] offsetVal = new int[5];
         for (int i = 0; i < 4; i++)
             offsetVal[i + 1] = ((1 - 2 * offsetSign[i]) * offsetAbs[i]) << log2OffsetScale;
 
         int[] bandTable = null;
         int bandShift = bitDepth - 5;
-        int eoClass = picture.SaoEoClass[cIdx][rx][ry];
+        int eoClass = picture.saoEoClass[cIdx][rx][ry];
         if (saoType == 1)
         {
             bandTable = new int[32];
-            int bandPosition = picture.sao_band_position[cIdx][rx][ry];
+            int bandPosition = picture.saoBandPosition[cIdx][rx][ry];
             for (int k = 0; k < 4; k++)
                 bandTable[(k + bandPosition) & 31] = k + 1;
         }
@@ -468,7 +468,7 @@ final class LoopFilter
         if (neighbourCtb == currentCtb)
             return true;
 
-        if (!pps.loop_filter_across_tiles_enabled_flag && tileId(neighbourCtb) != tileId(currentCtb))
+        if (!pps.loopFilterAcrossTilesEnabledFlag && tileId(neighbourCtb) != tileId(currentCtb))
             return false;
 
         int currentSlice = sliceAddrOfCtb(currentCtb);
@@ -477,24 +477,24 @@ final class LoopFilter
             return true;
 
         // the later slice in decoding order owns the boundary between the two
-        boolean neighbourFirst = pps.CtbAddrRsToTs[neighbourSlice] < pps.CtbAddrRsToTs[currentSlice];
+        boolean neighbourFirst = pps.ctbAddrRsToTs[neighbourSlice] < pps.ctbAddrRsToTs[currentSlice];
         int widthInCtbs = (int) sps.getPicWidthInCtbsY();
         int laterCtb = neighbourFirst ? currentCtb : neighbourCtb;
-        slice_segment_header later = sliceHeaderAt((laterCtb % widthInCtbs) << ctbLog2Size, (laterCtb / widthInCtbs) << ctbLog2Size);
-        return later.slice_loop_filter_across_slices_enabled_flag;
+        SliceSegmentHeader later = sliceHeaderAt((laterCtb % widthInCtbs) << ctbLog2Size, (laterCtb / widthInCtbs) << ctbLog2Size);
+        return later.sliceLoopFilterAcrossSlicesEnabledFlag;
     }
 
     private boolean noFilter(int x, int y)
     {
         return (picture.blockFlags[x >> 2][y >> 2] & NO_FILTER) != 0 ||
-            (sps.pcm_loop_filter_disabled_flag && picture.pcm_flag[x][y]);
+            (sps.pcmLoopFilterDisabledFlag && picture.pcmFlag[x][y]);
     }
 
-    private slice_segment_header sliceHeaderAt(int x, int y)
+    private SliceSegmentHeader sliceHeaderAt(int x, int y)
     {
         int xCtb = (x >> ctbLog2Size) << ctbLog2Size;
         int yCtb = (y >> ctbLog2Size) << ctbLog2Size;
-        return picture.getSliceHeaders().get(picture.SliceHeaderIndex[xCtb][yCtb]);
+        return picture.getSliceHeaders().get(picture.sliceHeaderIndex[xCtb][yCtb]);
     }
 
     private int ctbAddrRs(int x, int y)
@@ -504,18 +504,18 @@ final class LoopFilter
 
     private int tileId(int ctbAddrRs)
     {
-        return (int) pps.TileId[(int) pps.CtbAddrRsToTs[ctbAddrRs]];
+        return (int) pps.tileIdByCtbAddrTs[(int) pps.ctbAddrRsToTs[ctbAddrRs]];
     }
 
     private int sliceAddr(int x, int y)
     {
-        return picture.SliceAddrRs[x >> ctbLog2Size][y >> ctbLog2Size];
+        return picture.sliceAddrRs[x >> ctbLog2Size][y >> ctbLog2Size];
     }
 
     private int sliceAddrOfCtb(int ctbAddrRs)
     {
         int widthInCtbs = (int) sps.getPicWidthInCtbsY();
-        return picture.SliceAddrRs[ctbAddrRs % widthInCtbs][ctbAddrRs / widthInCtbs];
+        return picture.sliceAddrRs[ctbAddrRs % widthInCtbs][ctbAddrRs / widthInCtbs];
     }
 
     private int get(int cIdx, int x, int y)

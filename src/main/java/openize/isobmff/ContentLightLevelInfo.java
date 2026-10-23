@@ -25,14 +25,14 @@ public class ContentLightLevelInfo extends Box
      * Indicates the max picture ligth level.
      * </p>
      */
-    public /*UInt16*/ int max_content_light_level;
+    public /*UInt16*/ int maxContentLightLevel;
 
     /**
      * <p>
      * Indicates the picture average ligth level.
      * </p>
      */
-    public /*UInt16*/ int max_pic_average_light_level;
+    public /*UInt16*/ int maxPicAverageLightLevel;
 
     /**
      * <p>
@@ -46,8 +46,8 @@ public class ContentLightLevelInfo extends Box
     {
         super(BoxType.clli, size);
 
-        max_content_light_level = stream.read(16) & 0xFFFF;
-        max_pic_average_light_level = stream.read(16) & 0xFFFF;
+        maxContentLightLevel = stream.read(16) & 0xFFFF;
+        maxPicAverageLightLevel = stream.read(16) & 0xFFFF;
     }
 
     /**
@@ -58,6 +58,6 @@ public class ContentLightLevelInfo extends Box
     @Override
     public final String toString()
     {
-        return String.format("%s Max: %d Avg: %d", type.name(), max_content_light_level, max_pic_average_light_level);
+        return String.format("%s Max: %d Avg: %d", type.name(), maxContentLightLevel, maxPicAverageLightLevel);
     }
 }

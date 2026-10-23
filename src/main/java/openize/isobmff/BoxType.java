@@ -372,7 +372,7 @@ public enum BoxType
     /**
      * <p>Cached values</p>
      */
-    private static final BoxType[] _values = BoxType.values();
+    private static final BoxType[] values = BoxType.values();
 
     /**
      * <p>
@@ -403,7 +403,7 @@ public enum BoxType
     public static BoxType codeToType(long code)
     {
         code &= 0xFFFFFFFFL;
-        for (BoxType type : _values)
+        for (BoxType type : values)
         {
             if (type.getCode() == code)
             {

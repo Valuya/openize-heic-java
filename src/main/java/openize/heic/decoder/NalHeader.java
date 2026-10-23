@@ -18,8 +18,8 @@ import java.util.Objects;
 public /*struct*/ class NalHeader
 {
     public NalUnitType type;
-    public  byte nuh_layer_id;
-    public  byte nuh_temporal_id_plus1; // > 0
+    public  byte nuhLayerId;
+    public  byte nuhTemporalIdPlus1; // > 0
     public NalHeader()
     {
     }
@@ -28,13 +28,13 @@ public /*struct*/ class NalHeader
     {
         stream.skipBits(1); // 1
         type = NalUnitType.codeToType(stream.read(6));
-        nuh_layer_id = (byte) stream.read(6);
-        nuh_temporal_id_plus1 = (byte) stream.read(3);
+        nuhLayerId = (byte) stream.read(6);
+        nuhTemporalIdPlus1 = (byte) stream.read(3);
     }
 
     final byte getTemporalId()
     {
-        return (byte) ((nuh_temporal_id_plus1 & 0xFF) - 1);
+        return (byte) ((nuhTemporalIdPlus1 & 0xFF) - 1);
     }
 
     final boolean isRadlPicture()
@@ -105,8 +105,8 @@ public /*struct*/ class NalHeader
     public void cloneTo(NalHeader that)
     {
         that.type = type;
-        that.nuh_layer_id = nuh_layer_id;
-        that.nuh_temporal_id_plus1 = nuh_temporal_id_plus1;
+        that.nuhLayerId = nuhLayerId;
+        that.nuhTemporalIdPlus1 = nuhTemporalIdPlus1;
     }
 
     public NalHeader copy()
@@ -118,7 +118,7 @@ public /*struct*/ class NalHeader
 
     private boolean equalsByValue(NalHeader that)
     {
-        return that.type == type && that.nuh_layer_id == nuh_layer_id && that.nuh_temporal_id_plus1 == nuh_temporal_id_plus1;
+        return that.type == type && that.nuhLayerId == nuhLayerId && that.nuhTemporalIdPlus1 == nuhTemporalIdPlus1;
     }
 
     @Override
@@ -140,7 +140,7 @@ public /*struct*/ class NalHeader
     @Override
     public int hashCode()
     {
-        return Objects.hash(type, nuh_layer_id, nuh_temporal_id_plus1);
+        return Objects.hash(type, nuhLayerId, nuhTemporalIdPlus1);
     }
 }
 

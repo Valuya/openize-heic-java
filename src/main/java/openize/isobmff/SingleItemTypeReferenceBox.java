@@ -25,21 +25,21 @@ public class SingleItemTypeReferenceBox extends Box
      * The ID of the item that refers to other items.
      * </p>
      */
-    public final /*UInt32*/ long from_item_ID;
+    public final /*UInt32*/ long fromItemID;
 
     /**
      * <p>
      * The number of references.
      * </p>
      */
-    public final /*UInt32*/ long reference_count;
+    public final /*UInt32*/ long referenceCount;
 
     /**
      * <p>
      * The array of the IDs of the item referred to.
      * </p>
      */
-    public final /*UInt32*/ long[] to_item_ID;
+    public final /*UInt32*/ long[] toItemID;
 
     /**
      * <p>
@@ -49,18 +49,18 @@ public class SingleItemTypeReferenceBox extends Box
      * @param stream  File stream.
      * @param id_size Item id size in bytes.
      */
-    public SingleItemTypeReferenceBox(BitStreamReader stream, int id_size)
+    public SingleItemTypeReferenceBox(BitStreamReader stream, int idSize)
     {
         super(stream);
 
-        from_item_ID = stream.read(id_size) & 0xFFFFFFFFL;
-        reference_count = stream.read(16) & 0xFFFFFFFFL;
+        fromItemID = stream.read(idSize) & 0xFFFFFFFFL;
+        referenceCount = stream.read(16) & 0xFFFFFFFFL;
 
-        to_item_ID = new /*UInt32*/long[(int) (reference_count & 0xFFFFFFFFL)];
+        toItemID = new /*UInt32*/long[(int) (referenceCount & 0xFFFFFFFFL)];
 
-        for (int j = 0; j < (reference_count & 0xFFFFFFFFL); j++)
+        for (int j = 0; j < (referenceCount & 0xFFFFFFFFL); j++)
         {
-            to_item_ID[j] = stream.read(id_size) & 0xFFFFFFFFL;
+            toItemID[j] = stream.read(idSize) & 0xFFFFFFFFL;
         }
     }
 
@@ -73,8 +73,8 @@ public class SingleItemTypeReferenceBox extends Box
     public String toString()
     {
         StringBuilder str = new StringBuilder(50);
-        str.append(String.format("%1$s from_item_ID: %2$d refs: ", type, from_item_ID));
-        for (/*UInt32*/long id : to_item_ID)
+        str.append(String.format("%1$s from_item_ID: %2$d refs: ", type, fromItemID));
+        for (/*UInt32*/long id : toItemID)
         {
             str.append(id).append(' ');
         }

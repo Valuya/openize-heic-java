@@ -156,7 +156,7 @@ public enum NalUnitType
 
     public static NalUnitType codeToType(long unitCode)
     {
-        for (NalUnitType type : _values)
+        for (NalUnitType type : values)
         {
             if (type.unitCode == unitCode)
             {
@@ -179,5 +179,5 @@ public enum NalUnitType
         return name() + "(" + unitCode + ")";
     }
 
-    private static final NalUnitType[] _values = NalUnitType.values();
+    private static final NalUnitType[] values = NalUnitType.values();
 }

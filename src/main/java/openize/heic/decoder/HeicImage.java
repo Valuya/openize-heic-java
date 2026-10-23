@@ -33,7 +33,7 @@ public class HeicImage
      * Dictionary of Heic image frames.
      * </p>
      */
-    private final HashMap<Long, HeicImageFrame> _frames;
+    private final HashMap<Long, HeicImageFrame> framesById;
     private final HeicHeader header;
 
     /**
@@ -47,7 +47,7 @@ public class HeicImage
     private HeicImage(HeicHeader header, BitStreamWithNalSupport stream)
     {
         this.header = header;
-        _frames = new HashMap<>();
+        framesById = new HashMap<>();
         readFramesMeta(stream);
     }
 
@@ -260,7 +260,7 @@ public class HeicImage
      */
     public final Map<Long, HeicImageFrame> getFrames()
     {
-        Map<Long, HeicImageFrame> frames = _frames.entrySet().stream().filter((f) ->
+        Map<Long, HeicImageFrame> publicFramesById = framesById.entrySet().stream().filter((f) ->
                 !f.getValue().isHidden()
                 && f.getValue().getDerivativeType() != BoxType.thmb
                 &&  f.getValue().getImageType() != ImageFrameType.tmap)
@@ -268,7 +268,7 @@ public class HeicImage
 
         List<EntityToGroupBox> groups = this.getHeader().getGroupsIfPresent();
         if (groups == null)
-            return frames;
+            return publicFramesById;
 
         for (EntityToGroupBox grp : groups)
         {
@@ -279,16 +279,16 @@ public class HeicImage
 
                 for (long entity : entities)
                 {
-                    if (frames.containsKey(entity))
+                    if (publicFramesById.containsKey(entity))
                     {
                         if (!selected) selected = true;
-                        else frames.remove(entity);
+                        else publicFramesById.remove(entity);
                     }
                 }
             }
         }
 
-        return frames;
+        return publicFramesById;
     }
 
     /**
@@ -299,7 +299,7 @@ public class HeicImage
      */
     public final Map<Long, HeicImageFrame> getAllFrames()
     {
-        return _frames;
+        return framesById;
     }
 
     /**
@@ -310,7 +310,7 @@ public class HeicImage
      */
     public final HeicImageFrame getDefaultFrame()
     {
-        return _frames.get(getHeader().getDefaultFrameId());
+        return framesById.get(getHeader().getDefaultFrameId());
     }
 
     /**
@@ -340,7 +340,7 @@ public class HeicImage
      * Exchangeable image metadata of the default image frame.
      * </p>
      */
-    public final ExifData getExif() { return getDefaultFrame().Exif; }
+    public final ExifData getExif() { return getDefaultFrame().exif; }
 
     /**
      * <p>
@@ -355,25 +355,25 @@ public class HeicImage
 
         for (IlocItem item : getHeader().getMeta().getiloc().items)
         {
-            long id = item.item_ID;
-            _frames.put(id, new HeicImageFrame(stream, this, id));
+            long id = item.itemID;
+            framesById.put(id, new HeicImageFrame(stream, this, id));
         }
 
-        for (Map.Entry<Long, HeicImageFrame> frame : _frames.entrySet())
+        for (Map.Entry<Long, HeicImageFrame> frame : framesById.entrySet())
         {
             HeicImageFrame frameValue = frame.getValue();
             long frameValueID = frameValue.getID();
             if (rawProperties.containsKey(frameValueID))
                 frameValue.loadProperties(stream, rawProperties.get(frameValueID));
 
-            if (frameValue.getImageType() == ImageFrameType.Exif)
+            if (frameValue.getImageType() == ImageFrameType.exif)
             {
                 /*UInt32*/long[] derived = getHeader().getDerivedList(frameValueID);
                 ExifData exif = new ExifData(stream, this, frameValue);
 
                 for (/*UInt32*/long derivedId : derived)
                 {
-                    _frames.get(derivedId).Exif = exif;
+                    framesById.get(derivedId).exif = exif;
                 }
             }
         }

@@ -25,7 +25,7 @@ public class PrimaryItemBox extends FullBox
      * The identifier of the primary item.
      * </p>
      */
-    public final /*UInt32*/ long item_ID;
+    public final /*UInt32*/ long itemID;
 
     /**
      * <p>
@@ -39,7 +39,7 @@ public class PrimaryItemBox extends FullBox
     {
         super(stream, BoxType.pitm, size);
 
-        item_ID = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
+        itemID = stream.read((version & 0xFF) == 0 ? 16 : 32) & 0xFFFFFFFFL;
     }
 
     /**
@@ -50,6 +50,6 @@ public class PrimaryItemBox extends FullBox
     @Override
     public String toString()
     {
-        return String.format("%s \nitem_ID: %d", this.type, item_ID);
+        return String.format("%s \nitem_ID: %d", this.type, itemID);
     }
 }

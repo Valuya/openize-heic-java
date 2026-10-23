@@ -73,8 +73,8 @@ public enum IntraPredMode
 
     public static IntraPredMode get(int id)
     {
-        return _values[id];
+        return values[id];
     }
 
-    private static final IntraPredMode[] _values = IntraPredMode.values();
+    private static final IntraPredMode[] values = IntraPredMode.values();
 }

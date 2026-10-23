@@ -88,12 +88,12 @@ public class ExifData
         IlocItem locationBox = Arrays.stream(image.getHeader()
                                                   .getMeta()
                                                   .getiloc().items)
-                                     .filter((item) -> item.item_ID == exifFrame.getID())
+                                     .filter((item) -> item.itemID == exifFrame.getID())
                                      .findFirst()
                                      .orElseThrow(() -> new RuntimeException("Unexpected Exif header"));
 
-        stream.setBytePosition(locationBox.base_offset + locationBox.extents[0].offset);
-        long end = locationBox.base_offset + locationBox.extents[0].offset + locationBox.extents[0].length;
+        stream.setBytePosition(locationBox.baseOffset + locationBox.extents[0].offset);
+        long end = locationBox.baseOffset + locationBox.extents[0].offset + locationBox.extents[0].length;
 
         int offset = stream.read(32); // 0x00000006
 

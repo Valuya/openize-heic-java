@@ -23,7 +23,7 @@ public class IlocItem
      * An arbitrary integer 'name' for this resource which can be used to refer to it.
      * </p>
      */
-    public /*UInt32*/ long item_ID;
+    public /*UInt32*/ long itemID;
 
     /**
      * <p>
@@ -33,14 +33,14 @@ public class IlocItem
      * 2 means data are located in the external file.
      * </p>
      */
-    public  byte construction_method;
+    public  byte constructionMethod;
 
     /**
      * <p>
      * Contains either zero (‘this file’) or a 1‐based index into the data references in the data information box.
      * </p>
      */
-    public /*UInt32*/ long data_reference_index;
+    public /*UInt32*/ long dataReferenceIndex;
 
     /**
      * <p>
@@ -48,7 +48,7 @@ public class IlocItem
      * If base_offset_size equals 0, base_offset takes the value 0, i.e. it is unused.
      * </p>
      */
-    public /*UInt32*/ long base_offset;
+    public /*UInt32*/ long baseOffset;
 
     /**
      * <p>
@@ -56,7 +56,7 @@ public class IlocItem
      * it must have the value 1 or greater.
      * </p>
      */
-    public /*UInt32*/ long extent_count;
+    public /*UInt32*/ long extentCount;
 
     /**
      * <p>
@@ -74,7 +74,7 @@ public class IlocItem
     public String toString()
     {
         StringBuilder sb = new StringBuilder(300);
-        sb.append(String.format("item id: %d method: %d offset : %d\n", item_ID, construction_method, base_offset));
+        sb.append(String.format("item id: %d method: %d offset : %d\n", itemID, constructionMethod, baseOffset));
         for (IlocItemExtent extent : extents)
         {
             sb.append(extent.toString()).append('\n');

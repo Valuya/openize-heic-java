@@ -29,7 +29,7 @@ public class DataReferenceBox extends FullBox
      * The count of data references.
      * </p>
      */
-    public final /*UInt32*/long entry_count;
+    public final /*UInt32*/long entryCount;
 
     /**
      * <p>
@@ -44,7 +44,7 @@ public class DataReferenceBox extends FullBox
      * </p>
      */
     @Override
-    public String toString() { return String.format("%s count: %d",this.type, entry_count); }
+    public String toString() { return String.format("%s count: %d",this.type, entryCount); }
 
     /**
      * <p>
@@ -70,9 +70,9 @@ public class DataReferenceBox extends FullBox
     {
     	super (stream, BoxType.dref);
 	
-        entry_count = stream.read(32) & 0xFFFFFFFFL;
-        entries = new ArrayList<>((int)entry_count);
-        for (int i = 1; i <= (entry_count & 0xFFFFFFFFL); i++)
+        entryCount = stream.read(32) & 0xFFFFFFFFL;
+        entries = new ArrayList<>((int)entryCount);
+        for (int i = 1; i <= (entryCount & 0xFFFFFFFFL); i++)
         {
             entries.add(new DataEntryUrlBox(stream));
         }

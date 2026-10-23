@@ -74,7 +74,7 @@ public final class MathUtils
      * @param doubleValue The double value.
      * @return The int value.
      */
-    public static int f64_s32(double doubleValue)
+    public static int f64S32(double doubleValue)
     {
         return (doubleValue == doubleValue
                 && !(doubleValue < -2.147483647E9)

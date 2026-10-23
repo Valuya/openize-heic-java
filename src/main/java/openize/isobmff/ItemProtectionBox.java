@@ -25,14 +25,14 @@ public class ItemProtectionBox extends FullBox
      * Count of protection information schemas.
      * </p>
      */
-    private final /*UInt16*/ int protection_count;
+    private final /*UInt16*/ int protectionCount;
 
     /**
      * <p>
      * Array of protection information schemas.
      * </p>
      */
-    private final ProtectionSchemeInfoBox[] protection_information;
+    private final ProtectionSchemeInfoBox[] protectionInformation;
 
     /**
      * <p>
@@ -46,11 +46,11 @@ public class ItemProtectionBox extends FullBox
     {
         super(stream, BoxType.ipro, size);
 
-        protection_count = stream.read(16) & 0xFFFF;
-        protection_information = new ProtectionSchemeInfoBox[protection_count & 0xFFFF];
+        protectionCount = stream.read(16) & 0xFFFF;
+        protectionInformation = new ProtectionSchemeInfoBox[protectionCount & 0xFFFF];
 
-        for (int i = 1; i <= (protection_count & 0xFFFF); i++)
-            protection_information[i - 1] = new ProtectionSchemeInfoBox(stream);
+        for (int i = 1; i <= (protectionCount & 0xFFFF); i++)
+            protectionInformation[i - 1] = new ProtectionSchemeInfoBox(stream);
     }
 
     /**

@@ -21,13 +21,13 @@ import java.util.List;
 public class HEVCDecoderConfigurationRecord
 {
     public final byte configurationVersion; // 1
-    public final byte general_profile_space;
-    public final boolean general_tier_flag;
-    public final byte general_profile_idc;
+    public final byte generalProfileSpace;
+    public final boolean generalTierFlag;
+    public final byte generalProfileIdc;
     //public final boolean[] general_profile_compatibility_flags;
     //public final boolean[] general_constraint_indicator_flags;
-    public final byte general_level_idc;
-    public final /*UInt16*/ int min_spatial_segmentation_idc;
+    public final byte generalLevelIdc;
+    public final /*UInt16*/ int minSpatialSegmentationIdc;
     public final byte parallelismType;
     public final byte chromaFormat;
     public final byte bitDepthLumaMinus8;
@@ -36,19 +36,19 @@ public class HEVCDecoderConfigurationRecord
     public final int constantFrameRate; // takes the value 0
     public final int numTemporalLayers; // takes the value 0
     public final int temporalIdNested; // takes the value 0
-    private final boolean[] array_completeness;
+    private final boolean[] arrayCompleteness;
     private final List<NalUnit> nalUnits;
     private ObservableCollection<NalUnit> children;
-    private seq_parameter_set_rbsp spsUnit;
+    private SeqParameterSetRbsp spsUnit;
 
 
     public HEVCDecoderConfigurationRecord(BitStreamWithNalSupport stream)
     {
         configurationVersion = (byte) stream.read(8);
 
-        general_profile_space = (byte) stream.read(2);
-        general_tier_flag = stream.readFlag();
-        general_profile_idc = (byte) stream.read(5);
+        generalProfileSpace = (byte) stream.read(2);
+        generalTierFlag = stream.readFlag();
+        generalProfileIdc = (byte) stream.read(5);
 
         //general_profile_compatibility_flags = new boolean[32];
         for (int i = 0; i < 32; i++)
@@ -60,10 +60,10 @@ public class HEVCDecoderConfigurationRecord
             /*general_constraint_indicator_flags[i] =*/
             stream.readFlag();
 
-        general_level_idc = (byte) stream.read(8);
+        generalLevelIdc = (byte) stream.read(8);
 
         stream.skipBits(4); // 1111
-        min_spatial_segmentation_idc = stream.read(12) & 0xFFFF;
+        minSpatialSegmentationIdc = stream.read(12) & 0xFFFF;
         stream.skipBits(6); // 111111
         parallelismType = (byte) stream.read(2);
         stream.skipBits(6); // 111111
@@ -87,12 +87,12 @@ public class HEVCDecoderConfigurationRecord
         byte numOfArrays = (byte) stream.read(8);
 
         nalUnits = new ArrayList<>(255);
-        array_completeness = new boolean[numOfArrays & 0xFF];
+        arrayCompleteness = new boolean[numOfArrays & 0xFF];
         for (int j = 0; j < (numOfArrays & 0xFF); j++)
         {
-            array_completeness[j] = stream.readFlag();
+            arrayCompleteness[j] = stream.readFlag();
             stream.skipBits(1); // = 0
-            NalUnitType NAL_unit_type = NalUnitType.codeToType(stream.read(6));
+            NalUnitType nalUnitType = NalUnitType.codeToType(stream.read(6));
             /*UInt16*/
             int numNalus = stream.read(16) & 0xFFFF;
 
@@ -100,13 +100,13 @@ public class HEVCDecoderConfigurationRecord
             {
                 /*UInt16*/
                 int nalUnitLength = stream.read(16) & 0xFFFF;
-                NalUnit unit = NalUnit.parseKnownUnit(stream, nalUnitLength, NAL_unit_type);
+                NalUnit unit = NalUnit.parseKnownUnit(stream, nalUnitLength, nalUnitType);
                 stream.getContext()
-                      .addNalContext(NAL_unit_type, unit);
+                      .addNalContext(nalUnitType, unit);
                 nalUnits.add(unit);
-                if (spsUnit == null && unit.NalHeader.type == NalUnitType.SPS_NUT)
+                if (spsUnit == null && unit.nalHeader.type == NalUnitType.SPS_NUT)
                 {
-                    spsUnit = (seq_parameter_set_rbsp) unit;
+                    spsUnit = (SeqParameterSetRbsp) unit;
                 }
             }
         }
@@ -116,7 +116,7 @@ public class HEVCDecoderConfigurationRecord
     @Override
     public final String toString()
     {
-        return "HEVCDecoderConfiguration; completeness: " + Arrays.toString(array_completeness);
+        return "HEVCDecoderConfiguration; completeness: " + Arrays.toString(arrayCompleteness);
     }
 
     public final ObservableCollection<NalUnit> getChildren()
@@ -129,13 +129,13 @@ public class HEVCDecoderConfigurationRecord
         children = value;
     }
 
-    final pic_parameter_set_rbsp getPPS()
+    final PicParameterSetRbsp getPPS()
     {
         for (NalUnit nalUnit : nalUnits)
         {
-            if (nalUnit.NalHeader.type == NalUnitType.PPS_NUT)
+            if (nalUnit.nalHeader.type == NalUnitType.PPS_NUT)
             {
-                return (pic_parameter_set_rbsp) nalUnit;
+                return (PicParameterSetRbsp) nalUnit;
             }
         }
         throw new IllegalStateException();
@@ -143,7 +143,7 @@ public class HEVCDecoderConfigurationRecord
 //                .orElse(null);
     }
 
-    final seq_parameter_set_rbsp getSPS()
+    final SeqParameterSetRbsp getSPS()
     {
         if (spsUnit == null)
         {
@@ -160,13 +160,13 @@ public class HEVCDecoderConfigurationRecord
 //        throw new IllegalStateException();
     }
 
-    final video_parameter_set_rbsp getVPS()
+    final VideoParameterSetRbsp getVPS()
     {
         for (NalUnit nalUnit : nalUnits)
         {
-            if (nalUnit.NalHeader.type == NalUnitType.VPS_NUT)
+            if (nalUnit.nalHeader.type == NalUnitType.VPS_NUT)
             {
-                return (video_parameter_set_rbsp) nalUnit;
+                return (VideoParameterSetRbsp) nalUnit;
             }
         }
         throw new IllegalStateException();

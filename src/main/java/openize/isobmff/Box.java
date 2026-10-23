@@ -27,7 +27,7 @@ public class Box
      * Dictionary of external box constructors.
      * </p>
      */
-    private static final HashMap<BoxType, ExternalBoxConstructor> _externalParsersDictionary
+    private static final HashMap<BoxType, ExternalBoxConstructor> externalParsersDictionary
             = new HashMap<>();
     /**
      * <p>
@@ -211,9 +211,9 @@ public class Box
             case hvcC:
             case av1C:
             default:
-                if (_externalParsersDictionary.containsKey(type))
+                if (externalParsersDictionary.containsKey(type))
                 {
-                    box = _externalParsersDictionary.get(type).invoke(stream, size);
+                    box = externalParsersDictionary.get(type).invoke(stream, size);
                 }
                 else
                 {
@@ -246,9 +246,9 @@ public class Box
      */
     public static void setExternalConstructor(BoxType type, ExternalBoxConstructor parser)
     {
-        synchronized (_externalParsersDictionary)
+        synchronized (externalParsersDictionary)
         {
-            _externalParsersDictionary.putIfAbsent(type, parser);
+            externalParsersDictionary.putIfAbsent(type, parser);
         }
     }
 
