@@ -12,46 +12,58 @@ package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+/**
+ * pps_range_extension( ) (7.3.2.3.2); the inferred values for a picture parameter set without one.
+ */
 class PpsRangeExtension {
-    /*UInt32*/ long log2MaxTransformSkipBlockSizeMinus2;
+    // chroma_qp_offset_list_len_minus1 (7.4.3.3.2)
+    private static final int MAX_CHROMA_QP_OFFSET_LIST_LEN_MINUS1 = 5;
+
+    final int log2MaxTransformSkipBlockSizeMinus2;
     final boolean crossComponentPredictionEnabledFlag;
     final boolean chromaQpOffsetListEnabledFlag;
-    /*UInt32*/ long diffCuChromaQpOffsetDepth;
-    int chromaQpOffsetListLenMinus1;
-    int[] cbQpOffsetList;
-    int[] crQpOffsetList;
-    final /*UInt32*/ long log2SaoOffsetScaleLuma;
-    final /*UInt32*/ long log2SaoOffsetScaleChroma;
+    final int diffCuChromaQpOffsetDepth;
+    // -1 without a list
+    final int chromaQpOffsetListLenMinus1;
+    final int[] cbQpOffsetList;
+    final int[] crQpOffsetList;
+    final int log2SaoOffsetScaleLuma;
+    final int log2SaoOffsetScaleChroma;
 
-    public PpsRangeExtension(BitStreamWithNalSupport stream, boolean transformSkipEnabledFlag) {
-        if (transformSkipEnabledFlag) log2MaxTransformSkipBlockSizeMinus2 = stream.readUev(); // ue(v)
-        crossComponentPredictionEnabledFlag = stream.readFlag(); // u(1)
-        chromaQpOffsetListEnabledFlag = stream.readFlag(); // u(1)
-        if (chromaQpOffsetListEnabledFlag) {
-            diffCuChromaQpOffsetDepth = stream.readUev(); // ue(v)
-            chromaQpOffsetListLenMinus1 = (int) stream.readUev(); // ue(v)
-            if (chromaQpOffsetListLenMinus1 > 5) {
-                throw new HeicFormatException("A chroma QP offset list of %d entries, more than 6"
-                        .formatted(chromaQpOffsetListLenMinus1 + 1));
-            }
-            cbQpOffsetList = new int[chromaQpOffsetListLenMinus1 + 1];
-            crQpOffsetList = new int[chromaQpOffsetListLenMinus1 + 1];
-            for (int i = 0; i <= chromaQpOffsetListLenMinus1; i++) {
-                cbQpOffsetList[i] = stream.readSev(); // se(v)
-                crQpOffsetList[i] = stream.readSev(); // se(v)
-            }
-        }
-        log2SaoOffsetScaleLuma = stream.readUev(); // ue(v)
-        log2SaoOffsetScaleChroma = stream.readUev(); // ue(v)
-    }
-
-    public PpsRangeExtension() {
+    PpsRangeExtension() {
         log2MaxTransformSkipBlockSizeMinus2 = 0;
         crossComponentPredictionEnabledFlag = false;
         chromaQpOffsetListEnabledFlag = false;
         diffCuChromaQpOffsetDepth = 0;
         chromaQpOffsetListLenMinus1 = -1;
+        cbQpOffsetList = new int[0];
+        crQpOffsetList = new int[0];
         log2SaoOffsetScaleLuma = 0;
         log2SaoOffsetScaleChroma = 0;
+    }
+
+    PpsRangeExtension(BitStreamWithNalSupport stream, SeqParameterSetRbsp sps, boolean transformSkipEnabledFlag) {
+        log2MaxTransformSkipBlockSizeMinus2 =
+                transformSkipEnabledFlag ? stream.readUevAtMost(sps.getMaxTbLog2SizeY() - 2) : 0;
+        crossComponentPredictionEnabledFlag = stream.readFlag();
+        chromaQpOffsetListEnabledFlag = stream.readFlag();
+        if (chromaQpOffsetListEnabledFlag) {
+            diffCuChromaQpOffsetDepth = stream.readUevAtMost(sps.getCtbLog2SizeY() - sps.getMinCbLog2SizeY());
+            chromaQpOffsetListLenMinus1 = stream.readUevAtMost(MAX_CHROMA_QP_OFFSET_LIST_LEN_MINUS1);
+            cbQpOffsetList = new int[chromaQpOffsetListLenMinus1 + 1];
+            crQpOffsetList = new int[chromaQpOffsetListLenMinus1 + 1];
+            for (int i = 0; i <= chromaQpOffsetListLenMinus1; i++) {
+                cbQpOffsetList[i] = stream.readSev();
+                crQpOffsetList[i] = stream.readSev();
+            }
+        } else {
+            diffCuChromaQpOffsetDepth = 0;
+            chromaQpOffsetListLenMinus1 = -1;
+            cbQpOffsetList = new int[0];
+            crQpOffsetList = new int[0];
+        }
+        // SAO offsets scale up by at most the bit depth beyond 10 bits
+        log2SaoOffsetScaleLuma = stream.readUevAtMost(Math.max(0, sps.getBitDepthY() - 10));
+        log2SaoOffsetScaleChroma = stream.readUevAtMost(Math.max(0, sps.getBitDepthC() - 10));
     }
 }

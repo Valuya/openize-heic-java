@@ -11,22 +11,28 @@
 package openize.heic.decoder;
 
 import openize.heic.decoder.io.BitStreamWithNalSupport;
+import org.jspecify.annotations.Nullable;
 
+/**
+ * pic_parameter_set_rbsp( ) (7.3.2.3), and the scan conversion tables derived from it and its SPS (6.5.1, 6.5.2).
+ */
 public class PicParameterSetRbsp extends NalUnit {
-    public final SeqParameterSetRbsp sps;
-    final byte ppsPicParameterSetId; // max - 64
-    final byte ppsSeqParameterSetId;
+    // 7.4.3.3.1
+    private static final int MAX_PPS_ID = 63;
+    private static final int MAX_SPS_ID = 15;
+
+    final SeqParameterSetRbsp sps;
+    final int ppsPicParameterSetId;
     final boolean dependentSliceSegmentsEnabledFlag;
     final boolean outputFlagPresentFlag;
-    final byte numExtraSliceHeaderBits;
+    final int numExtraSliceHeaderBits;
     final boolean signDataHidingEnabledFlag;
     final boolean cabacInitPresentFlag;
-    final /*UInt32*/ long numRefIdxL0DefaultActiveMinus1;
-    final /*UInt32*/ long numRefIdxL1DefaultActiveMinus1;
     final int initQpMinus26;
     final boolean constrainedIntraPredFlag;
     final boolean transformSkipEnabledFlag;
     final boolean cuQpDeltaEnabledFlag;
+    final int diffCuQpDeltaDepth;
     final int ppsCbQpOffset;
     final int ppsCrQpOffset;
     final boolean ppsSliceChromaQpOffsetsPresentFlag;
@@ -35,251 +41,226 @@ public class PicParameterSetRbsp extends NalUnit {
     final boolean transquantBypassEnabledFlag;
     final boolean tilesEnabledFlag;
     final boolean entropyCodingSyncEnabledFlag;
+    private final int numTileColumnsMinus1;
+    private final int numTileRowsMinus1;
+    private final boolean uniformSpacingFlag;
+    // empty unless the tiles are not uniformly spaced
+    private final int[] columnWidthMinus1;
+    private final int[] rowHeightMinus1;
+    final boolean loopFilterAcrossTilesEnabledFlag;
     final boolean ppsLoopFilterAcrossSlicesEnabledFlag;
-    final boolean deblockingFilterControlPresentFlag;
+    final boolean deblockingFilterOverrideEnabledFlag;
+    final boolean ppsDeblockingFilterDisabledFlag;
+    final int ppsBetaOffsetDiv2;
+    final int ppsTcOffsetDiv2;
     final boolean ppsScalingListDataPresentFlag;
-    ScalingListData ppsScalingListData;
+    // null unless pps_scaling_list_data_present_flag
+    final @Nullable ScalingListData ppsScalingListData;
     final boolean listsModificationPresentFlag;
-    final /*UInt32*/ long log2ParallelMergeLevelMinus2;
     final boolean sliceSegmentHeaderExtensionPresentFlag;
-    final boolean ppsExtensionPresentFlag;
-    final PpsSccExtension ppsSccExt;
-    // pps_3d_extension pps_3d_ext;
-    // pps_multilayer_extension pps_multilayer_ext;
     final PpsRangeExtension ppsRangeExt;
-    // the width of the i-th tile column in units of CTBs
-    private int[] colWidth;
-    // the height of the j-th tile row in units of CTBs
-    private int[] rowHeight;
-    // the location of the i-th tile column boundary in units of CTBs
-    private int[] colBd;
-    // the location of the j-th tile row boundary in units of CTBs
-    private int[] rowBd;
-    // the conversion from a CTB address in CTB raster scan of a picture to a CTB address in tile scan
-    private int[] ctbAddrRsToTs;
-    // the conversion from a CTB address in tile scan to a CTB address in CTB raster scan of a picture
-    private int[] ctbAddrTsToRs;
-    // the conversion from a CTB address in tile scan to a tile ID
-    private int[] tileIdByCtbAddrTs;
-    // the conversion from a CTB address in CTB raster scan to a tile ID
-    private int[] tileIdFromRs;
-    // the width of the i-th tile column in units of luma samples
-    //    public /*UInt32*/ long[] ColumnWidthInLumaSamples;
-    // the height of the j-th tile row in units of luma samples
-    //  public /*UInt32*/ long[] RowHeightInLumaSamples;
-    // the conversion from a location (x, y) in units of minimum transform blocks
-    // to a transform block address in z-scan order
-    private int[][] minTbAddrZs;
-    /*UInt32*/ long diffCuQpDeltaDepth;
-    /*UInt32*/ long numTileColumnsMinus1;
-    /*UInt32*/ long numTileRowsMinus1;
-    boolean uniformSpacingFlag;
-    /*UInt32*/ long[] columnWidthMinus1;
-    /*UInt32*/ long[] rowHeightMinus1;
-    boolean loopFilterAcrossTilesEnabledFlag;
-    boolean deblockingFilterOverrideEnabledFlag;
-    boolean ppsDeblockingFilterDisabledFlag;
-    int ppsBetaOffsetDiv2;
-    int ppsTcOffsetDiv2;
-    boolean ppsRangeExtensionFlag;
-    boolean ppsMultilayerExtensionFlag;
-    boolean pps3dExtensionFlag;
-    boolean ppsSccExtensionFlag;
-    byte ppsExtension4bits;
+    final PpsSccExtension ppsSccExt;
 
-    public PicParameterSetRbsp(BitStreamWithNalSupport stream, /*UInt64*/ long startPosition, int size) {
+    // Sized by the picture: built on first use by a decode, after its size has been checked, rather than for every
+    // parameter set read
+    private @Nullable ScanTables scanTables;
+
+    PicParameterSetRbsp(BitStreamWithNalSupport stream, long startPosition, int size) {
         super(stream, startPosition, size);
 
-        ppsPicParameterSetId = (byte) stream.readUev(); // ue(v)
-        ppsSeqParameterSetId = (byte) stream.readUev(); // ue(v)
-
-        sps = stream.getContext().getSPS().get(ppsSeqParameterSetId & 0xFF);
-
-        dependentSliceSegmentsEnabledFlag = stream.readFlag(); // u(1)
-        outputFlagPresentFlag = stream.readFlag(); // u(1)
-        numExtraSliceHeaderBits = (byte) stream.read(3); // u(3)
-        signDataHidingEnabledFlag = stream.readFlag(); // u(1)
-        cabacInitPresentFlag = stream.readFlag(); // u(1)
-
-        numRefIdxL0DefaultActiveMinus1 = stream.readUev(); // ue(v)
-        numRefIdxL1DefaultActiveMinus1 = stream.readUev(); // ue(v)
-        initQpMinus26 = stream.readSev(); // se(v)
-        constrainedIntraPredFlag = stream.readFlag(); // u(1)
-        transformSkipEnabledFlag = stream.readFlag(); // u(1)
-        cuQpDeltaEnabledFlag = stream.readFlag(); // u(1)
-        if (cuQpDeltaEnabledFlag) {
-            diffCuQpDeltaDepth = stream.readUev(); // ue(v)
+        ppsPicParameterSetId = stream.readUevAtMost(MAX_PPS_ID);
+        int ppsSeqParameterSetId = stream.readUevAtMost(MAX_SPS_ID);
+        SeqParameterSetRbsp referencedSps = stream.getContext().getSPS().get(ppsSeqParameterSetId);
+        if (referencedSps == null) {
+            throw new HeicFormatException(
+                    "Picture parameter set %d refers to sequence parameter set %d, which is not defined"
+                            .formatted(ppsPicParameterSetId, ppsSeqParameterSetId));
         }
-        ppsCbQpOffset = stream.readSev(); // se(v)
-        ppsCrQpOffset = stream.readSev(); // se(v)
-        ppsSliceChromaQpOffsetsPresentFlag = stream.readFlag(); // u(1)
-        weightedPredFlag = stream.readFlag(); // u(1)
-        weightedBipredFlag = stream.readFlag(); // u(1)
-        transquantBypassEnabledFlag = stream.readFlag(); // u(1)
-        tilesEnabledFlag = stream.readFlag(); // u(1)
-        entropyCodingSyncEnabledFlag = stream.readFlag(); // u(1)
+        sps = referencedSps;
+
+        dependentSliceSegmentsEnabledFlag = stream.readFlag();
+        outputFlagPresentFlag = stream.readFlag();
+        numExtraSliceHeaderBits = stream.read(3);
+        signDataHidingEnabledFlag = stream.readFlag();
+        cabacInitPresentFlag = stream.readFlag();
+        stream.readUev(); // num_ref_idx_l0_default_active_minus1: P and B slices only
+        stream.readUev(); // num_ref_idx_l1_default_active_minus1
+        initQpMinus26 = stream.readSev();
+        constrainedIntraPredFlag = stream.readFlag();
+        transformSkipEnabledFlag = stream.readFlag();
+        cuQpDeltaEnabledFlag = stream.readFlag();
+        int log2DiffMaxMinLumaCodingBlockSize = sps.getCtbLog2SizeY() - sps.getMinCbLog2SizeY();
+        diffCuQpDeltaDepth = cuQpDeltaEnabledFlag ? stream.readUevAtMost(log2DiffMaxMinLumaCodingBlockSize) : 0;
+        ppsCbQpOffset = stream.readSev();
+        ppsCrQpOffset = stream.readSev();
+        ppsSliceChromaQpOffsetsPresentFlag = stream.readFlag();
+        weightedPredFlag = stream.readFlag();
+        weightedBipredFlag = stream.readFlag();
+        transquantBypassEnabledFlag = stream.readFlag();
+        tilesEnabledFlag = stream.readFlag();
+        entropyCodingSyncEnabledFlag = stream.readFlag();
 
         if (tilesEnabledFlag) {
-            numTileColumnsMinus1 = stream.readUev(); // ue(v)
-            numTileRowsMinus1 = stream.readUev(); // ue(v)
-            if (numTileColumnsMinus1 >= sps.getPicWidthInCtbsY() || numTileRowsMinus1 >= sps.getPicHeightInCtbsY()) {
-                throw new HeicFormatException("%d x %d tiles in a picture of %d x %d CTBs"
-                        .formatted(
-                                numTileColumnsMinus1 + 1,
-                                numTileRowsMinus1 + 1,
-                                sps.getPicWidthInCtbsY(),
-                                sps.getPicHeightInCtbsY()));
+            numTileColumnsMinus1 = stream.readUevAtMost(sps.getPicWidthInCtbsY() - 1);
+            numTileRowsMinus1 = stream.readUevAtMost(sps.getPicHeightInCtbsY() - 1);
+            uniformSpacingFlag = stream.readFlag();
+            if (uniformSpacingFlag) {
+                columnWidthMinus1 = new int[0];
+                rowHeightMinus1 = new int[0];
+            } else {
+                columnWidthMinus1 = readTileSizesMinus1(stream, numTileColumnsMinus1, sps.getPicWidthInCtbsY());
+                rowHeightMinus1 = readTileSizesMinus1(stream, numTileRowsMinus1, sps.getPicHeightInCtbsY());
             }
-            uniformSpacingFlag = stream.readFlag(); // u(1)
-
-            if (!uniformSpacingFlag) {
-                columnWidthMinus1 = new /*UInt32*/ long[(int) (numTileColumnsMinus1 & 0xFFFFFFFFL)];
-                rowHeightMinus1 = new /*UInt32*/ long[(int) (numTileRowsMinus1 & 0xFFFFFFFFL)];
-
-                for (int i = 0; i < (numTileColumnsMinus1 & 0xFFFFFFFFL); i++)
-                    columnWidthMinus1[i] = stream.readUev(); // ue(v)
-
-                for (int i = 0; i < (numTileRowsMinus1 & 0xFFFFFFFFL); i++)
-                    rowHeightMinus1[i] = stream.readUev(); // ue(v)
-            }
-
-            loopFilterAcrossTilesEnabledFlag = stream.readFlag(); // u(1)
+            loopFilterAcrossTilesEnabledFlag = stream.readFlag();
+        } else {
+            numTileColumnsMinus1 = 0;
+            numTileRowsMinus1 = 0;
+            uniformSpacingFlag = true;
+            columnWidthMinus1 = new int[0];
+            rowHeightMinus1 = new int[0];
+            loopFilterAcrossTilesEnabledFlag = true;
         }
 
-        ppsLoopFilterAcrossSlicesEnabledFlag = stream.readFlag(); // u(1)
-        deblockingFilterControlPresentFlag = stream.readFlag(); // u(1)
-        if (deblockingFilterControlPresentFlag) {
-            deblockingFilterOverrideEnabledFlag = stream.readFlag(); // u(1)
-            ppsDeblockingFilterDisabledFlag = stream.readFlag(); // u(1)
-            if (!ppsDeblockingFilterDisabledFlag) {
-                ppsBetaOffsetDiv2 = stream.readSev(); // se(v)
-                ppsTcOffsetDiv2 = stream.readSev(); // se(v)
-            }
-        }
+        ppsLoopFilterAcrossSlicesEnabledFlag = stream.readFlag();
+        boolean deblockingFilterControlPresentFlag = stream.readFlag();
+        deblockingFilterOverrideEnabledFlag = deblockingFilterControlPresentFlag && stream.readFlag();
+        ppsDeblockingFilterDisabledFlag = deblockingFilterControlPresentFlag && stream.readFlag();
+        boolean deblockingOffsetsPresent = deblockingFilterControlPresentFlag && !ppsDeblockingFilterDisabledFlag;
+        ppsBetaOffsetDiv2 = deblockingOffsetsPresent ? stream.readSev() : 0;
+        ppsTcOffsetDiv2 = deblockingOffsetsPresent ? stream.readSev() : 0;
 
-        ppsScalingListDataPresentFlag = stream.readFlag(); // u(1)
-        if (ppsScalingListDataPresentFlag) {
-            ppsScalingListData = new ScalingListData(stream);
-        }
+        ppsScalingListDataPresentFlag = stream.readFlag();
+        ppsScalingListData = ppsScalingListDataPresentFlag ? new ScalingListData(stream) : null;
 
-        listsModificationPresentFlag = stream.readFlag(); // u(1)
-        log2ParallelMergeLevelMinus2 = stream.readUev(); // ue(v)
-        sliceSegmentHeaderExtensionPresentFlag = stream.readFlag(); // u(1)
+        listsModificationPresentFlag = stream.readFlag();
+        stream.readUev(); // log2_parallel_merge_level_minus2: merge mode, in P and B slices only
+        sliceSegmentHeaderExtensionPresentFlag = stream.readFlag();
 
-        ppsExtensionPresentFlag = stream.readFlag(); // u(1)
+        boolean ppsExtensionPresentFlag = stream.readFlag();
+        boolean ppsRangeExtensionFlag = false;
+        boolean ppsMultilayerExtensionFlag = false;
+        boolean pps3dExtensionFlag = false;
+        boolean ppsSccExtensionFlag = false;
         if (ppsExtensionPresentFlag) {
-            ppsRangeExtensionFlag = stream.readFlag(); // u(1)
-            ppsMultilayerExtensionFlag = stream.readFlag(); // u(1)
-            pps3dExtensionFlag = stream.readFlag(); // u(1)
-            ppsSccExtensionFlag = stream.readFlag(); // u(1)
-            ppsExtension4bits = (byte) stream.read(4); // u(4)
+            ppsRangeExtensionFlag = stream.readFlag();
+            ppsMultilayerExtensionFlag = stream.readFlag();
+            pps3dExtensionFlag = stream.readFlag();
+            ppsSccExtensionFlag = stream.readFlag();
+            // pps_extension_4bits: the extension data after the extensions below is not read
+            stream.skipBits(4);
         }
-
         ppsRangeExt = ppsRangeExtensionFlag
-                ? new PpsRangeExtension(stream, transformSkipEnabledFlag)
+                ? new PpsRangeExtension(stream, sps, transformSkipEnabledFlag)
                 : new PpsRangeExtension();
-
-        if (ppsMultilayerExtensionFlag) {
-            /*pps_multilayer_ext =*/ new PpsMultilayerExtension(stream); /* specified in Annex F */
+        // pps_multilayer_extension( ) (Annex F) and pps_3d_extension( ) (Annex I) only matter to the layers above the
+        // base one, but they would have to be parsed to reach a screen content coding extension
+        if ((ppsMultilayerExtensionFlag || pps3dExtensionFlag) && ppsSccExtensionFlag) {
+            throw new HeicFormatException(
+                    "A PPS with both multilayer or 3D and screen content coding extensions is not supported");
         }
-
-        if (pps3dExtensionFlag) {
-            /*pps_3d_ext =*/ new Pps3dExtension(stream); /* specified in Annex I */
-        }
-
         ppsSccExt = ppsSccExtensionFlag ? new PpsSccExtension(stream) : new PpsSccExtension();
     }
 
-    // The scan conversion tables (6.5.1, 6.5.2) are sized by the picture: built on first use by a decode, after its
-    // size has been checked, rather than for every parameter set read
-    private void ensureScanTables() {
-        if (minTbAddrZs == null) {
-            ctbRasterAndTileScan();
-            zscanInit();
+    // column_width_minus1 / row_height_minus1 of all tiles but the last, which takes what remains
+    private static int[] readTileSizesMinus1(BitStreamWithNalSupport stream, int count, int pictureSizeInCtbs) {
+        int[] sizesMinus1 = new int[count];
+        for (int i = 0; i < count; i++) {
+            sizesMinus1[i] = stream.readUevAtMost(pictureSizeInCtbs - 1);
         }
-    }
-
-    int[] getColBd() {
-        ensureScanTables();
-        return colBd;
-    }
-
-    int[] getRowBd() {
-        ensureScanTables();
-        return rowBd;
-    }
-
-    int[] getCtbAddrRsToTs() {
-        ensureScanTables();
-        return ctbAddrRsToTs;
-    }
-
-    int[] getCtbAddrTsToRs() {
-        ensureScanTables();
-        return ctbAddrTsToRs;
-    }
-
-    int[] getTileIdByCtbAddrTs() {
-        ensureScanTables();
-        return tileIdByCtbAddrTs;
-    }
-
-    int[] getTileIdFromRs() {
-        ensureScanTables();
-        return tileIdFromRs;
-    }
-
-    int[][] getMinTbAddrZs() {
-        ensureScanTables();
-        return minTbAddrZs;
+        return sizesMinus1;
     }
 
     @Override
     public final String toString() {
-        return String.format(
-                "NAL Unit PPS \nNumber of l0 l1 refs: %d %d ",
-                (numRefIdxL0DefaultActiveMinus1 & 0xFFFFFFFFL) + 1, (numRefIdxL1DefaultActiveMinus1 & 0xFFFFFFFFL) + 1);
+        return "NAL Unit PPS %d of SPS %d".formatted(ppsPicParameterSetId, sps.spsSeqParameterSetId);
     }
 
-    public final /*UInt32*/ long getLog2MinCuQpDeltaSize() {
-        return (((sps.getCtbLog2SizeY() & 0xFF) - (diffCuQpDeltaDepth & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    final int getLog2MinCuQpDeltaSize() {
+        return sps.getCtbLog2SizeY() - diffCuQpDeltaDepth;
     }
 
-    public final /*UInt32*/ long getLog2MinCuChromaQpOffsetSize() {
-        return (((sps.getCtbLog2SizeY() & 0xFF) - (ppsRangeExt.diffCuChromaQpOffsetDepth & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    final int getLog2MinCuChromaQpOffsetSize() {
+        return sps.getCtbLog2SizeY() - ppsRangeExt.diffCuChromaQpOffsetDepth;
     }
 
-    public final /*UInt32*/ long getLog2MaxTransformSkipSize() {
-        return (((ppsRangeExt.log2MaxTransformSkipBlockSizeMinus2 & 0xFFFFFFFFL) + 2) & 0xFFFFFFFFL);
+    final int getLog2MaxTransformSkipSize() {
+        return ppsRangeExt.log2MaxTransformSkipBlockSizeMinus2 + 2;
     }
 
-    public final int getPpsActQpOffsetY() {
+    final int getPpsActQpOffsetY() {
         return ppsSccExt.ppsActYQpOffsetPlus5 - 5;
     }
 
-    public final int getPpsActQpOffsetCb() {
+    final int getPpsActQpOffsetCb() {
         return ppsSccExt.ppsActCbQpOffsetPlus5 - 5;
     }
 
-    public final int getPpsActQpOffsetCr() {
+    final int getPpsActQpOffsetCr() {
         return ppsSccExt.ppsActCrQpOffsetPlus3 - 3;
     }
 
-    // 6.5.1 CTB raster and tile scanning conversion process
-    private void ctbRasterAndTileScan() {
-        int picWidthInCtbs = (int) sps.getPicWidthInCtbsY();
-        int picHeightInCtbs = (int) sps.getPicHeightInCtbsY();
-        int tileColumnCount = (int) numTileColumnsMinus1 + 1;
-        int tileRowCount = (int) numTileRowsMinus1 + 1;
+    /**
+     * Whether the CTB at column {@code ctbX} and row {@code ctbY}, in CTBs, is the first of a tile.
+     */
+    final boolean checkIfTileIsFirst(int ctbX, int ctbY) {
+        ScanTables tables = getScanTables();
+        return startsTile(tables.colBd(), ctbX) && startsTile(tables.rowBd(), ctbY);
+    }
 
-        colWidth = tileSizes(tileColumnCount, picWidthInCtbs, columnWidthMinus1);
-        rowHeight = tileSizes(tileRowCount, picHeightInCtbs, rowHeightMinus1);
-        colBd = tileBoundaries(colWidth);
-        rowBd = tileBoundaries(rowHeight);
+    private static boolean startsTile(int[] tileBoundaries, int ctbPosition) {
+        // the last boundary is the end of the picture
+        for (int i = 0; i < tileBoundaries.length - 1; i++) {
+            if (tileBoundaries[i] == ctbPosition) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    final int[] getCtbAddrRsToTs() {
+        return getScanTables().ctbAddrRsToTs();
+    }
+
+    final int[] getCtbAddrTsToRs() {
+        return getScanTables().ctbAddrTsToRs();
+    }
+
+    final int[] getTileIdByCtbAddrTs() {
+        return getScanTables().tileIdByCtbAddrTs();
+    }
+
+    final int[] getTileIdFromRs() {
+        return getScanTables().tileIdFromRs();
+    }
+
+    final int[][] getMinTbAddrZs() {
+        return getScanTables().minTbAddrZs();
+    }
+
+    private ScanTables getScanTables() {
+        ScanTables tables = scanTables;
+        if (tables == null) {
+            tables = createScanTables();
+            scanTables = tables;
+        }
+        return tables;
+    }
+
+    // 6.5.1 CTB raster and tile scanning conversion process, then 6.5.2 Z-scan order array initialization process
+    private ScanTables createScanTables() {
+        int picWidthInCtbs = sps.getPicWidthInCtbsY();
+        int picHeightInCtbs = sps.getPicHeightInCtbsY();
+        int tileColumnCount = numTileColumnsMinus1 + 1;
+        int tileRowCount = numTileRowsMinus1 + 1;
+
+        int[] colWidth = tileSizes(tileColumnCount, picWidthInCtbs, columnWidthMinus1);
+        int[] rowHeight = tileSizes(tileRowCount, picHeightInCtbs, rowHeightMinus1);
+        int[] colBd = tileBoundaries(colWidth);
+        int[] rowBd = tileBoundaries(rowHeight);
 
         int picSizeInCtbs = picWidthInCtbs * picHeightInCtbs;
-        ctbAddrRsToTs = new int[picSizeInCtbs];
-        ctbAddrTsToRs = new int[picSizeInCtbs];
+        int[] ctbAddrRsToTs = new int[picSizeInCtbs];
+        int[] ctbAddrTsToRs = new int[picSizeInCtbs];
         for (int ctbAddrRs = 0; ctbAddrRs < picSizeInCtbs; ctbAddrRs++) {
             int tbX = ctbAddrRs % picWidthInCtbs;
             int tbY = ctbAddrRs / picWidthInCtbs;
@@ -299,8 +280,8 @@ public class PicParameterSetRbsp extends NalUnit {
             ctbAddrTsToRs[ctbAddrTs] = ctbAddrRs;
         }
 
-        tileIdByCtbAddrTs = new int[picSizeInCtbs];
-        tileIdFromRs = new int[picSizeInCtbs];
+        int[] tileIdByCtbAddrTs = new int[picSizeInCtbs];
+        int[] tileIdFromRs = new int[picSizeInCtbs];
         int tileIdx = 0;
         for (int j = 0; j < tileRowCount; j++) {
             for (int i = 0; i < tileColumnCount; i++, tileIdx++) {
@@ -313,10 +294,19 @@ public class PicParameterSetRbsp extends NalUnit {
                 }
             }
         }
+
+        return new ScanTables(
+                colBd,
+                rowBd,
+                ctbAddrRsToTs,
+                ctbAddrTsToRs,
+                tileIdByCtbAddrTs,
+                tileIdFromRs,
+                minTbAddrZs(ctbAddrRsToTs));
     }
 
     // colWidth / rowHeight (6-3, 6-4): uniform, or as coded with the last tile taking what remains
-    private int[] tileSizes(int tileCount, int sizeInCtbs, long[] codedSizesMinus1) {
+    private int[] tileSizes(int tileCount, int sizeInCtbs, int[] codedSizesMinus1) {
         int[] sizes = new int[tileCount];
         if (uniformSpacingFlag) {
             for (int i = 0; i < tileCount; i++) {
@@ -327,7 +317,7 @@ public class PicParameterSetRbsp extends NalUnit {
 
         int remainingCtbs = sizeInCtbs;
         for (int i = 0; i < tileCount - 1; i++) {
-            sizes[i] = (int) codedSizesMinus1[i] + 1;
+            sizes[i] = codedSizesMinus1[i] + 1;
             remainingCtbs -= sizes[i];
         }
         if (remainingCtbs <= 0) {
@@ -356,16 +346,16 @@ public class PicParameterSetRbsp extends NalUnit {
         return tileIndex;
     }
 
-    // 6.5.2 Z-scan order array initialization process
-    private void zscanInit() {
-        int picWidthInCtbs = (int) sps.getPicWidthInCtbsY();
-        int ctbLog2Size = sps.getCtbLog2SizeY() & 0xFF;
-        int minTbLog2Size = sps.getMinTbLog2SizeY() & 0xFF;
+    // MinTbAddrZs[x][y]: the z-scan order address of each minimum transform block (6.5.2)
+    private int[][] minTbAddrZs(int[] ctbAddrRsToTs) {
+        int picWidthInCtbs = sps.getPicWidthInCtbsY();
+        int ctbLog2Size = sps.getCtbLog2SizeY();
+        int minTbLog2Size = sps.getMinTbLog2SizeY();
         int log2MinTbsPerCtb = ctbLog2Size - minTbLog2Size;
         int xMax = picWidthInCtbs << log2MinTbsPerCtb;
-        int yMax = (int) sps.getPicHeightInCtbsY() << log2MinTbsPerCtb;
+        int yMax = sps.getPicHeightInCtbsY() << log2MinTbsPerCtb;
 
-        minTbAddrZs = new int[xMax][yMax];
+        int[][] addresses = new int[xMax][yMax];
         for (int y = 0; y < yMax; y++) {
             for (int x = 0; x < xMax; x++) {
                 int tbX = (x << minTbLog2Size) >> ctbLog2Size;
@@ -377,30 +367,20 @@ public class PicParameterSetRbsp extends NalUnit {
                     int m = 1 << i;
                     address += ((m & x) != 0 ? m * m : 0) + ((m & y) != 0 ? 2 * m * m : 0);
                 }
-                minTbAddrZs[x][y] = address;
+                addresses[x][y] = address;
             }
         }
+        return addresses;
     }
 
-    /**
-     * <p>
-     *     Calculation if tile is first (required in 8.6.1)
-     * </p>
-     */
-    public boolean checkIfTileIsFirst(int tileX, int tileY) {
-        ensureScanTables();
-        for (int i = 0; i <= numTileColumnsMinus1; i++) {
-            if (colBd[i] == tileX) {
-                for (int k = 0; k <= numTileRowsMinus1; k++) {
-                    if (rowBd[k] == tileY) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-        }
-
-        return false;
-    }
+    private record ScanTables(
+            // the location of each tile column and row boundary, in CTBs
+            int[] colBd,
+            int[] rowBd,
+            int[] ctbAddrRsToTs,
+            int[] ctbAddrTsToRs,
+            int[] tileIdByCtbAddrTs,
+            // the tile ID of each CTB, in CTB raster scan
+            int[] tileIdFromRs,
+            int[][] minTbAddrZs) {}
 }

@@ -256,11 +256,11 @@ final class SliceSegmentDecoder {
                 && (!insidePicture || cabac.readSplitCuFlag(x0, y0, picture, cqtDepth));
 
         // a new quantization group, and chroma QP offset group
-        if (pps.cuQpDeltaEnabledFlag && log2Size >= (int) pps.getLog2MinCuQpDeltaSize()) {
+        if (pps.cuQpDeltaEnabledFlag && log2Size >= pps.getLog2MinCuQpDeltaSize()) {
             context.isCuQpDeltaCoded = false;
             context.cuQpDeltaVal = 0;
         }
-        if (slice.cuChromaQpOffsetEnabledFlag() && log2Size >= (int) pps.getLog2MinCuChromaQpOffsetSize()) {
+        if (slice.cuChromaQpOffsetEnabledFlag() && log2Size >= pps.getLog2MinCuChromaQpOffsetSize()) {
             context.isCuChromaQpOffsetCoded = false;
         }
 
@@ -600,7 +600,7 @@ final class SliceSegmentDecoder {
 
     // 8.6.1 Derivation process for quantization parameters, of the current coding unit
     private void deriveQuantizationParameters() {
-        int log2QgSize = (int) pps.getLog2MinCuQpDeltaSize();
+        int log2QgSize = pps.getLog2MinCuQpDeltaSize();
         int xQg = xCb - (xCb & ((1 << log2QgSize) - 1));
         int yQg = yCb - (yCb & ((1 << log2QgSize) - 1));
         if (xQg != context.currentQgX || yQg != context.currentQgY) {
