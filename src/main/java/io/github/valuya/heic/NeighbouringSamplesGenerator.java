@@ -169,6 +169,10 @@ final class NeighbouringSamplesGenerator {
         }
         int currentCtb = picture.ctbAddrRsAt(x0 * subWidth, y0 * subHeight);
         int neighbourCtb = picture.ctbAddrRsAt(xNbLuma, yNbLuma);
+        // a coding tree block is in one slice and one tile
+        if (neighbourCtb == currentCtb) {
+            return true;
+        }
         int[] tileIdFromRs = picture.pps.getTileIdFromRs();
         return picture.getSliceAddrRs(neighbourCtb) == picture.getSliceAddrRs(currentCtb)
                 && tileIdFromRs[neighbourCtb] == tileIdFromRs[currentCtb];
