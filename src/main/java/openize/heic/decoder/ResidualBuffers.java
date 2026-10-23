@@ -27,6 +27,7 @@ final class ResidualBuffers {
     final int[] columnTransformed = new int[MAX_BLOCK_AREA];
     final int[] clipped = new int[MAX_BLOCK_AREA];
     final int[] residual = new int[MAX_BLOCK_AREA];
+    final int[] row = new int[MAX_BLOCK_SIZE];
 
     private final int[] coefficients = new int[MAX_BLOCK_AREA];
     private int blockSize;

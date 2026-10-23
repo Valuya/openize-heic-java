@@ -913,49 +913,43 @@ import openize.heic.decoder.io.BitStreamWithNalSupport;
         int[] clipped = residualBuffers.clipped;
         int[] residual = residualBuffers.residual;
 
-        for (int x = 0; x < nTbS; x++) {
+        // columns: each non-zero coefficient adds its scaled basis function, a contiguous loop the JIT vectorises
+        Arrays.fill(clipped, 0, nTbS * nTbS, 0);
+        for (int x = 0; x <= lastColumn; x++) {
             int columnStart = x * nTbS;
-            for (int i = 0; i < nTbS; i++) {
-                int sum = 0;
-                if (x <= lastColumn) {
-                    for (int j = 0; j <= lastRow; j++) {
-                        sum += transMatrix[j * matrixRowStep][i] * scaled[columnStart + j];
+            Arrays.fill(columnTransformed, columnStart, columnStart + nTbS, 0);
+            for (int j = 0; j <= lastRow; j++) {
+                int coefficient = scaled[columnStart + j];
+                if (coefficient != 0) {
+                    int[] basisFunction = transMatrix[j * matrixRowStep];
+                    for (int i = 0; i < nTbS; i++) {
+                        columnTransformed[columnStart + i] += basisFunction[i] * coefficient;
                     }
                 }
-                columnTransformed[columnStart + i] = sum;
-                clipped[columnStart + i] = MathExtra.clip3(coeffMin, coeffMax, (sum + 64) >> 7);
             }
-        }
-
-        for (int y = 0; y < nTbS; y++) {
             for (int i = 0; i < nTbS; i++) {
-                int sum = 0;
-                for (int j = 0; j <= lastColumn; j++) {
-                    sum += transMatrix[j * matrixRowStep][i] * clipped[j * nTbS + y];
-                }
-                residual[i * nTbS + y] = sum;
+                clipped[columnStart + i] =
+                        MathExtra.clip3(coeffMin, coeffMax, (columnTransformed[columnStart + i] + 64) >> 7);
             }
         }
-    }
 
-    // 8.6.4.2 Transformation process
-    private int[] transformation(int nTbS, int[] x, int trType) {
-        // Inputs to this process are:
-        // – a variable nTbS specifying the sample size of scaled transform coefficients,
-        // – a list of scaled transform coefficients x with elements x[j], with j = 0..nTbS − 1.
-        // – a transform type variable trType
-        // Output of this process is the list of transformed samples y with elements y[ i ], with i = 0..nTbS − 1.
-
-        int[] y = new int[nTbS];
-        int mult = 1 << (5 - MathUtils.f64S32(MathUtils.log(nTbS, 2)));
-
-        if (trType == 1) {
-            for (int i = 0; i < nTbS; i++) for (int j = 0; j < nTbS; j++) y[i] += transMatrix4x4[i][j] * x[j];
-        } else {
-            for (int i = 0; i < nTbS; i++) for (int j = 0; j < nTbS; j++) y[i] += transMatrix32x32[i][j * mult] * x[j];
+        // rows, the same way, through a contiguous row buffer
+        int[] row = residualBuffers.row;
+        for (int y = 0; y < nTbS; y++) {
+            Arrays.fill(row, 0, nTbS, 0);
+            for (int j = 0; j <= lastColumn; j++) {
+                int coefficient = clipped[j * nTbS + y];
+                if (coefficient != 0) {
+                    int[] basisFunction = transMatrix[j * matrixRowStep];
+                    for (int i = 0; i < nTbS; i++) {
+                        row[i] += basisFunction[i] * coefficient;
+                    }
+                }
+            }
+            for (int i = 0; i < nTbS; i++) {
+                residual[i * nTbS + y] = row[i];
+            }
         }
-
-        return y;
     }
 
     // Cross-component prediction (7.3.8.12) is parsed but not applied: a stream that uses it cannot be decoded right
