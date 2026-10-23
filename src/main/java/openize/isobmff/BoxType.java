@@ -51,7 +51,7 @@ public enum BoxType {
      * Free space.
      * </p>
      */
-    skip(0x736b69700L),
+    skip(0x736b6970L),
 
     /**
      * <p>

@@ -133,6 +133,10 @@ public class ExifData {
         stream.setBytePosition(locationBox.baseOffset + locationBox.extents[0].offset);
         long length = locationBox.extents[0].length;
         long end = locationBox.baseOffset + locationBox.extents[0].offset + length;
+        if (length < 0 || length > stream.getLength() - stream.getBitPosition() / 8) {
+            throw new HeicFormatException("The %d-byte Exif item at byte %d is outside the %d-byte file"
+                    .formatted(length, stream.getBitPosition() / 8, stream.getLength()));
+        }
 
         // exif_tiff_header_offset: bytes before the TIFF header, usually 6 for an "Exif\0\0" prefix
         long tiffHeaderOffset = Integer.toUnsignedLong(stream.read(32));

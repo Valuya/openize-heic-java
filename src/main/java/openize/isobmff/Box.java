@@ -161,7 +161,7 @@ public class Box {
         Box box;
         switch (type) {
             case ftyp:
-                box = new FileTypeBox(stream, size);
+                box = new FileTypeBox(stream, size, startPosition + size * 8);
                 break;
             case meta:
                 box = new MetaBox(stream, size, startPosition);

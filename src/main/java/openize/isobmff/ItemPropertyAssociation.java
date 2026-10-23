@@ -59,7 +59,8 @@ public class ItemPropertyAssociation extends FullBox {
             for (int j = 0; j < entries[i].associationCount; j++) {
                 entries[i].associations[j] = new ItemPropertyEntryAssociation();
                 entries[i].associations[j].essential = stream.readFlag();
-                entries[i].associations[j].propertyIndex = stream.read(flags.get(0) ? 15 : 7) & 0xFFFF;
+                // (flags & 1) selects 15-bit indices, ISO/IEC 23008-12, 9.3: flags.get(23) is that bit
+                entries[i].associations[j].propertyIndex = stream.read(flags.get(23) ? 15 : 7) & 0xFFFF;
             }
         }
 
