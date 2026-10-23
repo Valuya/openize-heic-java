@@ -221,38 +221,20 @@ public class SeqParameterSetRbsp extends NalUnit {
         return separateColourPlaneFlag ? 0 : chromaFormatIdc;
     }
 
-    public final /*UInt32*/ long numNegativePics(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).numNegativePics;
+    final int numNegativePics(int stRpsIdx) {
+        return stRefPicSets.get(stRpsIdx).getNumNegativePics();
     }
 
-    public final /*UInt32*/ long numPositivePics(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).numPositivePics;
+    final int numPositivePics(int stRpsIdx) {
+        return stRefPicSets.get(stRpsIdx).getNumPositivePics();
     }
 
-    public final /*UInt32*/ long numDeltaPocs(int stRpsIdx) {
-        return (((numNegativePics(stRpsIdx) & 0xFFFFFFFFL) + (numPositivePics(stRpsIdx) & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    final boolean[] usedByCurrPicS0(int stRpsIdx) {
+        return stRefPicSets.get(stRpsIdx).getUsedByCurrPicS0();
     }
 
-    public final boolean[] usedByCurrPicS0(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).usedByCurrPicS0Flag;
-    }
-
-    public final boolean[] usedByCurrPicS1(int stRpsIdx) {
-        return stRefPicSets.get(stRpsIdx).usedByCurrPicS1Flag;
-    }
-
-    public final long deltaPocS0(int stRpsIdx, int i) {
-        return i == 0
-                ? -(((stRefPicSets.get(stRpsIdx).deltaPocS0Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)
-                : deltaPocS0(stRpsIdx, i - 1)
-                        - (((stRefPicSets.get(stRpsIdx).deltaPocS0Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL);
-    }
-
-    public final long deltaPocS1(int stRpsIdx, int i) {
-        return i == 0
-                ? -(((stRefPicSets.get(stRpsIdx).deltaPocS1Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)
-                : deltaPocS1(stRpsIdx, i - 1)
-                        - (((stRefPicSets.get(stRpsIdx).deltaPocS1Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL);
+    final boolean[] usedByCurrPicS1(int stRpsIdx) {
+        return stRefPicSets.get(stRpsIdx).getUsedByCurrPicS1();
     }
 
     public final int getSubWidthC() {

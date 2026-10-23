@@ -10,112 +10,165 @@
 
 package openize.heic.decoder;
 
+import java.util.Arrays;
 import openize.heic.decoder.io.BitStreamWithNalSupport;
 
+/**
+ * st_ref_pic_set( stRpsIdx ) (7.3.7) and the variables derived from it (7.4.8). Only P and B slices use the
+ * reference pictures, but a set predicted from another needs that set's derived values to be parsed.
+ */
 class StRefPicSet {
-    final /*UInt32*/ long stRpsIdx;
+    // at most 16 pictures before and 16 after the current one: the largest DPB (A.4.2)
+    private static final int MAX_PICTURE_COUNT = 16;
+    // abs_delta_rps_minus1, delta_poc_s0_minus1 and delta_poc_s1_minus1 (7.4.8)
+    private static final int MAX_DELTA_POC_MINUS1 = (1 << 15) - 1;
 
-    boolean interRefPicSetPredictionFlag;
-    /*UInt32*/ long deltaIdxMinus1;
-    byte deltaRpsSign;
-    /*UInt32*/ long absDeltaRpsMinus1;
-    // boolean[] used_by_curr_pic_flag;
-    // boolean[] use_delta_flag;
-    /*UInt32*/ long numNegativePics;
-    /*UInt32*/ long numPositivePics;
-    /*UInt32*/ long[] deltaPocS0Minus1;
-    boolean[] usedByCurrPicS0Flag;
-    /*UInt32*/ long[] deltaPocS1Minus1;
-    boolean[] usedByCurrPicS1Flag;
+    // DeltaPocS0 and UsedByCurrPicS0: the pictures before the current one, closest first
+    private final int[] deltaPocS0;
+    private final boolean[] usedByCurrPicS0;
+    // DeltaPocS1 and UsedByCurrPicS1: the pictures after the current one, closest first
+    private final int[] deltaPocS1;
+    private final boolean[] usedByCurrPicS1;
 
-    StRefPicSet(BitStreamWithNalSupport stream, SeqParameterSetRbsp sps, /*UInt32*/ long stRpsIdx) {
-        this.stRpsIdx = stRpsIdx;
-
-        if ((stRpsIdx & 0xFFFFFFFFL) != 0) {
-            interRefPicSetPredictionFlag = stream.readFlag(); // u(1)
-        }
-
+    /**
+     * Reads the set {@code stRpsIdx} of {@code sps}, or the set of a slice header when {@code stRpsIdx} is
+     * num_short_term_ref_pic_sets. A predicted set refers to a set of {@code sps} read before.
+     */
+    StRefPicSet(BitStreamWithNalSupport stream, SeqParameterSetRbsp sps, int stRpsIdx) {
+        boolean interRefPicSetPredictionFlag = stRpsIdx != 0 && stream.readFlag();
         if (interRefPicSetPredictionFlag) {
-            if (stRpsIdx == sps.numShortTermRefPicSets) {
-                deltaIdxMinus1 = stream.readUev(); // ue(v)
+            // delta_idx_minus1 is only coded in a slice header, and inferred to be 0 in an SPS
+            int deltaIdxMinus1 = stRpsIdx == sps.numShortTermRefPicSets ? stream.readUevAtMost(stRpsIdx - 1) : 0;
+            StRefPicSet referenceSet = sps.stRefPicSets.get(stRpsIdx - (deltaIdxMinus1 + 1));
+            boolean deltaRpsSign = stream.readFlag();
+            int absDeltaRps = stream.readUevAtMost(MAX_DELTA_POC_MINUS1) + 1;
+            int deltaRps = deltaRpsSign ? -absDeltaRps : absDeltaRps;
+
+            // used_by_curr_pic_flag and use_delta_flag for each picture of the reference set, then for the
+            // reference picture itself
+            int candidateCount = referenceSet.getNumDeltaPocs() + 1;
+            boolean[] usedByCurrPicFlag = new boolean[candidateCount];
+            boolean[] useDeltaFlag = new boolean[candidateCount];
+            for (int j = 0; j < candidateCount; j++) {
+                usedByCurrPicFlag[j] = stream.readFlag();
+                // inferred to be 1 when absent (7.4.8)
+                useDeltaFlag[j] = usedByCurrPicFlag[j] || stream.readFlag();
             }
 
-            deltaRpsSign = (byte) stream.read(1); // u(1)
-            absDeltaRpsMinus1 = stream.readUev(); // ue(v)
-            /*UInt32*/
-            long refRpsIdx =
-                    ((stRpsIdx & 0xFFFFFFFFL) - (((deltaIdxMinus1 & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)) & 0xFFFFFFFFL;
-
-            //            used_by_curr_pic_flag = new boolean[(int)(((sps.numDeltaPocs((int)RefRpsIdx) & 0xFFFFFFFFL) +
-            // 1) & 0xFFFFFFFFL)];
-            //            use_delta_flag = new boolean[(int)(((sps.numDeltaPocs((int)RefRpsIdx) & 0xFFFFFFFFL) + 1) &
-            // 0xFFFFFFFFL)];
-
-            int count = (int) sps.numDeltaPocs((int) refRpsIdx);
-            for (int j = 0; j <= count; j++) {
-                /*used_by_curr_pic_flag[j] =*/
-                boolean isFlag = stream.readFlag(); // u(1)
-                // if (!used_by_curr_pic_flag[j])
-                if (!isFlag)
-                /*use_delta_flag[j] =*/
-                {
-                    stream.readFlag(); // u(1)
-                }
-            }
+            PictureList before = new PictureList(candidateCount);
+            PictureList after = new PictureList(candidateCount);
+            referenceSet.predict(deltaRps, usedByCurrPicFlag, useDeltaFlag, before, after);
+            deltaPocS0 = before.getDeltaPocs();
+            usedByCurrPicS0 = before.getUsedByCurrPic();
+            deltaPocS1 = after.getDeltaPocs();
+            usedByCurrPicS1 = after.getUsedByCurrPic();
         } else {
-            numNegativePics = stream.readUev(); // ue(v)
-            numPositivePics = stream.readUev(); // ue(v)
-            // at most sps_max_dec_pic_buffering_minus1 (15) of each
-            if (numNegativePics > 16 || numPositivePics > 16) {
-                throw new HeicFormatException("A reference picture set of %d + %d pictures, more than 16"
-                        .formatted(numNegativePics, numPositivePics));
-            }
-            deltaPocS0Minus1 = new /*UInt32*/ long[(int) (numNegativePics & 0xFFFFFFFFL)];
-            usedByCurrPicS0Flag = new boolean[(int) (numNegativePics & 0xFFFFFFFFL)];
-            deltaPocS1Minus1 = new /*UInt32*/ long[(int) (numPositivePics & 0xFFFFFFFFL)];
-            usedByCurrPicS1Flag = new boolean[(int) (numPositivePics & 0xFFFFFFFFL)];
+            int numNegativePics = stream.readUevAtMost(MAX_PICTURE_COUNT);
+            int numPositivePics = stream.readUevAtMost(MAX_PICTURE_COUNT);
+            deltaPocS0 = new int[numNegativePics];
+            usedByCurrPicS0 = new boolean[numNegativePics];
+            readExplicitPictures(stream, -1, deltaPocS0, usedByCurrPicS0);
+            deltaPocS1 = new int[numPositivePics];
+            usedByCurrPicS1 = new boolean[numPositivePics];
+            readExplicitPictures(stream, 1, deltaPocS1, usedByCurrPicS1);
+        }
 
-            for (int i = 0; i < (numNegativePics & 0xFFFFFFFFL); i++) {
-                deltaPocS0Minus1[i] = stream.readUev(); // ue(v)
-                usedByCurrPicS0Flag[i] = stream.readFlag(); // u(1)
-            }
-
-            for (int i = 0; i < (numPositivePics & 0xFFFFFFFFL); i++) {
-                deltaPocS1Minus1[i] = stream.readUev(); // ue(v)
-                usedByCurrPicS1Flag[i] = stream.readFlag(); // u(1)
-            }
+        if (deltaPocS0.length > MAX_PICTURE_COUNT || deltaPocS1.length > MAX_PICTURE_COUNT) {
+            throw new HeicFormatException("A reference picture set of %d + %d pictures, more than %d of each"
+                    .formatted(deltaPocS0.length, deltaPocS1.length, MAX_PICTURE_COUNT));
         }
     }
 
-    public final /*UInt32*/ long getNumNegativePics() {
-        return numNegativePics;
+    // delta_poc_s0_minus1 / delta_poc_s1_minus1 and the used_by_curr_pic flags, each POC a step further (7-65 to 7-68)
+    private static void readExplicitPictures(
+            BitStreamWithNalSupport stream, int direction, int[] deltaPocs, boolean[] usedByCurrPic) {
+        int deltaPoc = 0;
+        for (int i = 0; i < deltaPocs.length; i++) {
+            deltaPoc += direction * (stream.readUevAtMost(MAX_DELTA_POC_MINUS1) + 1);
+            deltaPocs[i] = deltaPoc;
+            usedByCurrPic[i] = stream.readFlag();
+        }
     }
 
-    public final /*UInt32*/ long getNumPositivePics() {
-        return numPositivePics;
+    // The pictures of a set predicted from this one (7-61, 7-62). Candidate j is picture j of this set, S0 then S1,
+    // and the last candidate is the picture this set belongs to; each moves by deltaRps.
+    private void predict(
+            int deltaRps, boolean[] usedByCurrPicFlag, boolean[] useDeltaFlag, PictureList before, PictureList after) {
+        int numNegativePics = getNumNegativePics();
+        int numDeltaPocs = getNumDeltaPocs();
+
+        for (int j = getNumPositivePics() - 1; j >= 0; j--) {
+            before.addIfBefore(deltaPocS1[j] + deltaRps, numNegativePics + j, usedByCurrPicFlag, useDeltaFlag);
+        }
+        before.addIfBefore(deltaRps, numDeltaPocs, usedByCurrPicFlag, useDeltaFlag);
+        for (int j = 0; j < numNegativePics; j++) {
+            before.addIfBefore(deltaPocS0[j] + deltaRps, j, usedByCurrPicFlag, useDeltaFlag);
+        }
+
+        for (int j = numNegativePics - 1; j >= 0; j--) {
+            after.addIfAfter(deltaPocS0[j] + deltaRps, j, usedByCurrPicFlag, useDeltaFlag);
+        }
+        after.addIfAfter(deltaRps, numDeltaPocs, usedByCurrPicFlag, useDeltaFlag);
+        for (int j = 0; j < getNumPositivePics(); j++) {
+            after.addIfAfter(deltaPocS1[j] + deltaRps, numNegativePics + j, usedByCurrPicFlag, useDeltaFlag);
+        }
     }
 
-    public final /*UInt32*/ long getNumDeltaPocs() {
-        return (((getNumNegativePics() & 0xFFFFFFFFL) + (getNumPositivePics() & 0xFFFFFFFFL)) & 0xFFFFFFFFL);
+    final int getNumNegativePics() {
+        return deltaPocS0.length;
     }
 
-    public final boolean[] getUsedByCurrPicS0() {
-        return usedByCurrPicS0Flag;
+    final int getNumPositivePics() {
+        return deltaPocS1.length;
     }
 
-    public final boolean[] getUsedByCurrPicS1() {
-        return usedByCurrPicS1Flag;
+    final int getNumDeltaPocs() {
+        return getNumNegativePics() + getNumPositivePics();
     }
 
-    public final long deltaPocS0(int i) {
-        return i == 0
-                ? -(((deltaPocS0Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)
-                : deltaPocS0(i - 1) - (((deltaPocS0Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL);
+    final boolean[] getUsedByCurrPicS0() {
+        return usedByCurrPicS0;
     }
 
-    public final long deltaPocS1(int i) {
-        return i == 0
-                ? -(((deltaPocS1Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL)
-                : deltaPocS1(i - 1) - (((deltaPocS1Minus1[i] & 0xFFFFFFFFL) + 1) & 0xFFFFFFFFL);
+    final boolean[] getUsedByCurrPicS1() {
+        return usedByCurrPicS1;
+    }
+
+    // The pictures of one list of a predicted set, as the derivation adds them
+    private static final class PictureList {
+        private final int[] deltaPocs;
+        private final boolean[] usedByCurrPic;
+        private int count;
+
+        PictureList(int capacity) {
+            deltaPocs = new int[capacity];
+            usedByCurrPic = new boolean[capacity];
+        }
+
+        void addIfBefore(int deltaPoc, int candidate, boolean[] usedByCurrPicFlag, boolean[] useDeltaFlag) {
+            if (deltaPoc < 0 && useDeltaFlag[candidate]) {
+                add(deltaPoc, usedByCurrPicFlag[candidate]);
+            }
+        }
+
+        void addIfAfter(int deltaPoc, int candidate, boolean[] usedByCurrPicFlag, boolean[] useDeltaFlag) {
+            if (deltaPoc > 0 && useDeltaFlag[candidate]) {
+                add(deltaPoc, usedByCurrPicFlag[candidate]);
+            }
+        }
+
+        private void add(int deltaPoc, boolean used) {
+            deltaPocs[count] = deltaPoc;
+            usedByCurrPic[count] = used;
+            count++;
+        }
+
+        int[] getDeltaPocs() {
+            return Arrays.copyOf(deltaPocs, count);
+        }
+
+        boolean[] getUsedByCurrPic() {
+            return Arrays.copyOf(usedByCurrPic, count);
+        }
     }
 }
