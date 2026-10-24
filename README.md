@@ -89,6 +89,26 @@ taskset -c 4 java -cp target/classes:target/test-classes:$(cat target/classpath.
         $(ls TestsData/samples/*.heic TestsData/samples/nokia/*.heic | grep -v -e tmap -e gimp_rgb)
 ```
 
+### SIMD with the Vector API
+
+The JDK's Vector API is still incubating, in the `jdk.incubator.vector` module. A JVM started with
+`--add-modules jdk.incubator.vector`, on a processor with 256-bit vectors, decodes with vector loops for the YUV to
+RGB conversion and the odd half of the 16- and 32-point inverse DCT. Without the module, or with
+`-Dio.github.valuya.heic.vector=false`, it runs the scalar loops; the JVM warns at start that it uses an incubating
+module. Both decode to the same pixels: the colour loop computes the same double expressions as the scalar tables,
+and a test compares the two on every 8-bit sample value.
+
+The same build in one JVM, scalar against vector loops, decodes alternated, the 10 samples:
+
+| | one P-core | 8 E-cores |
+|---|---|---|
+| colour conversion only | -8% | |
+| inverse DCT only | -3% | |
+| both | -13 to -15% | -9% |
+
+Upright photos gain 11 to 27% on one core, the rotated one 8%. Prediction plus residual, the third loop tried, gains
+nothing: the JIT already vectorises it.
+
 ### Memory
 
 Peak resident memory of a process that decodes one photo, as GNU `time` reports it, in MiB, median of 3 runs on one
