@@ -62,6 +62,7 @@
         <junit.version>6.1.3</junit.version>
         <metadata-extractor.version>2.22.0</metadata-extractor.version>
 
+        <build-helper-maven-plugin.version>3.6.1</build-helper-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
@@ -116,6 +117,26 @@
     <build>
         <plugins>
             <plugin>
+                <!-- the classes written with the incubating Vector API, apart so that javadoc does not read them -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>${build-helper-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>add-vector-api-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>src/main/vector-api</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven-compiler-plugin.version}</version>
@@ -125,6 +146,9 @@
                         <arg>-XDcompilePolicy=simple</arg>
                         <!-- Error Prone needs it on JDK 21, later releases do it by default -->
                         <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
+                        <!-- src/main/vector-api, which the decoder loads only when the JVM has the module -->
+                        <arg>--add-modules</arg>
+                        <arg>jdk.incubator.vector</arg>
                         <arg>--should-stop=ifError=FLOW</arg>
                         <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:JSpecifyMode=true -XepExcludedPaths:.*/src/test/.*</arg>
                     </compilerArgs>
@@ -146,6 +170,21 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
+                <executions>
+                    <!-- the tests again with the vector kernels, which the first run, without the module, does not load -->
+                    <execution>
+                        <id>vector-kernels</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <argLine>@{argLine} --add-modules jdk.incubator.vector</argLine>
+                            <systemPropertyVariables>
+                                <heic.expectVectorKernels>true</heic.expectVectorKernels>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
@@ -153,6 +192,11 @@
                 <version>${spotless-maven-plugin.version}</version>
                 <configuration>
                     <java>
+                        <includes>
+                            <include>src/main/java/**/*.java</include>
+                            <include>src/main/vector-api/**/*.java</include>
+                            <include>src/test/java/**/*.java</include>
+                        </includes>
                         <palantirJavaFormat>
                             <version>${palantir-java-format.version}</version>
                         </palantirJavaFormat>
@@ -229,6 +273,8 @@
                     <excludePackageNames>io.github.valuya.heic.isobmff*</excludePackageNames>
                     <doclint>all,-missing</doclint>
                     <failOnWarnings>true</failOnWarnings>
+                    <!-- without src/main/vector-api: javadoc would warn that it uses an incubating module -->
+                    <sourcepath>${project.build.sourceDirectory}</sourcepath>
                 </configuration>
                 <executions>
                     <execution>
