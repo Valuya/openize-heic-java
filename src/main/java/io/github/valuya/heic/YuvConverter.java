@@ -25,23 +25,15 @@ final class YuvConverter {
     }
 
     // the scale of limited ("TV") range samples, 16..235 for luma and 16..240 for chroma at 8 bits
-    private static final double TV_RANGE_LUMA_SCALE = 255.0 / 219;
-    private static final double TV_RANGE_CHROMA_SCALE = 255.0 / 224;
+    static final double TV_RANGE_LUMA_SCALE = 255.0 / 219;
+    static final double TV_RANGE_CHROMA_SCALE = 255.0 / 224;
 
     private final SeqParameterSetRbsp sps;
     private final Coefficients coefficients;
 
     YuvConverter(SeqParameterSetRbsp sps, ColourDescription colour) {
         this.sps = sps;
-        LumaWeights weights = LumaWeights.of(colour.matrixCoefficients(), colour.colourPrimaries());
-        double kg = 1 - weights.kr() - weights.kb();
-        coefficients = new Coefficients(
-                colour.fullRangeFlag(),
-                colour.matrixCoefficients() == 0,
-                2 * (1 - weights.kr()),
-                2 * weights.kr() * (1 - weights.kr()) / kg,
-                2 * weights.kb() * (1 - weights.kb()) / kg,
-                2 * (1 - weights.kb()));
+        coefficients = Coefficients.of(colour);
     }
 
     /** The range of the samples, and the matrix coefficients of the chroma in each RGB channel. */
@@ -51,7 +43,19 @@ final class YuvConverter {
             double crToRed,
             double crToGreen,
             double cbToGreen,
-            double cbToBlue) {}
+            double cbToBlue) {
+        static Coefficients of(ColourDescription colour) {
+            LumaWeights weights = LumaWeights.of(colour.matrixCoefficients(), colour.colourPrimaries());
+            double kg = 1 - weights.kr() - weights.kb();
+            return new Coefficients(
+                    colour.fullRangeFlag(),
+                    colour.matrixCoefficients() == 0,
+                    2 * (1 - weights.kr()),
+                    2 * weights.kr() * (1 - weights.kr()) / kg,
+                    2 * weights.kb() * (1 - weights.kb()) / kg,
+                    2 * (1 - weights.kb()));
+        }
+    }
 
     /**
      * Converts the kept part of a decoded picture to 8-bit ARGB, opaque. With {@code alphaOnly}, the picture is an
@@ -114,7 +118,8 @@ final class YuvConverter {
         }
     }
 
-    // the same as the general loop for 8-bit colour samples to opaque pixels, the most common case, without its tests
+    // the same as the general loop for 8-bit colour samples to opaque pixels, the most common case, without its tests.
+    // With the vector kernels, a row of a rotated or mirrored image is converted into a buffer, then laid out
     private static void convert8BitColour(
             HeicPicture picture,
             PixelBox convertedBox,
@@ -125,29 +130,116 @@ final class YuvConverter {
         byte[] lumaPlane = picture.planes[0];
         byte[] cbPlane = picture.planes[1];
         byte[] crPlane = picture.planes[2];
+        int[] destination = target.destination();
+        int stepX = target.stepX();
+        int stepY = target.stepY();
+        int base = target.base();
+        int left = convertedBox.left();
+        int right = convertedBox.right();
+        Kernels vector = Kernels.VECTOR;
+        int[] rowPixels = vector == null || stepX == 1
+                ? destination
+                : picture.workspace.intBuffer(DecoderWorkspace.CONVERTED_ROW, convertedBox.width());
+        for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
+            int rowIndex = base + row * stepY;
+            int lumaRow = row * picture.planeWidths[0];
+            int chromaRow = (row >> log2SubHeightC) * picture.planeWidths[1];
+            if (vector == null) {
+                convertPixels(
+                        lumaPlane,
+                        lumaRow,
+                        cbPlane,
+                        crPlane,
+                        chromaRow,
+                        log2SubWidthC,
+                        tables,
+                        left,
+                        right,
+                        destination,
+                        rowIndex,
+                        stepX);
+                continue;
+            }
+            // pixel col at output[outputRow + col]; a vector step starts at an even column when two columns share a
+            // chroma sample
+            int[] output = stepX == 1 ? destination : rowPixels;
+            int outputRow = stepX == 1 ? rowIndex : -left;
+            int aligned = Math.min(right, left + (left & log2SubWidthC));
+            convertPixels(
+                    lumaPlane,
+                    lumaRow,
+                    cbPlane,
+                    crPlane,
+                    chromaRow,
+                    log2SubWidthC,
+                    tables,
+                    left,
+                    aligned,
+                    output,
+                    outputRow,
+                    1);
+            int converted = vector.convertRgb8Row(
+                    lumaPlane,
+                    lumaRow,
+                    cbPlane,
+                    crPlane,
+                    chromaRow,
+                    log2SubWidthC,
+                    aligned,
+                    right,
+                    output,
+                    outputRow,
+                    tables);
+            convertPixels(
+                    lumaPlane,
+                    lumaRow,
+                    cbPlane,
+                    crPlane,
+                    chromaRow,
+                    log2SubWidthC,
+                    tables,
+                    converted,
+                    right,
+                    output,
+                    outputRow,
+                    1);
+            if (stepX != 1) {
+                for (int col = left; col < right; col++) {
+                    destination[rowIndex + col * stepX] = rowPixels[col - left];
+                }
+            }
+        }
+    }
+
+    // the pixels from to to (exclusive) of a row of 8-bit colour samples, to opaque ARGB at output[outputRow + col *
+    // step]
+    static void convertPixels(
+            byte[] lumaPlane,
+            int lumaRow,
+            byte[] cbPlane,
+            byte[] crPlane,
+            int chromaRow,
+            int log2SubWidthC,
+            ChannelTables tables,
+            int from,
+            int to,
+            int[] output,
+            int outputRow,
+            int step) {
         double[] luma = tables.luma;
         double[] crToRed = tables.crToRed;
         double[] crToGreen = tables.crToGreen;
         double[] cbToGreen = tables.cbToGreen;
         double[] cbToBlue = tables.cbToBlue;
-        int[] destination = target.destination();
-        int stepX = target.stepX();
-        int stepY = target.stepY();
-        int base = target.base();
-        for (int row = convertedBox.top(); row < convertedBox.bottom(); row++) {
-            int rowIndex = base + row * stepY;
-            int lumaRow = row * picture.planeWidths[0];
-            int chromaRow = (row >> log2SubHeightC) * picture.planeWidths[1];
-            for (int col = convertedBox.left(); col < convertedBox.right(); col++) {
-                double scaledLuma = luma[lumaPlane[lumaRow + col] & 0xFF];
-                int chromaIndex = chromaRow + (col >> log2SubWidthC);
-                int cb = cbPlane[chromaIndex] & 0xFF;
-                int cr = crPlane[chromaIndex] & 0xFF;
-                int red = to8Bits(scaledLuma + crToRed[cr]);
-                int green = to8Bits(scaledLuma - crToGreen[cr] - cbToGreen[cb]);
-                int blue = to8Bits(scaledLuma + cbToBlue[cb]);
-                destination[rowIndex + col * stepX] = 0xFF000000 | (red << 16) | (green << 8) | blue;
-            }
+        for (int col = from; col < to; col++) {
+            double scaledLuma = luma[lumaPlane[lumaRow + col] & 0xFF];
+            int chromaIndex = chromaRow + (col >> log2SubWidthC);
+            int cb = cbPlane[chromaIndex] & 0xFF;
+            int cr = crPlane[chromaIndex] & 0xFF;
+            int red = to8Bits(scaledLuma + crToRed[cr]);
+            int green = to8Bits(scaledLuma - crToGreen[cr] - cbToGreen[cb]);
+            int blue = to8Bits(scaledLuma + cbToBlue[cb]);
+            output[outputRow + col * step] = 0xFF000000 | (red << 16) | (green << 8) | blue;
         }
     }
 
@@ -183,6 +275,10 @@ final class YuvConverter {
         private final Coefficients coefficients;
         private final int bitDepthY;
         private final int bitDepthC;
+        private final int lumaOffset;
+        private final double lumaBitScale;
+        private final int chromaHalfRange;
+        private final double chromaBitScale;
         private final double[] luma;
         private final double[] identityChroma;
         private final double[] crToRed;
@@ -190,16 +286,23 @@ final class YuvConverter {
         private final double[] cbToGreen;
         private final double[] cbToBlue;
 
+        /** The tables of 8-bit samples of {@code colour}. */
+        static ChannelTables of8Bit(ColourDescription colour) {
+            return new ChannelTables(Coefficients.of(colour), 8, 8);
+        }
+
         private ChannelTables(Coefficients coefficients, int bitDepthY, int bitDepthC) {
             this.coefficients = coefficients;
             this.bitDepthY = bitDepthY;
             this.bitDepthC = bitDepthC;
+            lumaOffset = 16 << (bitDepthY - 8);
+            lumaBitScale = 256.0 / (1 << bitDepthY);
             luma = componentLevels(bitDepthY, coefficients.fullRangeFlag());
             identityChroma =
                     coefficients.identity() ? componentLevels(bitDepthC, coefficients.fullRangeFlag()) : new double[0];
 
-            int chromaHalfRange = 1 << (bitDepthC - 1);
-            double chromaBitScale = 256.0 / (1 << bitDepthC);
+            chromaHalfRange = 1 << (bitDepthC - 1);
+            chromaBitScale = 256.0 / (1 << bitDepthC);
             crToRed = new double[1 << bitDepthC];
             crToGreen = new double[1 << bitDepthC];
             cbToGreen = new double[1 << bitDepthC];
@@ -227,6 +330,44 @@ final class YuvConverter {
                 levels[value] = scaled * bitScale;
             }
             return levels;
+        }
+
+        // the terms of the tables, for the vector kernel that computes them instead of looking them up
+
+        boolean fullRange() {
+            return coefficients.fullRangeFlag();
+        }
+
+        int lumaOffset() {
+            return lumaOffset;
+        }
+
+        double lumaBitScale() {
+            return lumaBitScale;
+        }
+
+        int chromaHalfRange() {
+            return chromaHalfRange;
+        }
+
+        double chromaBitScale() {
+            return chromaBitScale;
+        }
+
+        double crToRedCoefficient() {
+            return coefficients.crToRed();
+        }
+
+        double crToGreenCoefficient() {
+            return coefficients.crToGreen();
+        }
+
+        double cbToGreenCoefficient() {
+            return coefficients.cbToGreen();
+        }
+
+        double cbToBlueCoefficient() {
+            return coefficients.cbToBlue();
         }
     }
 

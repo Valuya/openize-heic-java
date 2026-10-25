@@ -52,27 +52,28 @@ transform) and cross-component prediction. Files that need them fail with `HeicF
 ## Performance
 
 The 10 photos and collections of `TestsData/samples` (0.6 to 16 MP; all but the HDR tone map and alpha test files) on
-an Intel Core Ultra 9 285H, Java 21. The fork and the Rust decoder take the median of 9 decodes, best of 3 runs taken
-in turn with the others; libheif the best of 5 processes:
+an Intel Core Ultra 9 285H, Java 21:
 
 | | one P-core | 8 E-cores | allocated for a 12 MP photo | smallest heap for it |
 |---|---|---|---|---|
-| this fork | 2.05 s | 0.59 s | 51 MB | 56 MB |
-| [heic-decoder](https://github.com/Valuya/heic-decoder-rust) (Rust), `decode_rgb8` | 1.91 s¹ | 1.72 s¹ | | |
-| libheif 1.17 (native, `heif-convert`) | 2.65 s | 2.23 s | | |
+| libheif 1.23.6, in-process (through pillow-heif) | 1.47 s | 0.81 s | | |
+| [heic-decoder](https://github.com/Valuya/heic-decoder-rust) (Rust) 02972f3, `decode_rgb8` | 1.68 s | 0.50 s | | |
+| this fork | 2.20 s | 0.59 s | 51 MB | 56 MB |
+| libheif 1.17, one `heif-convert` process per photo | 2.65 s | 2.23 s | | |
 | upstream Openize.HEIC 26.5.1 | 19.0 s | 20.3 s | 2.8 GB | 768 MB |
 
-¹ at d6dabf9, a release build with thin LTO; of 9 samples: it does not decode `overlay_1000x680.heic`. The fork takes
-2.02 s and 0.54 s for the same 9.
+The first three ran in turn, three times: the median of 9 decodes once warm, the best of the three runs. All three
+decode to 8-bit RGB in memory: libheif and the Rust decoder to bytes, the fork to ARGB `int`s.
 
-* On one core the fork is level with the Rust decoder on the 12 MP iPhone photos (307 against 312 ms for
-  `iphone_photo.heic`, faster on two others), 1.15 to 1.2 times slower on the 16 MP `samsung_a71.heic` and the
-  photos coded in many small blocks, whose per-block work still costs it more, and 1.3 to 1.5 times slower on the
-  two smallest samples.
-* On 8 cores the Rust decoder's `decode_rgb8` decodes one row of grid tiles at a time, to bound its memory; the fork
-  decodes all the tiles of a grid in parallel.
-* libheif's times are per process, writing raw YCbCr: they include starting `heif-convert` and loading its decoder
-  plugin, which is why the small samples take longer on 8 E-cores than on one P-core.
+* On one core, in-process libheif is the fastest: its HEVC decoder, libde265, is native code with SIMD routines for
+  part of its work.
+  The fork takes 1.5 times its time and 1.3 times the Rust decoder's, and most on the photos coded in many small
+  blocks (1.4 times the others' on `iphone_log2CbSize_issue.heic`).
+* On 8 cores the order is reversed. The Rust decoder and the fork decode a grid's tiles in parallel, the fork ahead on
+  three of the iPhone photos (62.6 against 63.8 ms for `iphone_photo.heic`). libheif's threads gain less: it is the
+  slowest of the three on 8 E-cores, and slower there than on one P-core on the small samples.
+* `heif-convert`'s times are per process, writing raw YCbCr: they include starting the program and loading its
+  decoder plugin, what a script that runs it pays, not an application that links libheif.
 
 The photo is `iphone_photo.heic`, a grid of 512x512 tiles: 48.8 MB of the 51 MB it allocates is the decoded image
 itself. The 16 MP `samsung_a71.heic` allocates 67 MB, 64 MB of it the image, and decodes in a 72 MB heap. The heaps
@@ -88,6 +89,26 @@ taskset -c 4 java -cp target/classes:target/test-classes:$(cat target/classpath.
         $(ls TestsData/samples/*.heic TestsData/samples/nokia/*.heic | grep -v -e tmap -e gimp_rgb)
 ```
 
+### SIMD with the Vector API
+
+The JDK's Vector API is still incubating, in the `jdk.incubator.vector` module. A JVM started with
+`--add-modules jdk.incubator.vector`, on a processor with 256-bit vectors, decodes with vector loops for the YUV to
+RGB conversion and the odd half of the 16- and 32-point inverse DCT. Without the module, or with
+`-Dio.github.valuya.heic.vector=false`, it runs the scalar loops; the JVM warns at start that it uses an incubating
+module. Both decode to the same pixels: the colour loop computes the same double expressions as the scalar tables,
+and a test compares the two on every 8-bit sample value.
+
+The same build in one JVM, scalar against vector loops, decodes alternated, the 10 samples:
+
+| | one P-core | 8 E-cores |
+|---|---|---|
+| colour conversion only | -8% | |
+| inverse DCT only | -3% | |
+| both | -13 to -15% | -9% |
+
+Upright photos gain 11 to 27% on one core, the rotated one 8%. Prediction plus residual, the third loop tried, gains
+nothing: the JIT already vectorises it.
+
 ### Memory
 
 Peak resident memory of a process that decodes one photo, as GNU `time` reports it, in MiB, median of 3 runs on one
@@ -97,14 +118,16 @@ P-core:
 |---|---|---|---|
 | libheif 1.17, `heif-convert` to YCbCr (`.y4m`) | 5 | 77 | 75 |
 | libheif 1.17, `heif-convert` to RGB (`.png`) | 5 | 77 | 98 |
-| heic-decoder (Rust), `decode_rgb8`, one thread | 4 | 51 | 65 |
+| libheif 1.23.6, in-process (through pillow-heif), one thread | 34 | 89 | 107 |
+| heic-decoder (Rust) 02972f3, `decode_rgb8`, one thread | 4 | 49 | 63 |
 | this fork, `decodeBytes(RGB24)`, G1, smallest heap (44 and 56 MiB) | 41 | 105 | 119 |
 | this fork, `decodeArgb`, G1, smallest heap (56 and 72 MiB) | 41 | 116 | 135 |
 | this fork, `decodeArgb`, Serial GC, smallest heap (72 and 96 MiB) | 41 | 115 | 135 |
 | this fork, `decodeArgb`, no `-Xmx` (Serial, the JVM's choice on one CPU) | 41 | 118 | 136 |
 
-"Before decoding" is `heif-convert --version`, the Rust decoder reading the file only, and `DecodeBenchmark` given no
-file. On 8 E-cores libheif peaks the same and the Rust decoder at 73 and 88 MiB; the fork, decoding the tiles in
+"Before decoding" is `heif-convert --version`, Python with pillow-heif and the file loaded, the Rust decoder reading
+the file only, and `DecodeBenchmark` given no file. On 8 E-cores `heif-convert` peaks the same, in-process libheif at
+92 and 108 MiB and the Rust decoder at 58 and 72 MiB; the fork, decoding the tiles in
 parallel, needs 60 and 76 MiB of G1 heap and peaks at 138 and 154 MiB (138 and 159 MiB without `-Xmx`). The other
 samples are 12 MP at most: libheif peaks within 1 MiB of the iPhone photo on them, and the fork needs no bigger heap.
 
@@ -120,11 +143,9 @@ What compares, and what does not:
   `-XX:TieredStopAtLevel=1` (no C2).
 * A long-running JVM pays both once, shared with the rest of the application, so what one more decode costs there
   is its heap: 44 (RGB24) or 56 MiB (ARGB) for the iPhone photo and 56 or 72 MiB for the Samsung one, the image
-  plus 9 to 11 MiB, the file's bytes included. The Rust decoder adds 47 and 60 MiB to its process, the image plus
-  12 to 14 MiB.
-  `heif-convert` adds 72 MiB for the iPhone photo, and 70 (YCbCr) or 93 MiB (RGB) for the Samsung one; libheif
-  1.23.6 inside another process (through pillow-heif, decoding to RGB, peak above the Python interpreter's) adds 50
-  and 73 MiB.
+  plus 9 to 11 MiB, the file's bytes included. The Rust decoder adds 45 and 58 MiB to its process, the image plus
+  10 to 12 MiB; libheif in-process adds 55 and 73 MiB to Python's, the image plus 20 to 27 MiB; `heif-convert` adds
+  72 MiB for the iPhone photo, and 70 (YCbCr) or 93 MiB (RGB) for the Samsung one.
 * The outputs differ. `decodeArgb` returns ARGB `int`s: 46.5 and 61 MiB. `decodeBytes(RGB24)` and the Rust
   decoder's `decode_rgb8` return RGB bytes: 35 and 46 MiB. `heif-convert` keeps YCbCr 4:2:0 for `.y4m` (17 and
   23 MiB) and converts it to RGB for `.png` (35 and 46 MiB), which it then compresses row by row.

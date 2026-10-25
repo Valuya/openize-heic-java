@@ -27,7 +27,7 @@ final class InverseTransform {
         {84, -29, -74, 55},
         {55, -84, 74, -29}
     };
-    private static final int[][] DCT_MATRIX = {
+    static final int[][] DCT_MATRIX = {
         {
             64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
             64, 64, 64, 64, 64
@@ -157,7 +157,7 @@ final class InverseTransform {
             61, -54, 46, -38, 31, -22, 13, -4
         }
     };
-    private static final int MAX_TRANSFORM_SIZE = 32;
+    static final int MAX_TRANSFORM_SIZE = 32;
     // 8.6.3: levelScale[qP % 6]
     private static final int[] LEVEL_SCALE = {40, 45, 51, 57, 64, 72};
 
@@ -280,19 +280,20 @@ final class InverseTransform {
             return;
         }
 
-        // columns, into [y * nTbS + x], then rows
+        // columns, into [x * nTbS + y], then rows
         int[] clipped = residualBuffers.clipped;
         int[] transformed = residualBuffers.transformed;
         int[] scratch = residualBuffers.transformScratch;
         for (int x = 0; x <= lastColumn; x++) {
-            inverse(discreteSineTransform, scaled, x * nTbS, 1, lastRow, nTbS, transformed, scratch);
+            int columnStart = x * nTbS;
+            inverse(discreteSineTransform, scaled, columnStart, 1, lastRow, nTbS, transformed, scratch);
             for (int y = 0; y < nTbS; y++) {
-                clipped[y * nTbS + x] = Math.max(coeffMin, Math.min(coeffMax, (transformed[y] + 64) >> 7));
+                clipped[columnStart + y] = Math.max(coeffMin, Math.min(coeffMax, (transformed[y] + 64) >> 7));
             }
         }
         for (int y = 0; y < nTbS; y++) {
             int rowStart = y * nTbS;
-            inverse(discreteSineTransform, clipped, rowStart, 1, lastColumn, nTbS, transformed, scratch);
+            inverse(discreteSineTransform, clipped, y, nTbS, lastColumn, nTbS, transformed, scratch);
             for (int x = 0; x < nTbS; x++) {
                 residual[rowStart + x] = (transformed[x] + offset) >> bdShift;
             }
@@ -392,6 +393,16 @@ final class InverseTransform {
     // From the even inputs' outputs in output[0..nTbS / 2), the outputs of all nTbS inputs: adds the odd inputs' sums,
     // computed in scratch[nTbS / 2..nTbS)
     private static void combine(int[] source, int offset, int step, int last, int nTbS, int[] output, int[] scratch) {
+        Kernels vector = Kernels.VECTOR;
+        if (vector != null) {
+            vector.combineDctHalves(source, offset, step, last, nTbS, output);
+        } else {
+            combineScalar(source, offset, step, last, nTbS, output, scratch);
+        }
+    }
+
+    // combine( ) without the vector kernels
+    static void combineScalar(int[] source, int offset, int step, int last, int nTbS, int[] output, int[] scratch) {
         int half = nTbS >> 1;
         int rowStep = MAX_TRANSFORM_SIZE / nTbS;
         Arrays.fill(scratch, half, nTbS, 0);
