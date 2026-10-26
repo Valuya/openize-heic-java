@@ -353,14 +353,14 @@ final class Cabac {
         return decodeBin(ContextTable.CODED_SUB_BLOCK_FLAG.offset() + ctxInc) == 1;
     }
 
-    // with ctxInc from clause 9.3.4.2.5
-    boolean readSigCoeffFlag(int ctxInc) {
-        return decodeBin(ContextTable.SIG_COEFF_FLAG.offset() + ctxInc) == 1;
+    // with ctxInc from clause 9.3.4.2.5: 0 or 1
+    int readSigCoeffFlag(int ctxInc) {
+        return decodeBin(ContextTable.SIG_COEFF_FLAG.offset() + ctxInc);
     }
 
-    // with ctxInc from clause 9.3.4.2.6
-    boolean readCoeffAbsLevelGreater1Flag(int ctxInc) {
-        return decodeBin(ContextTable.COEFF_ABS_LEVEL_GREATER1_FLAG.offset() + ctxInc) == 1;
+    // with ctxInc from clause 9.3.4.2.6: 0 or 1
+    int readCoeffAbsLevelGreater1Flag(int ctxInc) {
+        return decodeBin(ContextTable.COEFF_ABS_LEVEL_GREATER1_FLAG.offset() + ctxInc);
     }
 
     // 9.3.4.2.7: ctxInc from ctxSet
@@ -369,13 +369,23 @@ final class Cabac {
         return decodeBin(ContextTable.COEFF_ABS_LEVEL_GREATER2_FLAG.offset() + ctxInc) == 1;
     }
 
-    // 9.3.3.11: a TR prefix of cRiceParam, extended with an EGk suffix past 3, all bypass
+    // 9.3.3.11: a TR prefix of cRiceParam, extended with an EGk suffix past 3, all bypass. The prefix, ones ended by a
+    // zero, is read up to 8 bins at a time while the slice data has the byte those bins need; then bin by bin, so that
+    // a prefix too long and the end of the data are reported at the same bin as when reading bin by bin
     int readCoeffAbsLevelRemaining(int cRiceParam) {
         int prefix = 0;
-        while (decodeBypass() == 1) {
+        int ones = 8;
+        while (ones == 8 && sliceDataPosition < sliceDataLength) {
+            ones = decodeBypassOnes();
+            prefix += ones;
+            if (prefix > MAX_COEFF_ABS_LEVEL_REMAINING_PREFIX) {
+                throw prefixTooLong();
+            }
+        }
+        while (ones == 8 && decodeBypass() == 1) {
             prefix++;
             if (prefix > MAX_COEFF_ABS_LEVEL_REMAINING_PREFIX) {
-                throw new HeicFormatException("Malformed slice data: coeff_abs_level_remaining prefix too long");
+                throw prefixTooLong();
             }
         }
 
@@ -383,6 +393,10 @@ final class Cabac {
             return (prefix << cRiceParam) + decodeFixedLengthBypass(cRiceParam);
         }
         return (((1 << (prefix - 3)) + 3 - 1) << cRiceParam) + decodeFixedLengthBypass(prefix - 3 + cRiceParam);
+    }
+
+    private static HeicFormatException prefixTooLong() {
+        return new HeicFormatException("Malformed slice data: coeff_abs_level_remaining prefix too long");
     }
 
     /** {@code count} coeff_sign_flag, the first one read the most significant bit. */
@@ -482,6 +496,26 @@ final class Cabac {
         int bins = value / scaledRange;
         value -= bins * scaledRange;
         return bins;
+    }
+
+    // The bypass bins up to the first 0, at most 8, returning the number of 1 bins. The next 8 bins are the quotient of
+    // one division, as in decodeBypassBits, which needs the next byte of the slice data: the caller checks it is there.
+    // Only the leading ones and the 0 that ends them are taken, their own quotient being the leading bits of that one
+    private int decodeBypassOnes() {
+        int nextByte = sliceData[sliceDataPosition] & 0xFF;
+        int scaledRange = ivlCurrRange << 7;
+        int bins = ((value << 8) | (nextByte << (bitsNeeded + 8))) / scaledRange;
+        int ones = Integer.numberOfLeadingZeros(~(bins << 24));
+        int taken = Math.min(ones + 1, 8);
+        value <<= taken;
+        bitsNeeded += taken;
+        if (bitsNeeded >= 0) {
+            value |= nextByte << bitsNeeded;
+            sliceDataPosition++;
+            bitsNeeded -= 8;
+        }
+        value -= (bins >> (8 - taken)) * scaledRange;
+        return ones;
     }
 
     // 9.3.4.3.5 Decoding process for binary decisions before termination. When it decodes 1, the last bit the engine

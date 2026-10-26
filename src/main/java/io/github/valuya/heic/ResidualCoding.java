@@ -29,12 +29,13 @@ final class ResidualCoding {
     private static final int[][][] SUB_BLOCK_INDICES = new int[4][3][];
     private static final int[][] POSITION_INDICES = new int[3][SUB_BLOCK_SIZE];
 
-    // 9.3.4.2.5: sigCtx of a coefficient by xP + 4 * yP, for each prevCsbf of its sub-block
-    private static final int[][] SIG_CTX_BY_PREV_CSBF = new int[4][SUB_BLOCK_SIZE];
+    // 9.3.4.2.5: sigCtx of a coefficient by scanIdx and scan position in its sub-block, for each prevCsbf of the
+    // sub-block (0 to 3), in a 4x4 transform block (4), and the same at every position (5)
+    private static final int[][][] SIG_CTX_BY_SCAN_POS = new int[3][6][SUB_BLOCK_SIZE];
+    private static final int SIG_CTX_4X4 = 4;
+    private static final int SAME_SIG_CTX = 5;
     // Table 9-50: ctxIdxMap of sig_coeff_flag in a 4x4 transform block, by xC + 4 * yC; (3, 3) is never coded
     private static final int[] CTX_IDX_MAP = {0, 1, 4, 5, 2, 3, 4, 5, 6, 6, 8, 8, 7, 7, 8, 8};
-    // the same sigCtx at every position
-    private static final int[] SAME_SIG_CTX = new int[SUB_BLOCK_SIZE];
 
     static {
         byte[][][][] scanOrder = Scans.getScanOrder();
@@ -53,13 +54,18 @@ final class ResidualCoding {
                 SUB_BLOCK_INDICES[log2SubBlocks][scanIdx] = indices;
             }
         }
-        for (int position = 0; position < SUB_BLOCK_SIZE; position++) {
-            int xP = position & 3;
-            int yP = position >> 2;
-            SIG_CTX_BY_PREV_CSBF[0][position] = xP + yP == 0 ? 2 : xP + yP < 3 ? 1 : 0;
-            SIG_CTX_BY_PREV_CSBF[1][position] = yP == 0 ? 2 : yP == 1 ? 1 : 0;
-            SIG_CTX_BY_PREV_CSBF[2][position] = xP == 0 ? 2 : xP == 1 ? 1 : 0;
-            SIG_CTX_BY_PREV_CSBF[3][position] = 2;
+        for (int scanIdx = 0; scanIdx < 3; scanIdx++) {
+            int[][] sigCtx = SIG_CTX_BY_SCAN_POS[scanIdx];
+            for (int n = 0; n < SUB_BLOCK_SIZE; n++) {
+                int position = POSITIONS[scanIdx][n];
+                int xP = position & 3;
+                int yP = position >> 2;
+                sigCtx[0][n] = xP + yP == 0 ? 2 : xP + yP < 3 ? 1 : 0;
+                sigCtx[1][n] = yP == 0 ? 2 : yP == 1 ? 1 : 0;
+                sigCtx[2][n] = xP == 0 ? 2 : xP == 1 ? 1 : 0;
+                sigCtx[3][n] = 2;
+                sigCtx[SIG_CTX_4X4][n] = CTX_IDX_MAP[position];
+            }
         }
     }
 
@@ -126,11 +132,9 @@ final class ResidualCoding {
         // coded_sub_block_flag, bit xS + 8 * yS
         long codedSubBlockFlags = 0;
         int lastSubBlockOnSide = (1 << log2SubBlocks) - 1;
-        // 9.3.4.2.6: the state of coeff_abs_level_greater1_flag from one invocation to the next
-        int greater1CtxSet = 0;
-        int greater1Ctx = 0;
-        boolean greater1Flag = false;
-        int lastSubBlockGreater1Ctx = 0;
+        // 9.3.4.2.6: greater1Ctx after the last coeff_abs_level_greater1_flag decoded, the one the next one would
+        // have in the same sub-block
+        int nextGreater1Ctx = 0;
 
         for (int i = lastSubBlock; i >= 0; i--) {
             int xS = subBlockScan[i][0];
@@ -151,92 +155,70 @@ final class ResidualCoding {
                 codedSubBlockFlags |= 1L << subBlockBit;
             }
 
-            // sig_coeff_flag
+            // sig_coeff_flag, a bin per scan position, from the one before the last significant coefficient down to 1,
+            // then the DC position, whose flag the sub-block may infer
             int sigCoeffFlags = i == lastSubBlock ? 1 << lastScanPos : 0;
             if (codedSubBlockFlag) {
                 // 9.3.4.2.5: ctxInc by position, from the sub-block
                 int contextBase = cIdx == 0 ? 0 : 27;
-                int[] sigCtxByPosition;
+                int[] sigCtxByScanPos;
                 if (transformSkipContext) {
                     contextBase += cIdx == 0 ? 42 : 16;
-                    sigCtxByPosition = SAME_SIG_CTX;
+                    sigCtxByScanPos = SIG_CTX_BY_SCAN_POS[scanIdx][SAME_SIG_CTX];
                 } else if (log2TrafoSize == 2) {
-                    sigCtxByPosition = CTX_IDX_MAP;
+                    sigCtxByScanPos = SIG_CTX_BY_SCAN_POS[scanIdx][SIG_CTX_4X4];
                 } else {
-                    sigCtxByPosition = SIG_CTX_BY_PREV_CSBF[(codedRight ? 1 : 0) + (codedBelow ? 2 : 0)];
+                    sigCtxByScanPos = SIG_CTX_BY_SCAN_POS[scanIdx][(codedRight ? 1 : 0) + (codedBelow ? 2 : 0)];
                     if (cIdx == 0) {
                         contextBase += (xS + yS > 0 ? 3 : 0) + (log2TrafoSize == 3 ? (scanIdx == 0 ? 9 : 15) : 21);
                     } else {
                         contextBase += log2TrafoSize == 3 ? 9 : 12;
                     }
                 }
-                for (int n = i == lastSubBlock ? lastScanPos - 1 : SUB_BLOCK_SIZE - 1; n >= 0; n--) {
-                    if (n > 0 || !inferSbDcSigCoeffFlag) {
-                        // the DC coefficient of a block bigger than 4x4 has sigCtx 0
-                        boolean dc = i == 0 && n == 0 && log2TrafoSize > 2 && !transformSkipContext;
-                        int ctxInc = dc ? (cIdx == 0 ? 0 : 27) : contextBase + sigCtxByPosition[positions[n]];
-                        if (cabac.readSigCoeffFlag(ctxInc)) {
-                            sigCoeffFlags |= 1 << n;
-                            inferSbDcSigCoeffFlag = false;
-                        }
+                int firstScanPos = i == lastSubBlock ? lastScanPos - 1 : SUB_BLOCK_SIZE - 1;
+                // the flag goes into its bit rather than through a branch, which the processor would often mispredict
+                for (int n = firstScanPos; n > 0; n--) {
+                    sigCoeffFlags |= cabac.readSigCoeffFlag(contextBase + sigCtxByScanPos[n]) << n;
+                }
+                if (firstScanPos >= 0) {
+                    if (inferSbDcSigCoeffFlag && sigCoeffFlags == 0) {
+                        sigCoeffFlags = 1;
                     } else {
-                        sigCoeffFlags |= 1;
+                        // the DC coefficient of a block bigger than 4x4 has sigCtx 0
+                        boolean dc = i == 0 && log2TrafoSize > 2 && !transformSkipContext;
+                        sigCoeffFlags |=
+                                cabac.readSigCoeffFlag(dc ? (cIdx == 0 ? 0 : 27) : contextBase + sigCtxByScanPos[0]);
                     }
                 }
             }
+            int lastSigScanPos = 31 - Integer.numberOfLeadingZeros(sigCoeffFlags);
+            int firstSigScanPos = Integer.numberOfTrailingZeros(sigCoeffFlags);
 
-            // coeff_abs_level_greater1_flag, for the first eight significant coefficients
+            // coeff_abs_level_greater1_flag, for the first eight significant coefficients, in bits like sig_coeff_flag
             int greater1Flags = 0;
-            int firstSigScanPos = SUB_BLOCK_SIZE;
-            int lastSigScanPos = -1;
-            int greater1FlagCount = 0;
-            int lastGreater1ScanPos = -1;
-            boolean firstCoeffInSubBlock = true;
-            for (int remaining = sigCoeffFlags; remaining != 0; ) {
-                int n = 31 - Integer.numberOfLeadingZeros(remaining);
-                remaining &= ~(1 << n);
-                if (greater1FlagCount < MAX_GREATER1_FLAGS) {
-                    // 9.3.4.2.6: ctxInc from the previous invocations in the transform block
-                    if (firstCoeffInSubBlock) {
-                        greater1CtxSet = i == 0 || cIdx > 0 ? 0 : 2;
-                        int lastGreater1Ctx;
-                        if (i == lastSubBlock) {
-                            lastGreater1Ctx = 1;
-                        } else {
-                            lastGreater1Ctx = lastSubBlockGreater1Ctx;
-                            if (lastGreater1Ctx > 0) {
-                                lastGreater1Ctx = greater1Flag ? 0 : lastGreater1Ctx + 1;
-                            }
-                        }
-                        if (lastGreater1Ctx == 0) {
-                            greater1CtxSet++;
-                        }
-                        greater1Ctx = 1;
-                    } else if (greater1Ctx > 0) {
-                        greater1Ctx = greater1Flag ? 0 : greater1Ctx + 1;
-                    }
-                    int ctxInc = greater1CtxSet * 4 + Math.min(3, greater1Ctx) + (cIdx > 0 ? 16 : 0);
-                    greater1Flag = cabac.readCoeffAbsLevelGreater1Flag(ctxInc);
-                    greater1FlagCount++;
-                    if (greater1Flag) {
-                        greater1Flags |= 1 << n;
-                        if (lastGreater1ScanPos == -1) {
-                            lastGreater1ScanPos = n;
-                        }
-                    }
+            int greater1CtxSet = 0;
+            if (sigCoeffFlags != 0) {
+                // 9.3.4.2.6: ctxSet from the sub-block and the greater1Ctx the previous sub-block ended with
+                greater1CtxSet = (i == 0 || cIdx > 0 ? 0 : 2) + (i != lastSubBlock && nextGreater1Ctx == 0 ? 1 : 0);
+                int context = greater1CtxSet * 4 + (cIdx > 0 ? 16 : 0);
+                int greater1Ctx = 1;
+                int remaining = sigCoeffFlags;
+                for (int count = Math.min(Integer.bitCount(sigCoeffFlags), MAX_GREATER1_FLAGS); count > 0; count--) {
+                    int n = 31 - Integer.numberOfLeadingZeros(remaining);
+                    remaining ^= 1 << n;
+                    int greater1Flag = cabac.readCoeffAbsLevelGreater1Flag(context + Math.min(3, greater1Ctx));
+                    greater1Flags |= greater1Flag << n;
+                    // greater1Ctx grows while the flags are 0, and stays 0 after the first 1
+                    greater1Ctx = (greater1Ctx + (greater1Ctx > 0 ? 1 : 0)) & (greater1Flag - 1);
                 }
-                if (lastSigScanPos == -1) {
-                    lastSigScanPos = n;
-                }
-                firstSigScanPos = n;
-                firstCoeffInSubBlock = false;
+                nextGreater1Ctx = greater1Ctx;
             }
-            lastSubBlockGreater1Ctx = greater1Ctx;
+            // the first coefficient greater than 1, in scan order, -1 if none
+            int lastGreater1ScanPos = 31 - Integer.numberOfLeadingZeros(greater1Flags);
             boolean signHidden = signHidingAllowed && lastSigScanPos - firstSigScanPos > 3;
 
             // coeff_abs_level_greater2_flag, for the first coefficient greater than 1
-            boolean greater2Flag =
-                    lastGreater1ScanPos != -1 && cabac.readCoeffAbsLevelGreater2Flag(cIdx, greater1CtxSet);
+            boolean greater2Flag = greater1Flags != 0 && cabac.readCoeffAbsLevelGreater2Flag(cIdx, greater1CtxSet);
 
             // coeff_sign_flag, but for the hidden one, the last in scan order: a run of bypass bins, the first one the
             // most significant bit
