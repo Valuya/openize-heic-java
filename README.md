@@ -52,28 +52,37 @@ transform) and cross-component prediction. Files that need them fail with `HeicF
 ## Performance
 
 The 10 photos and collections of `TestsData/samples` (0.6 to 16 MP; all but the HDR tone map and alpha test files) on
-an Intel Core Ultra 9 285H, Java 21:
+an Intel Core Ultra 9 285H, Java 21 with the [Vector API](#simd-with-the-vector-api) module:
 
 | | one P-core | 8 E-cores | allocated for a 12 MP photo | smallest heap for it |
 |---|---|---|---|---|
-| libheif 1.23.6, in-process (through pillow-heif) | 1.47 s | 0.81 s | | |
-| [heic-decoder](https://github.com/Valuya/heic-decoder-rust) (Rust) 02972f3, `decode_rgb8` | 1.68 s | 0.50 s | | |
-| this fork | 2.20 s | 0.59 s | 51 MB | 56 MB |
+| libheif 1.23.6, in-process | 1.51 s | 0.72 s | | |
+| [heic-decoder](https://github.com/Valuya/heic-decoder-rust) (Rust) 0e12b56, `decode_rgb8`, nearest chroma | 1.50 s | 0.46 s | | |
+| this fork at ae37609 | 1.77 s | 0.50 s | 51 MB | 56 MB |
+| this fork at 086a2c2, before the changes below | 2.18 s | 0.61 s | | |
 | libheif 1.17, one `heif-convert` process per photo | 2.65 s | 2.23 s | | |
 | upstream Openize.HEIC 26.5.1 | 19.0 s | 20.3 s | 2.8 GB | 768 MB |
 
-The first three ran in turn, three times: the median of 9 decodes once warm, the best of the three runs. All three
-decode to 8-bit RGB in memory: libheif and the Rust decoder to bytes, the fork to ARGB `int`s.
+The first four ran together on 2026-10-26, interleaved, three rounds, each photo's best time: for libheif and the
+Rust decoder the median of 5 decodes after one, for the fork `DecodeBenchmark`'s median of 5 after 5 (one core) or of
+9 after 12 (8 cores). All decode to 8-bit RGB in memory: libheif and the Rust decoder to bytes, the fork to ARGB
+`int`s. libheif ran through Python: the pillow-heif wheel and a build from source take the same time, within 1%. The
+Rust decoder upsampled chroma to the nearest sample, as libheif and the fork do; its default, bilinear, takes 5 to 8%
+longer. The machine was not idle during the run: the times compare with each other, and an idle machine decodes about
+10% faster. The last two rows come from earlier runs.
 
-* On one core, in-process libheif is the fastest: its HEVC decoder, libde265, is native code with SIMD routines for
-  part of its work.
-  The fork takes 1.5 times its time and 1.3 times the Rust decoder's, and most on the photos coded in many small
-  blocks (1.4 times the others' on `iphone_log2CbSize_issue.heic`).
-* On 8 cores the order is reversed. The Rust decoder and the fork decode a grid's tiles in parallel, the fork ahead on
-  three of the iPhone photos (62.6 against 63.8 ms for `iphone_photo.heic`). libheif's threads gain less: it is the
-  slowest of the three on 8 E-cores, and slower there than on one P-core on the small samples.
+* On one core, libheif and the Rust decoder are level, and the fork takes 1.18 times their time. libheif's HEVC
+  decoder, libde265, is native code with SIMD routines for part of its work.
+* On 8 cores, the Rust decoder and the fork, which decode a grid's tiles in parallel, are ahead: libheif's threads
+  gain less.
 * `heif-convert`'s times are per process, writing raw YCbCr: they include starting the program and loading its
   decoder plugin, what a script that runs it pays, not an application that links libheif.
+
+Since 086a2c2 the fork takes 19% less time on one core and 17% less on 8. Most of it came from what libde265 and the
+Rust decoder gained most from: no branches on the decoded data in the CABAC engine's refill, and in the residual
+coding's significance flags, greater-than-1 flags and signs, which the processor mispredicted. Fewer availability
+checks, an unrolled 4x4 inverse transform and cheaper loop filter bookkeeping did the rest; each change decodes the
+same pixels as before, on the samples, a corpus of 344 files and 3000 mutated samples.
 
 The photo is `iphone_photo.heic`, a grid of 512x512 tiles: 48.8 MB of the 51 MB it allocates is the decoded image
 itself. The 16 MP `samsung_a71.heic` allocates 67 MB, 64 MB of it the image, and decodes in a 72 MB heap. The heaps
@@ -84,7 +93,7 @@ Java times leave out JIT warm-up. Java 21 and 26 decode equally fast.
 
 ```bash
 mvn -q test-compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
-taskset -c 4 java -cp target/classes:target/test-classes:$(cat target/classpath.txt) \
+taskset -c 4 java --add-modules jdk.incubator.vector -cp target/classes:target/test-classes:$(cat target/classpath.txt) \
         io.github.valuya.heic.tests.DecodeBenchmark 12 9 false \
         $(ls TestsData/samples/*.heic TestsData/samples/nokia/*.heic | grep -v -e tmap -e gimp_rgb)
 ```
