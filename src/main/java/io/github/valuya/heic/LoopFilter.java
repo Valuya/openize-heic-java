@@ -373,10 +373,20 @@ final class LoopFilter {
             int lastLine = Math.min(yCtb + ctbHeight, componentHeight - 1);
             int rowLastLine = Math.min(yCtb + ctbHeight - 1, componentHeight - 1);
             System.arraycopy(lineAbove, 0, samples, 0, componentWidth);
+            int planeWidth = planeWidths[cIdx];
             for (int y = yCtb; y <= lastLine; y++) {
                 int lineStart = (y - firstLine) * componentWidth;
-                for (int x = 0; x < componentWidth; x++) {
-                    samples[lineStart + x] = get(cIdx, x, y);
+                int planeStart = y * planeWidth;
+                if (highColorRange) {
+                    short[] plane = highColorRangePlanes[cIdx];
+                    for (int x = 0; x < componentWidth; x++) {
+                        samples[lineStart + x] = plane[planeStart + x] & 0xFFFF;
+                    }
+                } else {
+                    byte[] plane = planes[cIdx];
+                    for (int x = 0; x < componentWidth; x++) {
+                        samples[lineStart + x] = plane[planeStart + x] & 0xFF;
+                    }
                 }
             }
             System.arraycopy(samples, (rowLastLine - firstLine) * componentWidth, lineAbove, 0, componentWidth);

@@ -269,14 +269,29 @@ final class InverseTransform {
         int lastRow = residualBuffers.lastNonZeroY();
         int offset = 1 << (bdShift - 1);
 
-        // [x * nTbS + y], the columns up to lastColumn
-        int[] scaled = scaleCoefficients(picture, residualBuffers, cIdx, nTbS, qP, false, lastColumn, lastRow);
+        // [x * nTbS + y], the columns up to lastColumn; all of a 4x4 block, transformed in one piece
+        int[] scaled = nTbS == 4
+                ? scaleCoefficients(picture, residualBuffers, cIdx, nTbS, qP, false, 3, 3)
+                : scaleCoefficients(picture, residualBuffers, cIdx, nTbS, qP, false, lastColumn, lastRow);
         int[] residual = residualBuffers.residual;
 
         if (lastColumn == 0 && lastRow == 0 && !discreteSineTransform) {
             // only the DC coefficient: the basis functions of the first DCT row are 64 everywhere, so is the residual
             int column = MathExtra.clip3(coeffMin, coeffMax, (64 * scaled[0] + 64) >> 7);
             Arrays.fill(residual, 0, nTbS * nTbS, (64 * column + offset) >> bdShift);
+            return;
+        }
+
+        if (nTbS == 4) {
+            transform4(
+                    scaled,
+                    discreteSineTransform,
+                    coeffMin,
+                    coeffMax,
+                    offset,
+                    bdShift,
+                    residualBuffers.clipped,
+                    residual);
             return;
         }
 
@@ -297,6 +312,77 @@ final class InverseTransform {
             for (int x = 0; x < nTbS; x++) {
                 residual[rowStart + x] = (transformed[x] + offset) >> bdShift;
             }
+        }
+    }
+
+    // A 4x4 block from its 16 scaled coefficients: the columns into clipped, then the rows. The loops have a constant
+    // count, which the JIT unrolls, and the sums are written out, without the bounds of the non-zero coefficients
+    private static void transform4(
+            int[] scaled,
+            boolean discreteSineTransform,
+            int coeffMin,
+            int coeffMax,
+            int offset,
+            int bdShift,
+            int[] clipped,
+            int[] residual) {
+        for (int x = 0; x < 4; x++) {
+            int s0 = scaled[4 * x];
+            int s1 = scaled[4 * x + 1];
+            int s2 = scaled[4 * x + 2];
+            int s3 = scaled[4 * x + 3];
+            int o0;
+            int o1;
+            int o2;
+            int o3;
+            if (discreteSineTransform) {
+                o0 = 29 * s0 + 74 * s1 + 84 * s2 + 55 * s3;
+                o1 = 55 * s0 + 74 * s1 - 29 * s2 - 84 * s3;
+                o2 = 74 * s0 - 74 * s2 + 74 * s3;
+                o3 = 84 * s0 - 74 * s1 + 55 * s2 - 29 * s3;
+            } else {
+                int even0 = 64 * s0 + 64 * s2;
+                int even1 = 64 * s0 - 64 * s2;
+                int odd0 = 83 * s1 + 36 * s3;
+                int odd1 = 36 * s1 - 83 * s3;
+                o0 = even0 + odd0;
+                o1 = even1 + odd1;
+                o2 = even1 - odd1;
+                o3 = even0 - odd0;
+            }
+            clipped[4 * x] = Math.max(coeffMin, Math.min(coeffMax, (o0 + 64) >> 7));
+            clipped[4 * x + 1] = Math.max(coeffMin, Math.min(coeffMax, (o1 + 64) >> 7));
+            clipped[4 * x + 2] = Math.max(coeffMin, Math.min(coeffMax, (o2 + 64) >> 7));
+            clipped[4 * x + 3] = Math.max(coeffMin, Math.min(coeffMax, (o3 + 64) >> 7));
+        }
+        for (int y = 0; y < 4; y++) {
+            int s0 = clipped[y];
+            int s1 = clipped[4 + y];
+            int s2 = clipped[8 + y];
+            int s3 = clipped[12 + y];
+            int o0;
+            int o1;
+            int o2;
+            int o3;
+            if (discreteSineTransform) {
+                o0 = 29 * s0 + 74 * s1 + 84 * s2 + 55 * s3;
+                o1 = 55 * s0 + 74 * s1 - 29 * s2 - 84 * s3;
+                o2 = 74 * s0 - 74 * s2 + 74 * s3;
+                o3 = 84 * s0 - 74 * s1 + 55 * s2 - 29 * s3;
+            } else {
+                int even0 = 64 * s0 + 64 * s2;
+                int even1 = 64 * s0 - 64 * s2;
+                int odd0 = 83 * s1 + 36 * s3;
+                int odd1 = 36 * s1 - 83 * s3;
+                o0 = even0 + odd0;
+                o1 = even1 + odd1;
+                o2 = even1 - odd1;
+                o3 = even0 - odd0;
+            }
+            residual[4 * y] = (o0 + offset) >> bdShift;
+            residual[4 * y + 1] = (o1 + offset) >> bdShift;
+            residual[4 * y + 2] = (o2 + offset) >> bdShift;
+            residual[4 * y + 3] = (o3 + offset) >> bdShift;
         }
     }
 
