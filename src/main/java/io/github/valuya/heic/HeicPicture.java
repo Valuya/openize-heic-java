@@ -61,6 +61,9 @@ final class HeicPicture {
 
     // per 4x4 luma block: LoopFilter.VERTICAL_EDGE, HORIZONTAL_EDGE and NO_FILTER bits
     final BlockByteMap blockFlags;
+    // whether a coding unit leaves its samples to the loop filters, cu_transquant_bypass_flag or PCM with
+    // pcm_loop_filter_disabled_flag: rare, and the filters look the blocks up only then
+    private boolean unfilteredCodingUnits;
 
     // the memory the picture's arrays come from, which its in-loop filters use too
     final DecoderWorkspace workspace;
@@ -282,6 +285,7 @@ final class HeicPicture {
 
     void setPcmFlag(int x0, int y0, int nCbS, boolean value) {
         pcmFlag.fill(x0, y0, nCbS, value);
+        unfilteredCodingUnits |= value && sps.pcmLoopFilterDisabledFlag;
     }
 
     void setQpY(int x0, int y0, int log2CbSize, int qpYValue) {
@@ -303,11 +307,16 @@ final class HeicPicture {
 
     // The deblocking filter and sample adaptive offset leave the samples of the coding unit at (x0, y0) untouched
     void markNoFilter(int x0, int y0, int nCbS) {
+        unfilteredCodingUnits = true;
         for (int x = x0; x < x0 + nCbS; x += 4) {
             for (int y = y0; y < y0 + nCbS; y += 4) {
                 blockFlags.setBits(x, y, LoopFilter.NO_FILTER);
             }
         }
+    }
+
+    boolean hasUnfilteredCodingUnits() {
+        return unfilteredCodingUnits;
     }
 
     // Applies the deblocking filter and sample adaptive offset once every slice of the picture is reconstructed
