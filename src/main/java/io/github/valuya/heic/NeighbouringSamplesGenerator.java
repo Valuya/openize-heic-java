@@ -15,6 +15,11 @@ import java.util.Arrays;
 /**
  * Gathers the neighbouring samples of a transform block for intra prediction, substituting the unavailable ones
  * (8.4.4.2.2). Samples are taken four at a time: a group of four never straddles blocks decoded at different times.
+ *
+ * <p>The neighbours beside the block, left, above and at the corner, precede it in z-scan order whenever they are in its
+ * slice and tile: the aligned block of its size that holds them precedes it, in its coding tree block or in an earlier
+ * one. Those below left, and those above right, are each in one aligned block of its size too, which precedes it or
+ * not as a whole: one z-scan order comparison each.
  */
 final class NeighbouringSamplesGenerator {
     private static final int GROUP_SIZE = 4;
@@ -74,23 +79,25 @@ final class NeighbouringSamplesGenerator {
         int topGroups = 0;
         boolean cornerAvailable = false;
         if (isInSameSliceAndTile(picture, xLuma - 1, yLuma)) {
+            boolean belowLeftDecoded = belowCount > nTbS && isDecoded(picture, -1, nTbS);
             for (int k = 0; k < groupCount && k * GROUP_SIZE < belowCount; k++) {
-                if (isDecoded(picture, -1, k * GROUP_SIZE + GROUP_SIZE - 1)) {
+                if (k * GROUP_SIZE < nTbS || belowLeftDecoded) {
                     leftGroups |= 1 << k;
                     readColumn(picture, p, left + k * GROUP_SIZE, x0 - 1, y0 + k * GROUP_SIZE);
                 }
             }
         }
-        if (isInSameSliceAndTile(picture, xLuma - 1, yLuma - 1) && isDecoded(picture, -1, -1)) {
+        if (isInSameSliceAndTile(picture, xLuma - 1, yLuma - 1)) {
             cornerAvailable = true;
             p[samples.index(-1, -1)] = picture.getSample(cIdx, x0 - 1, y0 - 1);
         }
         boolean availableTop = isInSameSliceAndTile(picture, xLuma, yLuma - 1);
-        boolean availableTopRight = xLuma + lumaSize < sps.picWidthInLumaSamples
-                && isInSameSliceAndTile(picture, xLuma + lumaSize, yLuma - 1);
+        boolean aboveRightDecoded = rightCount > nTbS
+                && isInSameSliceAndTile(picture, xLuma + lumaSize, yLuma - 1)
+                && isDecoded(picture, nTbS, -1);
         for (int k = 0; k < groupCount && k * GROUP_SIZE < rightCount; k++) {
             int x = k * GROUP_SIZE;
-            if ((x < nTbS ? availableTop : availableTopRight) && isDecoded(picture, x, -1)) {
+            if (x < nTbS ? availableTop : aboveRightDecoded) {
                 topGroups |= 1 << k;
                 readRow(picture, p, top + x, x0 + x, y0 - 1);
             }

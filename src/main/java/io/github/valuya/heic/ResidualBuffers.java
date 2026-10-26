@@ -10,15 +10,13 @@
 
 package io.github.valuya.heic;
 
-import java.util.Arrays;
-
 /**
  * The coefficients of the transform block being decoded, and the intermediate arrays of its inverse transform,
  * reused for every block of a picture. The coefficients and their scaled values are indexed {@code [x * size + y]}, the
  * transformed blocks row by row, {@code [y * size + x]}.
  *
  * <p>Residual coding fills the coefficients of a block; reconstructing that block, which always comes next, reads
- * them and clears them. A block without coded coefficients finds the buffers empty.
+ * them and clears them, the ones set only. A block without coded coefficients finds the buffers empty.
  */
 final class ResidualBuffers {
     static final int MAX_BLOCK_SIZE = 32;
@@ -35,6 +33,9 @@ final class ResidualBuffers {
     // transform_skip_flag of the current block
     boolean transformSkipFlag;
     private final int[] coefficients = new int[MAX_BLOCK_AREA];
+    // the indices of the coefficients set, to clear
+    private final int[] setIndices = new int[MAX_BLOCK_AREA];
+    private int setCount;
     private int blockSize;
     // bounds of the non-zero coefficients, -1 while there are none
     private int lastNonZeroX = -1;
@@ -46,7 +47,9 @@ final class ResidualBuffers {
     }
 
     void setCoefficient(int x, int y, int level) {
-        coefficients[x * blockSize + y] = level;
+        int index = x * blockSize + y;
+        coefficients[index] = level;
+        setIndices[setCount++] = index;
         lastNonZeroX = Math.max(lastNonZeroX, x);
         lastNonZeroY = Math.max(lastNonZeroY, y);
     }
@@ -68,10 +71,10 @@ final class ResidualBuffers {
     }
 
     void clear() {
-        for (int x = 0; x <= lastNonZeroX; x++) {
-            int columnStart = x * blockSize;
-            Arrays.fill(coefficients, columnStart, columnStart + lastNonZeroY + 1, 0);
+        for (int i = 0; i < setCount; i++) {
+            coefficients[setIndices[i]] = 0;
         }
+        setCount = 0;
         lastNonZeroX = -1;
         lastNonZeroY = -1;
         transformSkipFlag = false;
