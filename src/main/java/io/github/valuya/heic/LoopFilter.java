@@ -59,6 +59,7 @@ final class LoopFilter {
     private final short[][] highColorRangePlanes;
     private final int[] planeWidths;
     private final int widthInCtbs;
+    private final boolean unfilteredCodingUnits;
     // the slice header of each coding tree block, by raster scan address
     private final SliceHeader[] sliceHeaders;
 
@@ -81,6 +82,7 @@ final class LoopFilter {
         this.highColorRangePlanes = picture.highColorRangePlanes;
         this.planeWidths = picture.planeWidths;
         widthInCtbs = sps.getPicWidthInCtbsY();
+        unfilteredCodingUnits = picture.hasUnfilteredCodingUnits();
         sliceHeaders = new SliceHeader[widthInCtbs * sps.getPicHeightInCtbsY()];
         for (int ctbAddrRs = 0; ctbAddrRs < sliceHeaders.length; ctbAddrRs++) {
             sliceHeaders[ctbAddrRs] = picture.getSliceSegmentHeaderAt(
@@ -518,8 +520,9 @@ final class LoopFilter {
     }
 
     private boolean noFilter(int x, int y) {
-        return (picture.blockFlags.get(x, y) & NO_FILTER) != 0
-                || (sps.pcmLoopFilterDisabledFlag && picture.pcmFlag.get(x, y));
+        return unfilteredCodingUnits
+                && ((picture.blockFlags.get(x, y) & NO_FILTER) != 0
+                        || (sps.pcmLoopFilterDisabledFlag && picture.pcmFlag.get(x, y)));
     }
 
     private SliceHeader sliceHeaderAt(int x, int y) {
