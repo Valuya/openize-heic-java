@@ -46,6 +46,8 @@ final class Cabac {
     // A coeff_abs_level_remaining prefix longer than this cannot code a coefficient within the transform range
     private static final int MAX_COEFF_ABS_LEVEL_REMAINING_PREFIX = 32;
     private static final int STAT_COEFF_COUNT = 4;
+    /** The bytes the slice data array must have after the data: the engine reads the next one before it knows it needs it. */
+    static final int SLICE_DATA_PADDING = 1;
 
     // the next context state after a most probable symbol, at [state + 128], and after a least probable one, at
     // [~state + 128] (Table 9-53)
@@ -85,7 +87,7 @@ final class Cabac {
 
     /**
      * Starts reading the slice segment data, {@code length} RBSP bytes of {@code sliceData}, the rest of a NAL unit of
-     * {@code nalUnitType} and {@code nalUnitSize} bytes.
+     * {@code nalUnitType} and {@code nalUnitSize} bytes. The array has {@link #SLICE_DATA_PADDING} bytes more.
      */
     void startSliceSegmentData(byte[] sliceData, int length, NalUnitType nalUnitType, int nalUnitSize) {
         this.sliceData = sliceData;
@@ -462,19 +464,27 @@ final class Cabac {
         ivlCurrRange = range << shift;
         value <<= shift;
         bitsNeeded += shift;
-        if (bitsNeeded >= 0) {
-            value |= nextByte() << bitsNeeded;
-            bitsNeeded -= 8;
+        refill();
+    }
+
+    // Takes the next byte of the slice data when ivlOffset needs it, bitsNeeded at least 0, under a mask rather than
+    // through a branch: whether it does is a coin toss every few bins, which the processor would often mispredict.
+    // The byte is read either way, the padding after the data when there is none left; taking that one is the overrun
+    private void refill() {
+        int needed = ~bitsNeeded >> 31;
+        value |= ((sliceData[sliceDataPosition] & 0xFF) << bitsNeeded) & needed;
+        sliceDataPosition -= needed;
+        bitsNeeded -= 8 & needed;
+        if (sliceDataPosition > sliceDataLength) {
+            throw NalUnit.overrun(nalUnitType, nalUnitSize);
         }
     }
 
     // 9.3.4.3.4 Bypass decoding process for binary decisions
     private int decodeBypass() {
         value <<= 1;
-        if (++bitsNeeded == 0) {
-            value |= nextByte();
-            bitsNeeded = -8;
-        }
+        bitsNeeded++;
+        refill();
         int scaledRange = ivlCurrRange << 7;
         // -1 when ivlOffset is at least ivlCurrRange
         int one = (scaledRange - value - 1) >> 31;
@@ -488,10 +498,7 @@ final class Cabac {
     private int decodeBypassBits(int bitCount) {
         value <<= bitCount;
         bitsNeeded += bitCount;
-        if (bitsNeeded >= 0) {
-            value |= nextByte() << bitsNeeded;
-            bitsNeeded -= 8;
-        }
+        refill();
         int scaledRange = ivlCurrRange << 7;
         int bins = value / scaledRange;
         value -= bins * scaledRange;
@@ -509,11 +516,7 @@ final class Cabac {
         int taken = Math.min(ones + 1, 8);
         value <<= taken;
         bitsNeeded += taken;
-        if (bitsNeeded >= 0) {
-            value |= nextByte << bitsNeeded;
-            sliceDataPosition++;
-            bitsNeeded -= 8;
-        }
+        refill();
         value -= (bins >> (8 - taken)) * scaledRange;
         return ones;
     }

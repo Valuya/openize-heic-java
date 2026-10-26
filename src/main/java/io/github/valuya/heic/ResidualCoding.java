@@ -224,7 +224,8 @@ final class ResidualCoding {
             // most significant bit
             int signCount = Integer.bitCount(sigCoeffFlags) - (signHidden ? 1 : 0);
             int signFlags = cabac.readCoeffSignFlags(signCount);
-            int signBit = 1 << signCount;
+            // the bit of the next coefficient's sign, -1 for the hidden one
+            int signShift = signCount;
 
             // coeff_abs_level_remaining, and the coefficients
             int initRiceValue = persistentRiceAdaptation ? cabac.statCoeff[sbType] / 4 : 0;
@@ -254,17 +255,13 @@ final class ResidualCoding {
                 }
 
                 int absLevel = coeffAbsLevelRemaining + baseLevel;
-                boolean signHiddenHere = signHidden && n == firstSigScanPos;
-                if (!signHiddenHere) {
-                    signBit >>= 1;
-                }
-                int transCoeffLevel = !signHiddenHere && (signFlags & signBit) != 0 ? -absLevel : absLevel;
-                if (signHidden) {
-                    sumAbsLevel += absLevel;
-                    if (signHiddenHere && sumAbsLevel % 2 == 1) {
-                        transCoeffLevel = -transCoeffLevel;
-                    }
-                }
+                sumAbsLevel += absLevel;
+                // the sign, or the parity of the sum of the levels for the hidden one, the last, applied without a
+                // branch: which it is would be a coin toss for the processor
+                signShift--;
+                int hidden = signShift >> 31;
+                int sign = ((signFlags >>> (signShift & 31)) & 1 & ~hidden) | (sumAbsLevel & 1 & hidden);
+                int transCoeffLevel = (absLevel ^ -sign) + sign;
                 int position = positions[n];
                 residualBuffers.setCoefficient(
                         (xS << 2) + (position & 3), (yS << 2) + (position >> 2), transCoeffLevel);

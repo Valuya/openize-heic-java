@@ -28,7 +28,8 @@ class SliceSegmentLayerRbsp extends NalUnit {
         // the slice segment data, read as RBSP bytes by the arithmetic decoder
         long endBytePosition = getEndPosition() / 8;
         int maximumLength = (int) Math.max(0, endBytePosition - stream.getBitPosition() / 8);
-        byte[] sliceData = picture.workspace.byteBuffer(DecoderWorkspace.SLICE_DATA, maximumLength);
+        byte[] sliceData =
+                picture.workspace.byteBuffer(DecoderWorkspace.SLICE_DATA, maximumLength + Cabac.SLICE_DATA_PADDING);
         int length = stream.copyRbsp(endBytePosition, sliceData);
         stream.getCabac().startSliceSegmentData(sliceData, length, nalHeader.type, getSize());
 
