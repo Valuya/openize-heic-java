@@ -68,7 +68,8 @@ Rust decoder the median of 5 decodes after one, for the fork `DecodeBenchmark`'s
 9 after 12 (8 cores). All decode to 8-bit RGB in memory: libheif and the Rust decoder to bytes, the fork to ARGB
 `int`s. libheif ran through Python: the pillow-heif wheel and a build from source take the same time, within 1%. The
 Rust decoder upsampled chroma to the nearest sample, as libheif and the fork do; its default, bilinear, takes 5 to 8%
-longer. The last two rows come from earlier runs.
+longer. The machine was not idle during the run: the times compare with each other, and an idle machine decodes about
+10% faster. The last two rows come from earlier runs.
 
 * On one core, libheif and the Rust decoder are level, and the fork takes 1.18 times their time. libheif's HEVC
   decoder, libde265, is native code with SIMD routines for part of its work.
