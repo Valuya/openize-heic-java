@@ -62,11 +62,6 @@ final class LoopFilter {
     // the slice header of each coding tree block, by raster scan address
     private final SliceHeader[] sliceHeaders;
 
-    // the four lines of a luma edge segment, three samples p0..p2 / q0..q2 on each side once filtered
-    private final int[][] edgeSamplesP = new int[4][4];
-    private final int[][] edgeSamplesQ = new int[4][4];
-    private final int[] filteredP = new int[3];
-    private final int[] filteredQ = new int[3];
     // SaoOffsetVal of the coding tree block, and the offset index of each band
     private final int[] offsetVal = new int[5];
     private final int[] bandTable = new int[32];
@@ -212,57 +207,49 @@ final class LoopFilter {
         int along = ny + nx * planeWidth;
         int edgeIndex = y * planeWidth + x;
 
-        int[][] p = edgeSamplesP;
-        int[][] q = edgeSamplesQ;
-        for (int k = 0; k < 4; k++) {
-            int lineIndex = edgeIndex + k * along;
-            for (int i = 0; i < 4; i++) {
-                p[k][i] = get(0, lineIndex - (i + 1) * across);
-                q[k][i] = get(0, lineIndex + i * across);
-            }
-        }
-
-        int dp0 = Math.abs(p[0][2] - 2 * p[0][1] + p[0][0]);
-        int dp3 = Math.abs(p[3][2] - 2 * p[3][1] + p[3][0]);
-        int dq0 = Math.abs(q[0][2] - 2 * q[0][1] + q[0][0]);
-        int dq3 = Math.abs(q[3][2] - 2 * q[3][1] + q[3][0]);
+        // 8.7.2.5.3: the decisions read the lines 0 and 3 only, and most edges stop there
+        int line3 = edgeIndex + 3 * along;
+        int dp0 = secondDifference(edgeIndex - across, -across);
+        int dp3 = secondDifference(line3 - across, -across);
+        int dq0 = secondDifference(edgeIndex, across);
+        int dq3 = secondDifference(line3, across);
         int dpq0 = dp0 + dq0;
         int dpq3 = dp3 + dq3;
-        int dp = dp0 + dp3;
-        int dq = dq0 + dq3;
         int d = dpq0 + dpq3;
-
         if (d >= beta) {
             return;
         }
 
-        boolean strong =
-                strongDecision(p[0], q[0], 2 * dpq0, beta, tc) && strongDecision(p[3], q[3], 2 * dpq3, beta, tc);
-        boolean dEp = dp < ((beta + (beta >> 1)) >> 3);
-        boolean dEq = dq < ((beta + (beta >> 1)) >> 3);
+        boolean strong = strongDecision(edgeIndex, across, 2 * dpq0, beta, tc)
+                && strongDecision(line3, across, 2 * dpq3, beta, tc);
+        boolean dEp = dp0 + dp3 < ((beta + (beta >> 1)) >> 3);
+        boolean dEq = dq0 + dq3 < ((beta + (beta >> 1)) >> 3);
         int maxValue = (1 << bitDepth) - 1;
 
         for (int k = 0; k < 4; k++) {
-            int[] pk = p[k];
-            int[] qk = q[k];
-            int p0 = pk[0], p1 = pk[1], p2 = pk[2], p3 = pk[3];
-            int q0 = qk[0], q1 = qk[1], q2 = qk[2], q3 = qk[3];
-            int[] np = filteredP;
-            int[] nq = filteredQ;
-            np[0] = p0;
-            np[1] = p1;
-            np[2] = p2;
-            nq[0] = q0;
-            nq[1] = q1;
-            nq[2] = q2;
+            int lineIndex = edgeIndex + k * along;
+            int p0 = get(0, lineIndex - across);
+            int p1 = get(0, lineIndex - 2 * across);
+            int p2 = get(0, lineIndex - 3 * across);
+            int q0 = get(0, lineIndex);
+            int q1 = get(0, lineIndex + across);
+            int q2 = get(0, lineIndex + 2 * across);
+            int np0 = p0;
+            int np1 = p1;
+            int np2 = p2;
+            int nq0 = q0;
+            int nq1 = q1;
+            int nq2 = q2;
 
             if (strong) {
-                np[0] = MathExtra.clip3(p0 - 2 * tc, p0 + 2 * tc, (p2 + 2 * p1 + 2 * p0 + 2 * q0 + q1 + 4) >> 3);
-                np[1] = MathExtra.clip3(p1 - 2 * tc, p1 + 2 * tc, (p2 + p1 + p0 + q0 + 2) >> 2);
-                np[2] = MathExtra.clip3(p2 - 2 * tc, p2 + 2 * tc, (2 * p3 + 3 * p2 + p1 + p0 + q0 + 4) >> 3);
-                nq[0] = MathExtra.clip3(q0 - 2 * tc, q0 + 2 * tc, (p1 + 2 * p0 + 2 * q0 + 2 * q1 + q2 + 4) >> 3);
-                nq[1] = MathExtra.clip3(q1 - 2 * tc, q1 + 2 * tc, (p0 + q0 + q1 + q2 + 2) >> 2);
-                nq[2] = MathExtra.clip3(q2 - 2 * tc, q2 + 2 * tc, (p0 + q0 + q1 + 3 * q2 + 2 * q3 + 4) >> 3);
+                int p3 = get(0, lineIndex - 4 * across);
+                int q3 = get(0, lineIndex + 3 * across);
+                np0 = MathExtra.clip3(p0 - 2 * tc, p0 + 2 * tc, (p2 + 2 * p1 + 2 * p0 + 2 * q0 + q1 + 4) >> 3);
+                np1 = MathExtra.clip3(p1 - 2 * tc, p1 + 2 * tc, (p2 + p1 + p0 + q0 + 2) >> 2);
+                np2 = MathExtra.clip3(p2 - 2 * tc, p2 + 2 * tc, (2 * p3 + 3 * p2 + p1 + p0 + q0 + 4) >> 3);
+                nq0 = MathExtra.clip3(q0 - 2 * tc, q0 + 2 * tc, (p1 + 2 * p0 + 2 * q0 + 2 * q1 + q2 + 4) >> 3);
+                nq1 = MathExtra.clip3(q1 - 2 * tc, q1 + 2 * tc, (p0 + q0 + q1 + q2 + 2) >> 2);
+                nq2 = MathExtra.clip3(q2 - 2 * tc, q2 + 2 * tc, (p0 + q0 + q1 + 3 * q2 + 2 * q3 + 4) >> 3);
             } else {
                 int delta = (9 * (q0 - p0) - 3 * (q1 - p1) + 8) >> 4;
                 if (Math.abs(delta) >= tc * 10) {
@@ -270,37 +257,45 @@ final class LoopFilter {
                 }
 
                 delta = MathExtra.clip3(-tc, tc, delta);
-                np[0] = MathExtra.clip3(0, maxValue, p0 + delta);
-                nq[0] = MathExtra.clip3(0, maxValue, q0 - delta);
+                np0 = MathExtra.clip3(0, maxValue, p0 + delta);
+                nq0 = MathExtra.clip3(0, maxValue, q0 - delta);
 
                 if (dEp) {
                     int deltaP = MathExtra.clip3(-(tc >> 1), tc >> 1, (((p2 + p0 + 1) >> 1) - p1 + delta) >> 1);
-                    np[1] = MathExtra.clip3(0, maxValue, p1 + deltaP);
+                    np1 = MathExtra.clip3(0, maxValue, p1 + deltaP);
                 }
 
                 if (dEq) {
                     int deltaQ = MathExtra.clip3(-(tc >> 1), tc >> 1, (((q2 + q0 + 1) >> 1) - q1 - delta) >> 1);
-                    nq[1] = MathExtra.clip3(0, maxValue, q1 + deltaQ);
+                    nq1 = MathExtra.clip3(0, maxValue, q1 + deltaQ);
                 }
             }
 
-            int lineIndex = edgeIndex + k * along;
-            for (int i = 0; i < 3; i++) {
-                if (!noFilterP) {
-                    set(0, lineIndex - (i + 1) * across, np[i]);
-                }
-                if (!noFilterQ) {
-                    set(0, lineIndex + i * across, nq[i]);
-                }
+            if (!noFilterP) {
+                set(0, lineIndex - across, np0);
+                set(0, lineIndex - 2 * across, np1);
+                set(0, lineIndex - 3 * across, np2);
+            }
+            if (!noFilterQ) {
+                set(0, lineIndex, nq0);
+                set(0, lineIndex + across, nq1);
+                set(0, lineIndex + 2 * across, nq2);
             }
         }
     }
 
-    // 8.7.2.5.6 Decision process for a luma sample
-    private static boolean strongDecision(int[] p, int[] q, int dpq, int beta, int tc) {
+    // |s0 - 2 * s1 + s2| of the luma samples at index, index + step and index + 2 * step: dp or dq of a line
+    private int secondDifference(int index, int step) {
+        return Math.abs(get(0, index) - 2 * get(0, index + step) + get(0, index + 2 * step));
+    }
+
+    // 8.7.2.5.6 Decision process for a luma sample, of the line whose q0 is at index
+    private boolean strongDecision(int index, int across, int dpq, int beta, int tc) {
+        int p0 = get(0, index - across);
+        int q0 = get(0, index);
         return dpq < (beta >> 2)
-                && Math.abs(p[3] - p[0]) + Math.abs(q[0] - q[3]) < (beta >> 3)
-                && Math.abs(p[0] - q[0]) < ((5 * tc + 1) >> 1);
+                && Math.abs(get(0, index - 4 * across) - p0) + Math.abs(q0 - get(0, index + 3 * across)) < (beta >> 3)
+                && Math.abs(p0 - q0) < ((5 * tc + 1) >> 1);
     }
 
     // 8.7.2.5.8 Filtering process for a chroma sample
