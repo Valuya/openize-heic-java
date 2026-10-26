@@ -254,6 +254,28 @@ final class HeicPicture {
         return tileIdFromRs[ctbAddrCurr] == tileIdFromRs[ctbAddrN];
     }
 
+    /**
+     * {@link #checkZScanAvailability} for a neighbour left of or above a block whose size is a power of 2 and whose
+     * position is a multiple of it: the aligned block of its size that holds the neighbour precedes it in z-scan order,
+     * so the neighbour is available when it is in the picture, the slice and the tile.
+     */
+    boolean isAvailableLeftOrAbove(int xCurr, int yCurr, int xNbY, int yNbY) {
+        if (xNbY < 0 || yNbY < 0) {
+            return false;
+        }
+        int ctbAddrCurr = ctbAddrRsAt(xCurr, yCurr);
+        int ctbAddrN = ctbAddrRsAt(xNbY, yNbY);
+        // a coding tree block is in one slice and one tile
+        if (ctbAddrN == ctbAddrCurr) {
+            return true;
+        }
+        if (sliceAddrRs[ctbAddrCurr] != sliceAddrRs[ctbAddrN]) {
+            return false;
+        }
+        int[] tileIdFromRs = pps.getTileIdFromRs();
+        return tileIdFromRs[ctbAddrCurr] == tileIdFromRs[ctbAddrN];
+    }
+
     void setCtDepth(int x0, int y0, int log2CbSize, int cqtDepth) {
         ctDepth.fill(x0, y0, 1 << log2CbSize, cqtDepth);
     }
