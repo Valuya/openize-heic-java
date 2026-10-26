@@ -34,6 +34,7 @@ final class NeighbouringSamplesGenerator {
     private int subWidth;
     private int subHeight;
     private int currentBlockAddress;
+    private int currentCtb;
 
     NeighbouringSamplesGenerator(NeighbouringSamples samples) {
         this.samples = samples;
@@ -52,6 +53,7 @@ final class NeighbouringSamplesGenerator {
         subWidth = cIdx == 0 ? 1 : picture.sps.getSubWidthC();
         subHeight = cIdx == 0 ? 1 : picture.sps.getSubHeightC();
         currentBlockAddress = minTbAddrZs(picture, x0 * subWidth, y0 * subHeight);
+        currentCtb = picture.ctbAddrRsAt(x0 * subWidth, y0 * subHeight);
         gatherAndSubstitute(picture);
         return samples;
     }
@@ -172,7 +174,6 @@ final class NeighbouringSamplesGenerator {
         if (xNbLuma < 0 || yNbLuma < 0) {
             return false;
         }
-        int currentCtb = picture.ctbAddrRsAt(x0 * subWidth, y0 * subHeight);
         int neighbourCtb = picture.ctbAddrRsAt(xNbLuma, yNbLuma);
         // a coding tree block is in one slice and one tile
         if (neighbourCtb == currentCtb) {

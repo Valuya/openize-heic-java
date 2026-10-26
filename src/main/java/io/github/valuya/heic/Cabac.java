@@ -218,9 +218,9 @@ final class Cabac {
     // 9.3.4.2.2: ctxInc from the coding quadtree depth of the available left and above neighbours
     boolean readSplitCuFlag(int x0, int y0, HeicPicture picture, int cqtDepth) {
         boolean conditionLeft =
-                picture.checkZScanAvailability(x0, y0, x0 - 1, y0) && picture.ctDepth.get(x0 - 1, y0) > cqtDepth;
+                picture.isAvailableLeftOrAbove(x0, y0, x0 - 1, y0) && picture.ctDepth.get(x0 - 1, y0) > cqtDepth;
         boolean conditionAbove =
-                picture.checkZScanAvailability(x0, y0, x0, y0 - 1) && picture.ctDepth.get(x0, y0 - 1) > cqtDepth;
+                picture.isAvailableLeftOrAbove(x0, y0, x0, y0 - 1) && picture.ctDepth.get(x0, y0 - 1) > cqtDepth;
         int ctxInc = (conditionLeft ? 1 : 0) + (conditionAbove ? 1 : 0);
         return decodeBin(ContextTable.SPLIT_CU_FLAG.offset() + ctxInc) == 1;
     }

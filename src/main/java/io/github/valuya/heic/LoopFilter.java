@@ -58,6 +58,9 @@ final class LoopFilter {
     private final byte[][] planes;
     private final short[][] highColorRangePlanes;
     private final int[] planeWidths;
+    private final int widthInCtbs;
+    // the slice header of each coding tree block, by raster scan address
+    private final SliceHeader[] sliceHeaders;
 
     // the four lines of a luma edge segment, three samples p0..p2 / q0..q2 on each side once filtered
     private final int[][] edgeSamplesP = new int[4][4];
@@ -82,17 +85,27 @@ final class LoopFilter {
         this.planes = picture.planes;
         this.highColorRangePlanes = picture.highColorRangePlanes;
         this.planeWidths = picture.planeWidths;
+        widthInCtbs = sps.getPicWidthInCtbsY();
+        sliceHeaders = new SliceHeader[widthInCtbs * sps.getPicHeightInCtbsY()];
+        for (int ctbAddrRs = 0; ctbAddrRs < sliceHeaders.length; ctbAddrRs++) {
+            sliceHeaders[ctbAddrRs] = picture.getSliceSegmentHeaderAt(
+                            (ctbAddrRs % widthInCtbs) << ctbLog2Size, (ctbAddrRs / widthInCtbs) << ctbLog2Size)
+                    .slice;
+        }
     }
 
     static void apply(HeicPicture picture) {
-        LoopFilter filter = new LoopFilter(picture);
-
         boolean deblock = false;
         boolean sampleAdaptiveOffset = false;
         for (SliceSegmentHeader header : picture.getSliceSegmentHeaders()) {
             deblock |= !header.slice.sliceDeblockingFilterDisabledFlag();
             sampleAdaptiveOffset |= header.slice.sliceSaoLumaFlag() || header.slice.sliceSaoChromaFlag();
         }
+        if (!deblock && !sampleAdaptiveOffset) {
+            return;
+        }
+
+        LoopFilter filter = new LoopFilter(picture);
 
         if (deblock) {
             filter.deblock(true);
@@ -173,11 +186,11 @@ final class LoopFilter {
             return false;
         }
 
-        int ctbQ = ctbAddrRs(xq, yq);
-        int ctbP = ctbAddrRs(xp, yp);
-        if (ctbQ == ctbP) {
+        if (xq >> ctbLog2Size == xp >> ctbLog2Size && yq >> ctbLog2Size == yp >> ctbLog2Size) {
             return true;
         }
+        int ctbQ = ctbAddrRs(xq, yq);
+        int ctbP = ctbAddrRs(xp, yp);
         if (!pps.loopFilterAcrossTilesEnabledFlag && tileId(ctbQ) != tileId(ctbP)) {
             return false;
         }
@@ -515,11 +528,11 @@ final class LoopFilter {
     }
 
     private SliceHeader sliceHeaderAt(int x, int y) {
-        return picture.getSliceSegmentHeaderAt(x, y).slice;
+        return sliceHeaders[ctbAddrRs(x, y)];
     }
 
     private int ctbAddrRs(int x, int y) {
-        return (y >> ctbLog2Size) * sps.getPicWidthInCtbsY() + (x >> ctbLog2Size);
+        return (y >> ctbLog2Size) * widthInCtbs + (x >> ctbLog2Size);
     }
 
     private int tileId(int ctbAddrRs) {

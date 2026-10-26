@@ -349,8 +349,8 @@ final class SliceSegmentDecoder {
             prevIntraLumaPredFlag[block] = cabac.readPrevIntraLumaPredFlag();
         }
 
-        boolean availableLeft = picture.checkZScanAvailability(x0, y0, x0 - 1, y0);
-        boolean availableAbove = picture.checkZScanAvailability(x0, y0, x0, y0 - 1);
+        boolean availableLeft = picture.isAvailableLeftOrAbove(x0, y0, x0 - 1, y0);
+        boolean availableAbove = picture.isAvailableLeftOrAbove(x0, y0, x0, y0 - 1);
         for (int block = 0; block < predictionBlockCount; block++) {
             int i = (block & 1) * pbOffset;
             int j = (block >> 1) * pbOffset;
@@ -632,15 +632,13 @@ final class SliceSegmentDecoder {
         }
     }
 
-    // qPY_A or qPY_B: the QpY of the coding unit covering (xQgN, yQgN), when it is in the current coding tree block
+    // qPY_A or qPY_B: the QpY of the coding unit covering (xQgN, yQgN), left of or above the quantization group, when
+    // it is in the current coding tree block, which makes it available too
     private int neighbouringQpY(int qPYPrev, int xQg, int yQg, int xQgN, int yQgN) {
-        if (!picture.checkZScanAvailability(xQg, yQg, xQgN, yQgN)) {
-            return qPYPrev;
-        }
-        int minTbLog2SizeY = sps.getMinTbLog2SizeY();
-        int minTbAddrN = pps.minTbAddrZs(xQgN >> minTbLog2SizeY, yQgN >> minTbLog2SizeY);
-        int ctbAddrN = minTbAddrN >> (2 * (sps.getCtbLog2SizeY() - minTbLog2SizeY));
-        return ctbAddrN == ctbAddrInTs ? picture.qpY.get(xQgN, yQgN) : qPYPrev;
+        int ctbLog2SizeY = sps.getCtbLog2SizeY();
+        boolean inCurrentCtb =
+                xQgN >> ctbLog2SizeY == xQg >> ctbLog2SizeY && yQgN >> ctbLog2SizeY == yQg >> ctbLog2SizeY;
+        return inCurrentCtb ? picture.qpY.get(xQgN, yQgN) : qPYPrev;
     }
 
     // Table 8-10 for 4:2:0, Min(qPi, 51) for the other formats
