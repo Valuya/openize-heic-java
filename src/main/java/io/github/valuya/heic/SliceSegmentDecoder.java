@@ -687,8 +687,10 @@ final class SliceSegmentDecoder {
         if (residualBuffers.isEmpty()) {
             // no coded coefficients: the prediction is the reconstruction
             picture.setBlock(cIdx, x0, y0, nTbS, predSamples);
-        } else {
-            int qP = cIdx == 0 ? context.qpPrimeY : cIdx == 1 ? context.qpPrimeCb : context.qpPrimeCr;
+            return;
+        }
+        int qP = cIdx == 0 ? context.qpPrimeY : cIdx == 1 ? context.qpPrimeCb : context.qpPrimeCr;
+        if (context.cuTransquantBypassFlag || residualBuffers.transformSkipFlag) {
             int[] residual = InverseTransform.residual(
                     picture,
                     residualBuffers,
@@ -699,8 +701,10 @@ final class SliceSegmentDecoder {
                     residualBuffers.transformSkipFlag,
                     residualDpcmDirection(intraPredMode, residualBuffers.transformSkipFlag));
             picture.setReconstructedBlock(cIdx, x0, y0, nTbS, predSamples, residual);
-            residualBuffers.clear();
+        } else {
+            InverseTransform.reconstruct(picture, residualBuffers, cIdx, nTbS, qP, x0, y0, predSamples);
         }
+        residualBuffers.clear();
     }
 
     // 8.6.2: implicit RDPCM accumulates the residual of a horizontally or vertically predicted lossless or

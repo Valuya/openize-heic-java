@@ -10,6 +10,9 @@
 
 package io.github.valuya.heic;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.IntVector;
@@ -38,6 +41,12 @@ final class VectorKernels implements Kernels {
 
     // the chroma sample of each of 4 pixels from an even column, from the one of the first, when two pixels share one
     private static final VectorShuffle<Integer> CHROMA_PAIRS = VectorShuffle.fromValues(INTS_128, 0, 0, 1, 1);
+    // 4 bytes of a byte array as one int, the first one its lowest byte, as the Vector API lays out the lanes of a
+    // reinterpreted vector
+    private static final VarHandle FOUR_BYTES =
+            MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    // the distance of each lane from the first one
+    private static final IntVector LANE_OFFSETS = IntVector.fromArray(INTS_128, new int[] {0, 1, 2, 3}, 0);
 
     VectorKernels() {}
 
@@ -232,6 +241,80 @@ final class VectorKernels implements Kernels {
                     .intoArray(destination, destinationRow + col);
         }
         return col;
+    }
+
+    // A strip of 4 columns at a time, down the rows: the terms in y of its columns stay in a register
+    @Override
+    public void predictPlanar(
+            int[] columnTerms,
+            int[] columnSteps,
+            int[] rowTerms,
+            int[] rowSteps,
+            int nTbS,
+            int shift,
+            int[] predSamples) {
+        for (int x = 0; x < nTbS; x += PIXELS) {
+            IntVector columns = IntVector.fromArray(INTS_128, columnTerms, x);
+            IntVector steps = IntVector.fromArray(INTS_128, columnSteps, x);
+            IntVector xs = LANE_OFFSETS.add(x);
+            for (int y = 0; y < nTbS; y++) {
+                columns.add(xs.mul(rowSteps[y]).add(rowTerms[y]))
+                        .lanewise(VectorOperators.ASHR, shift)
+                        .intoArray(predSamples, y * nTbS + x);
+                columns = columns.add(steps);
+            }
+        }
+    }
+
+    @Override
+    public void interpolateRow(int[] reference, int index, int iFact, int[] output, int start, int count) {
+        int weight = 32 - iFact;
+        for (int i = 0; i < count; i += PIXELS) {
+            IntVector.fromArray(INTS_128, reference, index + i)
+                    .mul(weight)
+                    .add(IntVector.fromArray(INTS_128, reference, index + i + 1).mul(iFact))
+                    .add(16)
+                    .lanewise(VectorOperators.ASHR, 5)
+                    .intoArray(output, start + i);
+        }
+    }
+
+    // 4 samples at a time, narrowed to bytes in a vector and stored as one int: a vector store of 4 bytes would need a
+    // mask, which the processor cannot apply to bytes
+    @Override
+    public void reconstructRow8(
+            byte[] plane,
+            int planeIndex,
+            int[] predSamples,
+            int predStart,
+            int[] residual,
+            int residualStart,
+            int offset,
+            int shift,
+            int count) {
+        for (int i = 0; i < count; i += PIXELS) {
+            IntVector samples = IntVector.fromArray(INTS_128, residual, residualStart + i)
+                    .add(offset)
+                    .lanewise(VectorOperators.ASHR, shift)
+                    .add(IntVector.fromArray(INTS_128, predSamples, predStart + i))
+                    .max(0)
+                    .min(255);
+            FOUR_BYTES.set(plane, planeIndex + i, fourBytes(samples));
+        }
+    }
+
+    @Override
+    public void setRow8(byte[] plane, int planeIndex, int[] samples, int start, int count) {
+        for (int i = 0; i < count; i += PIXELS) {
+            FOUR_BYTES.set(plane, planeIndex + i, fourBytes(IntVector.fromArray(INTS_128, samples, start + i)));
+        }
+    }
+
+    // the 4 lanes, 0..255, as the bytes of an int, lane 0 the lowest
+    private static int fourBytes(IntVector samples) {
+        return ((ByteVector) samples.convertShape(VectorOperators.I2B, BYTES_64, 0))
+                .reinterpretAsInts()
+                .lane(0);
     }
 
     // The odd sums stay in registers, 8 or 16 outputs, instead of a scratch array, and the second half of the outputs,

@@ -15,7 +15,7 @@ package io.github.valuya.heic;
  * their filtered copy, the predicted block and the reference row of angular prediction.
  */
 final class IntraPredictionBuffers {
-    private static final int MAX_BLOCK_SIZE = 32;
+    static final int MAX_BLOCK_SIZE = 32;
 
     final NeighbouringSamples neighbouringSamples = new NeighbouringSamples(MAX_BLOCK_SIZE);
     final NeighbouringSamplesGenerator neighbouringSamplesGenerator =
@@ -24,4 +24,11 @@ final class IntraPredictionBuffers {
     // predSamples[x][y] at [y * nTbS + x], row by row, for the current block size nTbS
     final int[] predictedSamples = new int[MAX_BLOCK_SIZE * MAX_BLOCK_SIZE];
     final int[] angularReference = new int[3 * MAX_BLOCK_SIZE + 1];
+    // a line of a horizontal angular mode, laid out as a column of predictedSamples
+    final int[] angularLine = new int[MAX_BLOCK_SIZE];
+    // the terms of planar prediction in y of each column, at y = 0 and per row, and in x of each row
+    final int[] planarColumnTerms = new int[MAX_BLOCK_SIZE];
+    final int[] planarColumnSteps = new int[MAX_BLOCK_SIZE];
+    final int[] planarRowTerms = new int[MAX_BLOCK_SIZE];
+    final int[] planarRowSteps = new int[MAX_BLOCK_SIZE];
 }

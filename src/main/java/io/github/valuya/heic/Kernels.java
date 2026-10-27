@@ -54,6 +54,49 @@ interface Kernels {
      */
     void combineDctHalves(int[] source, int offset, int step, int last, int nTbS, int[] output);
 
+    /**
+     * The planar intra prediction of an {@code nTbS} block, as {@code IntraPrediction.predictPlanarRows} computes it:
+     * {@code predSamples[y * nTbS + x]} is {@code (columnTerms[x] + y * columnSteps[x] + rowTerms[y] + x * rowSteps[y])
+     * >> shift}.
+     */
+    void predictPlanar(
+            int[] columnTerms,
+            int[] columnSteps,
+            int[] rowTerms,
+            int[] rowSteps,
+            int nTbS,
+            int shift,
+            int[] predSamples);
+
+    /**
+     * {@code count} samples of angular intra prediction, a multiple of 4, interpolated between {@code reference[index +
+     * i]} and the next one at {@code iFact} 32ths, to {@code output[start + i]}, as {@code IntraPrediction.interpolateRow}
+     * does.
+     */
+    void interpolateRow(int[] reference, int index, int iFact, int[] output, int start, int count);
+
+    /**
+     * Sets {@code count} samples of an 8-bit plane, a multiple of 4, from {@code plane[planeIndex]} on, to their
+     * prediction plus their residual clipped to 0..255, as {@code HeicPicture.setReconstructedRow} does: {@code
+     * predSamples[predStart + i] + ((residual[residualStart + i] + offset) >> shift)}.
+     */
+    void reconstructRow8(
+            byte[] plane,
+            int planeIndex,
+            int[] predSamples,
+            int predStart,
+            int[] residual,
+            int residualStart,
+            int offset,
+            int shift,
+            int count);
+
+    /**
+     * Sets {@code count} samples of an 8-bit plane, a multiple of 4, from {@code plane[planeIndex]} on, to {@code
+     * samples[start + i]}, which are 0..255.
+     */
+    void setRow8(byte[] plane, int planeIndex, int[] samples, int start, int count);
+
     private static @Nullable Kernels load() {
         if (!Boolean.parseBoolean(System.getProperty("io.github.valuya.heic.vector", "true"))
                 || ModuleLayer.boot().findModule("jdk.incubator.vector").isEmpty()) {

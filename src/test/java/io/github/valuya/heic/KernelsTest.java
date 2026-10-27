@@ -162,6 +162,105 @@ class KernelsTest {
         }
     }
 
+    @Test
+    void predictsPlanarAsTheScalarLoop() {
+        SplittableRandom random = new SplittableRandom(3);
+        int[][] terms = new int[4][32];
+        int[] vectorOutput = new int[32 * 32];
+        int[] scalarOutput = new int[32 * 32];
+        for (int iteration = 0; iteration < 20_000; iteration++) {
+            int nTbS = 4 << random.nextInt(4);
+            int shift = Integer.numberOfTrailingZeros(nTbS) + 1;
+            for (int[] term : terms) {
+                for (int i = 0; i < nTbS; i++) {
+                    term[i] = random.nextInt(-(1 << 22), 1 << 22);
+                }
+            }
+
+            kernels.predictPlanar(terms[0], terms[1], terms[2], terms[3], nTbS, shift, vectorOutput);
+            IntraPrediction.predictPlanarRows(terms[0], terms[1], terms[2], terms[3], nTbS, shift, scalarOutput);
+
+            assertThat(Arrays.copyOf(vectorOutput, nTbS * nTbS))
+                    .containsExactly(Arrays.copyOf(scalarOutput, nTbS * nTbS));
+        }
+    }
+
+    @Test
+    void interpolatesAngularRowsAsTheScalarLoop() {
+        SplittableRandom random = new SplittableRandom(4);
+        int[] reference = new int[3 * 32 + 1];
+        int[] vectorOutput = new int[64];
+        int[] scalarOutput = new int[64];
+        for (int iteration = 0; iteration < 20_000; iteration++) {
+            int count = 4 << random.nextInt(4);
+            int index = random.nextInt(reference.length - count);
+            int iFact = 1 + random.nextInt(31);
+            int start = random.nextInt(64 - count + 1);
+            for (int i = 0; i < reference.length; i++) {
+                reference[i] = random.nextInt(1 << 16);
+            }
+
+            kernels.interpolateRow(reference, index, iFact, vectorOutput, start, count);
+            IntraPrediction.interpolateRowScalar(reference, index, iFact, scalarOutput, start, count);
+
+            assertThat(vectorOutput).containsExactly(scalarOutput);
+        }
+    }
+
+    // residuals past both ends of 0..255 once added, with and without a shift
+    @Test
+    void reconstructsRowsAsTheScalarLoop() {
+        SplittableRandom random = new SplittableRandom(5);
+        int[] predSamples = new int[64];
+        int[] residual = new int[64];
+        for (int iteration = 0; iteration < 20_000; iteration++) {
+            int count = 4 << random.nextInt(4);
+            int predStart = random.nextInt(64 - count + 1);
+            int residualStart = random.nextInt(64 - count + 1);
+            int planeIndex = random.nextInt(64 - count + 1);
+            int shift = random.nextBoolean() ? 0 : 7 + random.nextInt(6);
+            int offset = shift == 0 ? 0 : 1 << (shift - 1);
+            for (int i = 0; i < 64; i++) {
+                predSamples[i] = random.nextInt(256);
+                residual[i] = random.nextInt(-400 << shift, 400 << shift);
+            }
+            byte[] vectorPlane = randomBytes(random, 64);
+            byte[] scalarPlane = vectorPlane.clone();
+
+            kernels.reconstructRow8(
+                    vectorPlane, planeIndex, predSamples, predStart, residual, residualStart, offset, shift, count);
+            for (int i = 0; i < count; i++) {
+                int sample = predSamples[predStart + i] + ((residual[residualStart + i] + offset) >> shift);
+                scalarPlane[planeIndex + i] = (byte) Math.max(0, Math.min(255, sample));
+            }
+
+            assertThat(vectorPlane).containsExactly(scalarPlane);
+        }
+    }
+
+    @Test
+    void setsRowsAsTheScalarLoop() {
+        SplittableRandom random = new SplittableRandom(6);
+        int[] samples = new int[64];
+        for (int iteration = 0; iteration < 20_000; iteration++) {
+            int count = 4 << random.nextInt(4);
+            int start = random.nextInt(64 - count + 1);
+            int planeIndex = random.nextInt(64 - count + 1);
+            for (int i = 0; i < 64; i++) {
+                samples[i] = random.nextInt(256);
+            }
+            byte[] vectorPlane = randomBytes(random, 64);
+            byte[] scalarPlane = vectorPlane.clone();
+
+            kernels.setRow8(vectorPlane, planeIndex, samples, start, count);
+            for (int i = 0; i < count; i++) {
+                scalarPlane[planeIndex + i] = (byte) samples[start + i];
+            }
+
+            assertThat(vectorPlane).containsExactly(scalarPlane);
+        }
+    }
+
     private static byte[] randomBytes(SplittableRandom random, int length) {
         byte[] bytes = new byte[length];
         for (int i = 0; i < length; i++) {

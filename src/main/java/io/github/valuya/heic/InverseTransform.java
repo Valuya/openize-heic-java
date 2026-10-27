@@ -164,7 +164,9 @@ final class InverseTransform {
     private InverseTransform() {}
 
     /**
-     * Computes the residual of the {@code nTbS} block of component {@code cIdx}.
+     * Computes the residual of the {@code nTbS} block of component {@code cIdx} of a coding unit that bypasses the
+     * transform, with {@code cu_transquant_bypass_flag} or {@code transform_skip_flag}; {@link #reconstruct} does the
+     * others.
      *
      * @param qP the quantization parameter of the component, Qp'Y, Qp'Cb or Qp'Cr
      * @param residualDpcmDirection mDir of the directional residual modification (8.6.8), 0 horizontal, 1 vertical,
@@ -183,8 +185,7 @@ final class InverseTransform {
         SeqParameterSetRbsp sps = picture.sps;
         int[] residual = residualBuffers.residual;
         boolean rotateCoeffs = sps.spsRangeExt.transformSkipRotationEnabledFlag && nTbS == 4;
-        int bitDepth = cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC();
-        int bdShift = Math.max(20 - bitDepth, sps.spsRangeExt.extendedPrecisionProcessingFlag ? 11 : 0);
+        int bdShift = bdShift(sps, cIdx);
 
         if (cuTransquantBypassFlag) {
             for (int y = 0; y < nTbS; y++) {
@@ -194,7 +195,7 @@ final class InverseTransform {
                             : residualBuffers.coefficient(x, y);
                 }
             }
-        } else if (transformSkipFlag) {
+        } else {
             // 8.6.4.2: the residual modification process for blocks using a transform bypass
             int[] scaled = scaleCoefficients(picture, residualBuffers, cIdx, nTbS, qP, true, nTbS - 1, nTbS - 1);
             int tsShift = 5 + Integer.numberOfTrailingZeros(nTbS);
@@ -205,14 +206,37 @@ final class InverseTransform {
                     residual[y * nTbS + x] = ((scaled[scaledIndex] << tsShift) + offset) >> bdShift;
                 }
             }
-        } else {
-            transform(picture, residualBuffers, cIdx, nTbS, qP, bdShift);
         }
 
         if (residualDpcmDirection != NO_RESIDUAL_DPCM) {
             accumulate(residual, nTbS, residualDpcmDirection);
         }
         return residual;
+    }
+
+    /**
+     * Sets the {@code nTbS} block of component {@code cIdx} at {@code (x0, y0)} to its prediction plus its residual,
+     * transformed from its coefficients: the rows of the residual go to the picture as the transformation computes them.
+     *
+     * @param qP the quantization parameter of the component, Qp'Y, Qp'Cb or Qp'Cr
+     * @param predSamples the prediction, [y * nTbS + x]
+     */
+    static void reconstruct(
+            HeicPicture picture,
+            ResidualBuffers residualBuffers,
+            int cIdx,
+            int nTbS,
+            int qP,
+            int x0,
+            int y0,
+            int[] predSamples) {
+        transform(picture, residualBuffers, cIdx, nTbS, qP, bdShift(picture.sps, cIdx), x0, y0, predSamples);
+    }
+
+    // bdShift of 8.6.2
+    private static int bdShift(SeqParameterSetRbsp sps, int cIdx) {
+        int bitDepth = cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC();
+        return Math.max(20 - bitDepth, sps.spsRangeExt.extendedPrecisionProcessingFlag ? 11 : 0);
     }
 
     // 8.6.3 Scaling process for transform coefficients, of the coefficients at x <= lastX and y <= lastY: the others
@@ -253,11 +277,20 @@ final class InverseTransform {
         return scaled;
     }
 
-    // 8.6.4.2 Transformation process: columns, intermediate clipping, then rows, and the bdShift of 8.6.2. Only the
-    // coefficients up to the last non-zero one in each direction can contribute, so the sums stop there; each
-    // coefficient adds its scaled basis function, a contiguous loop the JIT vectorises.
+    // 8.6.4.2 Transformation process: columns, intermediate clipping, then rows, and the bdShift of 8.6.2, each row
+    // added to the prediction in the picture. Only the coefficients up to the last non-zero one in each direction can
+    // contribute, so the sums stop there; each coefficient adds its scaled basis function, a contiguous loop the JIT
+    // vectorises.
     private static void transform(
-            HeicPicture picture, ResidualBuffers residualBuffers, int cIdx, int nTbS, int qP, int bdShift) {
+            HeicPicture picture,
+            ResidualBuffers residualBuffers,
+            int cIdx,
+            int nTbS,
+            int qP,
+            int bdShift,
+            int x0,
+            int y0,
+            int[] predSamples) {
         SeqParameterSetRbsp sps = picture.sps;
         int coeffMin = cIdx == 0 ? sps.getCoeffMinY() : sps.getCoeffMinC();
         int coeffMax = cIdx == 0 ? sps.getCoeffMaxY() : sps.getCoeffMaxC();
@@ -278,7 +311,7 @@ final class InverseTransform {
         if (lastColumn == 0 && lastRow == 0 && !discreteSineTransform) {
             // only the DC coefficient: the basis functions of the first DCT row are 64 everywhere, so is the residual
             int column = MathExtra.clip3(coeffMin, coeffMax, (64 * scaled[0] + 64) >> 7);
-            Arrays.fill(residual, 0, nTbS * nTbS, (64 * column + offset) >> bdShift);
+            picture.setReconstructedBlock(cIdx, x0, y0, nTbS, predSamples, (64 * column + offset) >> bdShift);
             return;
         }
 
@@ -292,6 +325,7 @@ final class InverseTransform {
                     bdShift,
                     residualBuffers.clipped,
                     residual);
+            picture.setReconstructedBlock(cIdx, x0, y0, nTbS, predSamples, residual);
             return;
         }
 
@@ -307,11 +341,8 @@ final class InverseTransform {
             }
         }
         for (int y = 0; y < nTbS; y++) {
-            int rowStart = y * nTbS;
             inverse(discreteSineTransform, clipped, y, nTbS, lastColumn, nTbS, transformed, scratch);
-            for (int x = 0; x < nTbS; x++) {
-                residual[rowStart + x] = (transformed[x] + offset) >> bdShift;
-            }
+            picture.setReconstructedRow(cIdx, x0, y0 + y, nTbS, predSamples, y * nTbS, transformed, offset, bdShift);
         }
     }
 
