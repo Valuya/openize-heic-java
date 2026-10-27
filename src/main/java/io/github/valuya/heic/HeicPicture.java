@@ -186,10 +186,13 @@ final class HeicPicture {
     /** Sets the {@code size} x {@code size} block of component {@code cIdx} at (x0, y0) to {@code samples}, row by row. */
     void setBlock(int cIdx, int x0, int y0, int size, int[] samples) {
         int planeWidth = planeWidths[cIdx];
+        Kernels vector = Kernels.VECTOR;
         for (int y = 0; y < size; y++) {
             int planeIndex = (y0 + y) * planeWidth + x0;
             int blockIndex = y * size;
-            if (highColorRange) {
+            if (vector != null && !highColorRange) {
+                vector.setRow8(planes[cIdx], planeIndex, samples, blockIndex, size);
+            } else if (highColorRange) {
                 short[] plane = highColorRangePlanes[cIdx];
                 for (int x = 0; x < size; x++) {
                     plane[planeIndex + x] = (short) samples[blockIndex + x];
@@ -210,10 +213,14 @@ final class HeicPicture {
     void setReconstructedBlock(int cIdx, int x0, int y0, int size, int[] predSamples, int[] residual) {
         int planeWidth = planeWidths[cIdx];
         int maximum = (1 << (cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC())) - 1;
+        Kernels vector = Kernels.VECTOR;
         for (int y = 0; y < size; y++) {
             int planeIndex = (y0 + y) * planeWidth + x0;
             int blockIndex = y * size;
-            if (highColorRange) {
+            if (vector != null && !highColorRange) {
+                vector.reconstructRow8(
+                        planes[cIdx], planeIndex, predSamples, blockIndex, residual, blockIndex, 0, 0, size);
+            } else if (highColorRange) {
                 short[] plane = highColorRangePlanes[cIdx];
                 for (int x = 0; x < size; x++) {
                     int sample = predSamples[blockIndex + x] + residual[blockIndex + x];
@@ -225,6 +232,65 @@ final class HeicPicture {
                     int sample = predSamples[blockIndex + x] + residual[blockIndex + x];
                     plane[planeIndex + x] = (byte) Math.max(0, Math.min(maximum, sample));
                 }
+            }
+        }
+    }
+
+    /** {@link #setReconstructedBlock} with the same residual for every sample. */
+    void setReconstructedBlock(int cIdx, int x0, int y0, int size, int[] predSamples, int residual) {
+        int planeWidth = planeWidths[cIdx];
+        int maximum = (1 << (cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC())) - 1;
+        for (int y = 0; y < size; y++) {
+            int planeIndex = (y0 + y) * planeWidth + x0;
+            int blockIndex = y * size;
+            if (highColorRange) {
+                short[] plane = highColorRangePlanes[cIdx];
+                for (int x = 0; x < size; x++) {
+                    plane[planeIndex + x] =
+                            (short) Math.max(0, Math.min(maximum, predSamples[blockIndex + x] + residual));
+                }
+            } else {
+                byte[] plane = planes[cIdx];
+                for (int x = 0; x < size; x++) {
+                    plane[planeIndex + x] =
+                            (byte) Math.max(0, Math.min(maximum, predSamples[blockIndex + x] + residual));
+                }
+            }
+        }
+    }
+
+    /**
+     * Sets the {@code count} samples of component {@code cIdx} from (x0, y) to their prediction,
+     * {@code predSamples[predStart..]}, plus their residual, {@code (transformed[x] + offset) >> shift}, clipped to the
+     * bit depth (8.6.7).
+     */
+    void setReconstructedRow(
+            int cIdx,
+            int x0,
+            int y,
+            int count,
+            int[] predSamples,
+            int predStart,
+            int[] transformed,
+            int offset,
+            int shift) {
+        int planeIndex = y * planeWidths[cIdx] + x0;
+        int maximum = (1 << (cIdx == 0 ? sps.getBitDepthY() : sps.getBitDepthC())) - 1;
+        Kernels vector = Kernels.VECTOR;
+        if (vector != null && !highColorRange) {
+            vector.reconstructRow8(
+                    planes[cIdx], planeIndex, predSamples, predStart, transformed, 0, offset, shift, count);
+        } else if (highColorRange) {
+            short[] plane = highColorRangePlanes[cIdx];
+            for (int x = 0; x < count; x++) {
+                int sample = predSamples[predStart + x] + ((transformed[x] + offset) >> shift);
+                plane[planeIndex + x] = (short) Math.max(0, Math.min(maximum, sample));
+            }
+        } else {
+            byte[] plane = planes[cIdx];
+            for (int x = 0; x < count; x++) {
+                int sample = predSamples[predStart + x] + ((transformed[x] + offset) >> shift);
+                plane[planeIndex + x] = (byte) Math.max(0, Math.min(maximum, sample));
             }
         }
     }

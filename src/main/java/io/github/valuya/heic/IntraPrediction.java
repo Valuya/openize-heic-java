@@ -56,7 +56,7 @@ final class IntraPrediction {
         boolean disableIntraBoundaryFilter = sps.spsSccExt.intraBoundaryFilteringDisabledFlag
                 || (sps.spsRangeExt.implicitRdpcmEnabledFlag && cuTransquantBypassFlag);
         return switch (intraPredMode) {
-            case IntraPredMode.INTRA_PLANAR -> predictPlanar(buffers.predictedSamples, samples, nTbS);
+            case IntraPredMode.INTRA_PLANAR -> predictPlanar(buffers, samples, nTbS);
             case IntraPredMode.INTRA_DC -> predictDc(buffers.predictedSamples, samples, nTbS, cIdx);
             default ->
                 predictAngular(buffers, samples, nTbS, cIdx, intraPredMode, bitDepth, disableIntraBoundaryFilter);
@@ -121,24 +121,51 @@ final class IntraPrediction {
         };
     }
 
-    // 8.4.4.2.4 Specification of intra prediction mode INTRA_PLANAR
-    private static int[] predictPlanar(int[] predSamples, NeighbouringSamples p, int nTbS) {
+    // 8.4.4.2.4 Specification of intra prediction mode INTRA_PLANAR: predSamples[x][y] is ((nTbS - 1 - x) * p[-1][y]
+    // + (x + 1) * p[nTbS][-1] + (nTbS - 1 - y) * p[x][-1] + (y + 1) * p[-1][nTbS] + nTbS) >> (Log2(nTbS) + 1). The
+    // terms in y of column x are (nTbS - 1) * p[x][-1] + p[-1][nTbS] + nTbS plus y times p[-1][nTbS] - p[x][-1], and
+    // the terms in x of row y (nTbS - 1) * p[-1][y] + p[nTbS][-1] plus x times p[nTbS][-1] - p[-1][y]
+    private static int[] predictPlanar(IntraPredictionBuffers buffers, NeighbouringSamples p, int nTbS) {
+        int[] columnTerms = buffers.planarColumnTerms;
+        int[] columnSteps = buffers.planarColumnSteps;
+        int[] rowTerms = buffers.planarRowTerms;
+        int[] rowSteps = buffers.planarRowSteps;
         int shift = Integer.numberOfTrailingZeros(nTbS) + 1;
         int topRight = p.get(nTbS, -1);
         int bottomLeft = p.get(-1, nTbS);
+        for (int i = 0; i < nTbS; i++) {
+            int top = p.get(i, -1);
+            int left = p.get(-1, i);
+            columnTerms[i] = (nTbS - 1) * top + bottomLeft + nTbS;
+            columnSteps[i] = bottomLeft - top;
+            rowTerms[i] = (nTbS - 1) * left + topRight;
+            rowSteps[i] = topRight - left;
+        }
+        Kernels vector = Kernels.VECTOR;
+        if (vector != null) {
+            vector.predictPlanar(columnTerms, columnSteps, rowTerms, rowSteps, nTbS, shift, buffers.predictedSamples);
+        } else {
+            predictPlanarRows(columnTerms, columnSteps, rowTerms, rowSteps, nTbS, shift, buffers.predictedSamples);
+        }
+        return buffers.predictedSamples;
+    }
+
+    // predictPlanar( ) without the vector kernels: predSamples[y * nTbS + x] is (columnTerms[x] + y * columnSteps[x] +
+    // rowTerms[y] + x * rowSteps[y]) >> shift
+    static void predictPlanarRows(
+            int[] columnTerms,
+            int[] columnSteps,
+            int[] rowTerms,
+            int[] rowSteps,
+            int nTbS,
+            int shift,
+            int[] predSamples) {
         for (int y = 0; y < nTbS; y++) {
-            int rowStart = y * nTbS;
-            int left = p.get(-1, y);
             for (int x = 0; x < nTbS; x++) {
-                predSamples[rowStart + x] = ((nTbS - 1 - x) * left
-                                + (x + 1) * topRight
-                                + (nTbS - 1 - y) * p.get(x, -1)
-                                + (y + 1) * bottomLeft
-                                + nTbS)
-                        >> shift;
+                predSamples[y * nTbS + x] =
+                        (columnTerms[x] + y * columnSteps[x] + rowTerms[y] + x * rowSteps[y]) >> shift;
             }
         }
-        return predSamples;
     }
 
     // 8.4.4.2.5 Specification of intra prediction mode INTRA_DC
@@ -178,9 +205,11 @@ final class IntraPrediction {
         // ref[x] at reference[x + nTbS], x = -nTbS..2 * nTbS: the main row (vertical modes) or column (horizontal
         // ones), extended by projecting the other side for a negative angle
         int[] reference = buffers.angularReference;
-        for (int x = 0; x <= nTbS; x++) {
-            reference[x + nTbS] = verticalModes ? p.get(x - 1, -1) : p.get(-1, x - 1);
-        }
+        int[] neighbours = p.array();
+        // ref[0] is p[-1][-1], ahead of the row above; ref[1..] the row above, or the column left
+        reference[nTbS] = neighbours[p.index(-1, -1)];
+        int mainLength = intraPredAngle < 0 ? nTbS : 2 * nTbS;
+        System.arraycopy(neighbours, verticalModes ? p.index(0, -1) : p.index(-1, 0), reference, nTbS + 1, mainLength);
         if (intraPredAngle < 0) {
             int lastProjected = (nTbS * intraPredAngle) >> 5;
             if (lastProjected < -1) {
@@ -190,24 +219,19 @@ final class IntraPrediction {
                     reference[x + nTbS] = verticalModes ? p.get(-1, projected) : p.get(projected, -1);
                 }
             }
-        } else {
-            for (int x = nTbS + 1; x <= 2 * nTbS; x++) {
-                reference[x + nTbS] = verticalModes ? p.get(x - 1, -1) : p.get(-1, x - 1);
-            }
         }
 
-        // iIdx and iFact follow the distance from the reference: y for the vertical modes, x for the horizontal ones
-        if (verticalModes) {
-            for (int y = 0; y < nTbS; y++) {
-                int iIdx = ((y + 1) * intraPredAngle) >> 5;
-                int iFact = ((y + 1) * intraPredAngle) & 31;
-                interpolateLine(reference, nTbS + iIdx + 1, iFact, predSamples, y * nTbS, 1, nTbS);
-            }
-        } else {
-            for (int x = 0; x < nTbS; x++) {
-                int iIdx = ((x + 1) * intraPredAngle) >> 5;
-                int iFact = ((x + 1) * intraPredAngle) & 31;
-                interpolateLine(reference, nTbS + iIdx + 1, iFact, predSamples, x, nTbS, nTbS);
+        // iIdx and iFact follow the distance from the reference: y for the vertical modes, x for the horizontal ones,
+        // whose lines are interpolated as rows and then laid out as columns
+        int[] line = verticalModes ? predSamples : buffers.angularLine;
+        for (int distance = 0; distance < nTbS; distance++) {
+            int iIdx = ((distance + 1) * intraPredAngle) >> 5;
+            int iFact = ((distance + 1) * intraPredAngle) & 31;
+            interpolateRow(reference, nTbS + iIdx + 1, iFact, line, verticalModes ? distance * nTbS : 0, nTbS);
+            if (!verticalModes) {
+                for (int y = 0; y < nTbS; y++) {
+                    predSamples[y * nTbS + distance] = line[y];
+                }
             }
         }
 
@@ -227,19 +251,22 @@ final class IntraPrediction {
         return predSamples;
     }
 
-    // count samples interpolated between reference[index + i] and the next one, at iFact 32ths, to
-    // predSamples[start + i * step]
-    private static void interpolateLine(
-            int[] reference, int index, int iFact, int[] predSamples, int start, int step, int count) {
+    // count samples interpolated between reference[index + i] and the next one, at iFact 32ths, to output[start + i]
+    private static void interpolateRow(int[] reference, int index, int iFact, int[] output, int start, int count) {
+        Kernels vector = Kernels.VECTOR;
         if (iFact == 0) {
-            for (int i = 0; i < count; i++) {
-                predSamples[start + i * step] = reference[index + i];
-            }
+            System.arraycopy(reference, index, output, start, count);
+        } else if (vector != null) {
+            vector.interpolateRow(reference, index, iFact, output, start, count);
         } else {
-            for (int i = 0; i < count; i++) {
-                predSamples[start + i * step] =
-                        ((32 - iFact) * reference[index + i] + iFact * reference[index + i + 1] + 16) >> 5;
-            }
+            interpolateRowScalar(reference, index, iFact, output, start, count);
+        }
+    }
+
+    // interpolateRow( ) without the vector kernels
+    static void interpolateRowScalar(int[] reference, int index, int iFact, int[] output, int start, int count) {
+        for (int i = 0; i < count; i++) {
+            output[start + i] = ((32 - iFact) * reference[index + i] + iFact * reference[index + i + 1] + 16) >> 5;
         }
     }
 }
