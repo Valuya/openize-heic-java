@@ -11,7 +11,7 @@
 package io.github.valuya.heic;
 
 /**
- * Converts decoded YCbCr samples to 8-bit RGB with the matrix coefficients and range of a {@link ColourDescription}.
+ * Converts decoded YCbCr or GBR samples to 8-bit RGB with the matrix coefficients and range of a {@link ColourDescription}.
  */
 final class YuvConverter {
     /**
@@ -38,12 +38,18 @@ final class YuvConverter {
 
     /** The range of the samples, and the matrix coefficients of the chroma in each RGB channel. */
     private record Coefficients(
-            boolean fullRangeFlag, double crToRed, double crToGreen, double cbToGreen, double cbToBlue) {
+            boolean fullRangeFlag,
+            boolean identity,
+            double crToRed,
+            double crToGreen,
+            double cbToGreen,
+            double cbToBlue) {
         static Coefficients of(ColourDescription colour) {
             LumaWeights weights = LumaWeights.of(colour.matrixCoefficients(), colour.colourPrimaries());
             double kg = 1 - weights.kr() - weights.kb();
             return new Coefficients(
                     colour.fullRangeFlag(),
+                    colour.matrixCoefficients() == 0,
                     2 * (1 - weights.kr()),
                     2 * weights.kr() * (1 - weights.kr()) / kg,
                     2 * weights.kb() * (1 - weights.kb()) / kg,
@@ -65,7 +71,7 @@ final class YuvConverter {
         int log2SubHeightC = sps.getSubHeightC() - 1;
         ChannelTables tables = channelTables(picture.workspace);
 
-        if (target.holdsInts() && !picture.highColorRange && !monochrome && !alphaOnly) {
+        if (target.holdsInts() && !picture.highColorRange && !monochrome && !alphaOnly && !coefficients.identity()) {
             convert8BitColour(picture, convertedBox, tables, target, log2SubWidthC, log2SubHeightC);
             return;
         }
@@ -88,9 +94,16 @@ final class YuvConverter {
                     int chromaIndex = chromaRow + (col >> log2SubWidthC);
                     int cb = sample(picture, 1, chromaIndex);
                     int cr = sample(picture, 2, chromaIndex);
-                    red = scaledLuma + tables.crToRed[cr];
-                    green = scaledLuma - tables.crToGreen[cr] - tables.cbToGreen[cb];
-                    blue = scaledLuma + tables.cbToBlue[cb];
+                    if (coefficients.identity()) {
+                        // Matrix 0 stores G, B, R in the three planes; none is a centred chroma difference.
+                        red = tables.identityChroma[cr];
+                        green = scaledLuma;
+                        blue = tables.identityChroma[cb];
+                    } else {
+                        red = scaledLuma + tables.crToRed[cr];
+                        green = scaledLuma - tables.crToGreen[cr] - tables.cbToGreen[cb];
+                        blue = scaledLuma + tables.cbToBlue[cb];
+                    }
                 }
 
                 int red8 = to8Bits(red);
@@ -267,6 +280,7 @@ final class YuvConverter {
         private final int chromaHalfRange;
         private final double chromaBitScale;
         private final double[] luma;
+        private final double[] identityChroma;
         private final double[] crToRed;
         private final double[] crToGreen;
         private final double[] cbToGreen;
@@ -283,14 +297,9 @@ final class YuvConverter {
             this.bitDepthC = bitDepthC;
             lumaOffset = 16 << (bitDepthY - 8);
             lumaBitScale = 256.0 / (1 << bitDepthY);
-            luma = new double[1 << bitDepthY];
-            for (int value = 0; value < luma.length; value++) {
-                double scaled = value;
-                if (!coefficients.fullRangeFlag()) {
-                    scaled = TV_RANGE_LUMA_SCALE * (scaled - lumaOffset);
-                }
-                luma[value] = scaled * lumaBitScale;
-            }
+            luma = componentLevels(bitDepthY, coefficients.fullRangeFlag());
+            identityChroma =
+                    coefficients.identity() ? componentLevels(bitDepthC, coefficients.fullRangeFlag()) : new double[0];
 
             chromaHalfRange = 1 << (bitDepthC - 1);
             chromaBitScale = 256.0 / (1 << bitDepthC);
@@ -309,6 +318,18 @@ final class YuvConverter {
                 cbToGreen[value] = coefficients.cbToGreen() * scaled;
                 cbToBlue[value] = coefficients.cbToBlue() * scaled;
             }
+        }
+
+        // Luma and identity-matrix RGB components use the same full or limited range, at their own bit depth.
+        private static double[] componentLevels(int bitDepth, boolean fullRangeFlag) {
+            int offset = 16 << (bitDepth - 8);
+            double bitScale = 256.0 / (1 << bitDepth);
+            double[] levels = new double[1 << bitDepth];
+            for (int value = 0; value < levels.length; value++) {
+                double scaled = fullRangeFlag ? value : TV_RANGE_LUMA_SCALE * (value - offset);
+                levels[value] = scaled * bitScale;
+            }
+            return levels;
         }
 
         // the terms of the tables, for the vector kernel that computes them instead of looking them up
